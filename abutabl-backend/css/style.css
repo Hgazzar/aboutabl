@@ -1,0 +1,41 @@
+/* .wallet_span
+{
+	position: relative;
+    bottom: 24px;
+    right: 10px;
+    background: #9288f3;
+    color: #fff;
+    padding: 4px;
+    font-size: 16px;
+}
+
+.menu-content
+{
+	display: block !important;
+}
+
+.fa-toggle-on
+{
+    color:green !important;
+    cursor: pointer;
+}
+.fa-toggle-off
+{
+    color:red !important;
+    cursor: pointer;
+}
+.asterisk_input::after
+ {
+    content:" *"; 
+    color: #e32;
+    left: 20px;
+    top: 5px;
+    position: absolute; 
+    margin: 0px 0px 0px -20px; 
+    font-size:22px; 
+    padding: 0 10px ;
+ }
+ span.invalid
+ {
+    font-size:15px;
+ } */

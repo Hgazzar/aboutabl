@@ -1,0 +1,1 @@
+{"version":3,"file":"static/css/9041.39ba621f.chunk.css","mappings":"AAAA,mBACE,qBACF,CAEA,sCACE,qBACF","sources":["styles/subjectDetails.css"],"sourcesContent":[".lesson-card__icon {\r\n  background-color: #eeeeee;\r\n}\r\n\r\n.lesson-card:hover .lesson-card__icon {\r\n  background-color: #fff;\r\n}\r\n"],"names":[],"sourceRoot":""}

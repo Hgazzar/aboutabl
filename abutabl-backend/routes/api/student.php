@@ -1,0 +1,91 @@
+<?php
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+// use App\Http\Controllers\Api\AuthApiController;
+// use App\Http\Controllers\App\Http\Controllers\Api\AuthApiController;
+
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+|
+| Here is where you can register API routes for your application. These
+| routes are loaded by the RouteServiceProvider within a group which
+| is assigned the "api" middleware group. Enjoy building your API!
+|
+*/
+
+// Route::middleware('auth:api')->get('/user', function (Request $request) {
+//     return $request->user();
+// });
+
+
+// Route::group([ 'middleware' => ['users-api' , 'checkSecretApi' , 'changeLanguage'], 'namespace' => 'Api'], function () {
+Route::group([ 'middleware' => ['api' , 'checkSecretApi' , 'changeLanguage'] , 'namespace' => 'Api\StudentControllers'], function () {
+   
+    Route::post('/login', 'Auth\AuthApiController@login');
+    Route::post('/register', 'Auth\AuthApiController@register');
+    Route::post('/verification_code', 'Auth\AuthApiController@Verification');
+    Route::post('/forgetPassword', 'Auth\AuthApiController@ForgetPassword');  
+    Route::post('/setPassword', 'Auth\AuthApiController@setPassword');
+       
+    
+});
+
+Route::group([ 'middleware' => ['api' , 'checkSecretApi' , 'changeLanguage','checkStudentToken:user-api'] , 'namespace' => 'Api\StudentControllers'], function () {
+    
+    ///Subjects
+    Route::get('/getSubjects','SubjectController@index');
+    Route::get('/certificates','SubjectController@earnedCertificates');
+    Route::get('/viewSubject/{id}','SubjectController@show');
+    Route::get('/subjects/{id}/certificate','SubjectController@certificatePreview');
+    Route::get('/quizesList/{id}','SubjectController@quizesList');
+    Route::get('/subjectUnits/{id}','SubjectController@subjectUnits');
+    Route::get('/subjectGames/{id}','SubjectController@subjectGames');
+    Route::get('/lessons/show/{id}','SubjectController@lessonView');
+    Route::get('/games/show/{id}','SubjectController@gamesView');
+    Route::get('/quizes/show/{id}','SubjectController@quizesView');
+
+
+    ///Tickets
+    Route::post('/tickets/create','TicketController@store');
+
+    ///Profile
+    Route::get('/profile','Auth\AuthApiController@getProfile');
+    Route::get('/progress','SubjectController@getProgressOverview');
+    Route::post('/changePassword','Auth\AuthApiController@updatePassword');
+    Route::post('/editProfile','Auth\AuthApiController@editProfile');
+  	///Auth
+    Route::post('/logout','Auth\AuthApiController@logout');
+
+
+    ////todo
+    Route::get('/todaoList','SubjectController@TodoList');
+    Route::post('/todo/markOpened','SubjectController@markTodoOpened');
+
+
+       ////NOTIFICATION
+    Route::get('/notifications/list','NotificationsController@index');
+    Route::post('/notifications/update_read/{id}','NotificationsController@update');
+    Route::delete('/notifications/delete_all','NotificationsController@delete_all');
+
+    Route::group(['middleware' => ['ensureInteractiveGamesEnabled']], function () {
+        Route::get('/interactive-games', 'InteractiveGamesStudentController@index');
+        Route::get('/interactive-games/{id}', 'InteractiveGamesStudentController@show');
+        Route::get('/interactive-games/{id}/questions', 'InteractiveGamesStudentController@questions');
+        Route::post('/interactive-games/answer', 'InteractiveGamesStudentController@answerQuestion');
+        Route::post('/interactive-games/{id}/password', 'InteractiveGamesStudentController@savePassword');
+        Route::get('/interactive-games/{id}/hacking', 'InteractiveGamesStudentController@showPasswordHacking');
+        Route::post('/interactive-games/hacking', 'InteractiveGamesStudentController@savePasswordHacking');
+        Route::get('/interactive-games/{id}/gifts', 'InteractiveGamesStudentController@gifts');
+        Route::post('/interactive-games/{id}/gifts/pull', 'InteractiveGamesStudentController@pullGift');
+        Route::post('/interactive-games/gifts', 'InteractiveGamesStudentController@saveGift');
+        Route::get('/interactive-games/{id}/facts', 'InteractiveGamesStudentController@facts');
+        Route::get('/interactive-games/{id}/answer-list', 'InteractiveGamesStudentController@answerList');
+    });
+
+});
+
+
+

@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<package version="3.0" xml:lang="en" unique-identifier="pub-id" prefix="cc: http://creativecommons.org/ns# rendition: http://www.idpf.org/vocab/rendition/# kotobee: https://www.kotobee.com/vocab# ibooks: http://vocabulary.itunes.apple.com/rdf/ibooks/vocabulary-extensions-1.0/" xmlns="http://www.idpf.org/2007/opf">
+    <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+
+        <dc:title id="title">تَـقْـــدِيـــمُ (لُغَـــتِــي اَلْـعَـــرَبِـيَّـة)</dc:title>
+
+        <dc:identifier id="pub-id">urn:uuid:b56cd597-441b-320b-998c-c012da0394f0</dc:identifier>
+        <meta name="cover" content="img0" />
+
+        <dc:creator>N/A</dc:creator>
+        <dc:publisher>N/A</dc:publisher>
+        <dc:rights>No rights specified</dc:rights>
+        <dc:language>ar</dc:language>
+        <dc:description>No description available</dc:description>
+        <meta property="dcterms:modified">2024-03-14T16:28:30Z</meta>
+        <meta property="rendition:layout">pre-paginated</meta>
+        <meta property="rendition:orientation">auto</meta>
+        <meta property="ibooks:interactive">true</meta>
+        <meta property="ibooks:specified-fonts">false</meta>
+        <meta property="kotobee:version">1.8.13</meta>
+        <meta property="kotobee:build">3191</meta>
+
+        <!-- DAISY requirements -->
+        <meta property="schema:accessMode">textual</meta>
+        <meta property="schema:accessMode">visual</meta>
+        <meta property="schema:accessModeSufficient">textual, visual</meta>
+        <meta property="schema:accessibilityFeature">structuralNavigation</meta> 
+        <meta property="schema:accessibilityHazard">none</meta> 
+        <meta property="schema:accessibilitySummary">The publication contains structural and page navigation.</meta>
+
+
+    </metadata>
+    <manifest>
+        <item id="html0" href="xhtml/epubto6jb/OEBPS/pre_k_interactive-1.xhtml" media-type="application/xhtml+xml"/>
+<item id="html1" href="xhtml/epubto6jb/OEBPS/pre_k_interactive-2.xhtml" media-type="application/xhtml+xml"/>
+<item id="html2" href="xhtml/epubto6jb/OEBPS/pre_k_interactive-3.xhtml" media-type="application/xhtml+xml"/>
+<item id="html3" href="xhtml/epubto6jb/OEBPS/pre_k_interactive-4.xhtml" media-type="application/xhtml+xml"/>
+<item id="contents" href="xhtml/raw/contents.xhtml"  properties="nav" media-type="application/xhtml+xml"/>
+<item id="ncx" href="xhtml/raw/contents.ncx"  media-type="application/x-dtbncx+xml"/>
+<item id="img0" href="imgs/006.jpg" properties="cover-image" media-type="image/jpeg"/>
+<item id="img1" href="xhtml/epubto6jb/OEBPS/image/00.jpg" media-type="image/jpeg"/>
+<item id="img2" href="xhtml/epubto6jb/OEBPS/image/002.jpg" media-type="image/jpeg"/>
+<item id="img3" href="xhtml/epubto6jb/OEBPS/image/003.jpg" media-type="image/jpeg"/>
+<item id="img4" href="xhtml/epubto6jb/OEBPS/image/004.jpg" media-type="image/jpeg"/>
+<item id="img5" href="xhtml/epubto6jb/OEBPS/image/005.jpg" media-type="image/jpeg"/>
+<item id="img6" href="xhtml/epubto6jb/OEBPS/image/006.jpg" media-type="image/jpeg"/>
+<item id="img7" href="xhtml/epubto6jb/OEBPS/image/007.jpg" media-type="image/jpeg"/>
+<item id="img8" href="xhtml/epubto6jb/OEBPS/image/008.jpg" media-type="image/jpeg"/>
+<item id="img9" href="xhtml/epubto6jb/OEBPS/image/10.png" media-type="image/png"/>
+<item id="img10" href="xhtml/epubto6jb/OEBPS/image/11.png" media-type="image/png"/>
+<item id="img11" href="xhtml/epubto6jb/OEBPS/image/12.png" media-type="image/png"/>
+<item id="img12" href="xhtml/epubto6jb/OEBPS/image/13.png" media-type="image/png"/>
+<item id="img13" href="xhtml/epubto6jb/OEBPS/image/14.png" media-type="image/png"/>
+<item id="img14" href="xhtml/epubto6jb/OEBPS/image/15.png" media-type="image/png"/>
+<item id="img15" href="xhtml/epubto6jb/OEBPS/image/16.png" media-type="image/png"/>
+<item id="img16" href="xhtml/epubto6jb/OEBPS/image/17.png" media-type="image/png"/>
+<item id="img17" href="xhtml/epubto6jb/OEBPS/image/18.png" media-type="image/png"/>
+<item id="img18" href="xhtml/epubto6jb/OEBPS/image/19.png" media-type="image/png"/>
+<item id="img19" href="xhtml/epubto6jb/OEBPS/image/2.png" media-type="image/png"/>
+<item id="img20" href="xhtml/epubto6jb/OEBPS/image/20.png" media-type="image/png"/>
+<item id="img21" href="xhtml/epubto6jb/OEBPS/image/21.png" media-type="image/png"/>
+<item id="img22" href="xhtml/epubto6jb/OEBPS/image/22.png" media-type="image/png"/>
+<item id="img23" href="xhtml/epubto6jb/OEBPS/image/23.png" media-type="image/png"/>
+<item id="img24" href="xhtml/epubto6jb/OEBPS/image/24.png" media-type="image/png"/>
+<item id="img25" href="xhtml/epubto6jb/OEBPS/image/25.png" media-type="image/png"/>
+<item id="img26" href="xhtml/epubto6jb/OEBPS/image/26.png" media-type="image/png"/>
+<item id="img27" href="xhtml/epubto6jb/OEBPS/image/27.png" media-type="image/png"/>
+<item id="img28" href="xhtml/epubto6jb/OEBPS/image/28.png" media-type="image/png"/>
+<item id="img29" href="xhtml/epubto6jb/OEBPS/image/29.png" media-type="image/png"/>
+<item id="img30" href="xhtml/epubto6jb/OEBPS/image/3.png" media-type="image/png"/>
+<item id="img31" href="xhtml/epubto6jb/OEBPS/image/30.png" media-type="image/png"/>
+<item id="img32" href="xhtml/epubto6jb/OEBPS/image/31.png" media-type="image/png"/>
+<item id="img33" href="xhtml/epubto6jb/OEBPS/image/32.png" media-type="image/png"/>
+<item id="img34" href="xhtml/epubto6jb/OEBPS/image/35.png" media-type="image/png"/>
+<item id="img35" href="xhtml/epubto6jb/OEBPS/image/36.png" media-type="image/png"/>
+<item id="img36" href="xhtml/epubto6jb/OEBPS/image/4.png" media-type="image/png"/>
+<item id="img37" href="xhtml/epubto6jb/OEBPS/image/43.png" media-type="image/png"/>
+<item id="img38" href="xhtml/epubto6jb/OEBPS/image/44.png" media-type="image/png"/>
+<item id="img39" href="xhtml/epubto6jb/OEBPS/image/45.png" media-type="image/png"/>
+<item id="img40" href="xhtml/epubto6jb/OEBPS/image/47.png" media-type="image/png"/>
+<item id="img41" href="xhtml/epubto6jb/OEBPS/image/5.png" media-type="image/png"/>
+<item id="img42" href="xhtml/epubto6jb/OEBPS/image/52.png" media-type="image/png"/>
+<item id="img43" href="xhtml/epubto6jb/OEBPS/image/53.png" media-type="image/png"/>
+<item id="img44" href="xhtml/epubto6jb/OEBPS/image/54.png" media-type="image/png"/>
+<item id="img45" href="xhtml/epubto6jb/OEBPS/image/55.png" media-type="image/png"/>
+<item id="img46" href="xhtml/epubto6jb/OEBPS/image/56.png" media-type="image/png"/>
+<item id="img47" href="xhtml/epubto6jb/OEBPS/image/57.png" media-type="image/png"/>
+<item id="img48" href="xhtml/epubto6jb/OEBPS/image/58.png" media-type="image/png"/>
+<item id="img49" href="xhtml/epubto6jb/OEBPS/image/59.png" media-type="image/png"/>
+<item id="img50" href="xhtml/epubto6jb/OEBPS/image/6.png" media-type="image/png"/>
+<item id="img51" href="xhtml/epubto6jb/OEBPS/image/60.png" media-type="image/png"/>
+<item id="img52" href="xhtml/epubto6jb/OEBPS/image/61.png" media-type="image/png"/>
+<item id="img53" href="xhtml/epubto6jb/OEBPS/image/62.png" media-type="image/png"/>
+<item id="img54" href="xhtml/epubto6jb/OEBPS/image/63.png" media-type="image/png"/>
+<item id="img55" href="xhtml/epubto6jb/OEBPS/image/64.png" media-type="image/png"/>
+<item id="img56" href="xhtml/epubto6jb/OEBPS/image/65.png" media-type="image/png"/>
+<item id="img57" href="xhtml/epubto6jb/OEBPS/image/66.png" media-type="image/png"/>
+<item id="img58" href="xhtml/epubto6jb/OEBPS/image/67.png" media-type="image/png"/>
+<item id="img59" href="xhtml/epubto6jb/OEBPS/image/68.png" media-type="image/png"/>
+<item id="img60" href="xhtml/epubto6jb/OEBPS/image/7.png" media-type="image/png"/>
+<item id="img61" href="xhtml/epubto6jb/OEBPS/image/77.png" media-type="image/png"/>
+<item id="img62" href="xhtml/epubto6jb/OEBPS/image/79.png" media-type="image/png"/>
+<item id="img63" href="xhtml/epubto6jb/OEBPS/image/8.png" media-type="image/png"/>
+<item id="img64" href="xhtml/epubto6jb/OEBPS/image/82.png" media-type="image/png"/>
+<item id="img65" href="xhtml/epubto6jb/OEBPS/image/9.png" media-type="image/png"/>
+<item id="aud0" href="xhtml/epubto6jb/OEBPS/audio/alef_letter.mp3" media-type="audio/mpeg"/>
+<item id="aud1" href="xhtml/epubto6jb/OEBPS/audio/apples.mp3" media-type="audio/mpeg"/>
+<item id="aud2" href="xhtml/epubto6jb/OEBPS/audio/baa_letter.mp3" media-type="audio/mpeg"/>
+<item id="aud3" href="xhtml/epubto6jb/OEBPS/audio/butterfly_ar.mp3" media-type="audio/mpeg"/>
+<item id="aud4" href="xhtml/epubto6jb/OEBPS/audio/cow.mp3" media-type="audio/mpeg"/>
+<item id="aud5" href="xhtml/epubto6jb/OEBPS/audio/crocodile.mp3" media-type="audio/mpeg"/>
+<item id="aud6" href="xhtml/epubto6jb/OEBPS/audio/duck_ar.mp3" media-type="audio/mpeg"/>
+<item id="aud7" href="xhtml/epubto6jb/OEBPS/audio/fish_ar.mp3" media-type="audio/mpeg"/>
+<item id="aud8" href="xhtml/epubto6jb/OEBPS/audio/fox_ar.mp3" media-type="audio/mpeg"/>
+<item id="aud9" href="xhtml/epubto6jb/OEBPS/audio/lion_ar.mp3" media-type="audio/mpeg"/>
+<item id="aud10" href="xhtml/epubto6jb/OEBPS/audio/pineapple.mp3" media-type="audio/mpeg"/>
+<item id="aud11" href="xhtml/epubto6jb/OEBPS/audio/rabbit.mp3" media-type="audio/mpeg"/>
+<item id="aud12" href="xhtml/epubto6jb/OEBPS/audio/snake_ar.mp3" media-type="audio/mpeg"/>
+<item id="aud13" href="xhtml/epubto6jb/OEBPS/audio/taa_letter.mp3" media-type="audio/mpeg"/>
+<item id="aud14" href="xhtml/epubto6jb/OEBPS/audio/thaaa.mp3" media-type="audio/mpeg"/>
+
+    </manifest>
+    <spine toc="ncx" page-progression-direction="rtl">
+        <itemref idref="html0" properties="rendition:layout-pre-paginated"/>
+<itemref idref="html1" properties="rendition:layout-pre-paginated"/>
+<itemref idref="html2" properties="rendition:layout-pre-paginated"/>
+<itemref idref="html3" properties="rendition:layout-pre-paginated"/>
+
+    </spine>
+
+    
+    
+</package>

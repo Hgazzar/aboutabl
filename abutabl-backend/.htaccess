@@ -1,0 +1,17 @@
+# <IfModule mod_rewrite.c>
+#         RewriteEngine On
+#          RewriteRule ^(.*)$ public/ [L]
+#     </IfModule>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # Handle Authorization Header before redirecting
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+    
+    # Redirect to public folder
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
+
+
