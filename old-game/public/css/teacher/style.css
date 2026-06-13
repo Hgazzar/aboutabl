@@ -1,0 +1,716 @@
+:root {
+    --main-color: #2196f3;
+    --main-color-alt: #1787E0;
+}
+
+* {
+    --webkit-box-sizing: border-box;
+    --moz-box-sizing: border-box;
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+
+}
+
+body {
+    /*background-color: #0f1a2c;*/
+    background-image: url('../../assets/images/gif.gif');
+    font-family: "Raleway", serif;
+    overflow-x: hidden;
+    background-position: center center;
+    /*background-repeat: no-repeat;*/
+    background-size: 100% 100%;
+    min-height: 100vh;
+}
+
+.container {
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 15px;
+    padding-right: 15px;
+    /* margin: 0; */
+    /* padding: 0; */
+}
+
+/* small */
+@media (min-width: 768px) {
+    .container {
+        width: 750px;
+    }
+}
+
+/* medium */
+@media (min-width: 992px) {
+    .container {
+        width: 970px;
+    }
+}
+
+/* large */
+@media (min-width: 1200px) {
+    .container {
+        width: 1170px
+    }
+}
+
+ul {
+    list-style: none;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+.header {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 15px 0;
+    color: #fff;
+    border-bottom: 0.5px solid rgba(255, 255, 255, 0.20);
+    background: rgba(0, 0, 0, 0.01);
+    backdrop-filter: blur(18px);
+}
+
+.contentHeader {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+}
+
+.contentHeader h1 {
+    font-size: 40px;
+    font-weight: 800;
+    text-transform: uppercase;
+    text-align: center;
+    color: #fff;
+}
+
+.contentHeader span {
+    font-size: 15px;
+    text-align: center;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+main {
+    width: 100%;
+    min-height: calc(100vh - 120px);
+    display: flex !important;
+    /* justify-content: center; */
+    align-items: center;
+    flex-direction: column;
+    padding-top: 20px;
+}
+
+.mainGames {
+    width: 100%;
+    min-height: calc(100vh - 130px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.boxGame {
+    text-decoration: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    padding: 30px 16px;
+    background-color: #ebd0c7;
+    border-radius: 16px;
+    border: 2px solid #bb857f;
+    cursor: pointer;
+    transition: transform 0.3s ease;
+}
+
+.boxGame img {
+    width: 142px;
+    height: 97px;
+}
+
+.boxGame span {
+    color: #662F19;
+    font-size: 17px;
+    font-weight: 700;
+    text-align: center;
+}
+
+.bounce-animation {
+    animation: bounce 1s ease;
+}
+
+/* Keyframes for bounce effect */
+@keyframes bounce {
+    0% {
+        transform: translateY(0);
+    }
+
+    30% {
+        transform: translateY(-50px);
+    }
+
+    100% {
+        transform: translateY(100vh);
+    }
+}
+
+/* start wait page */
+.headerWait {
+    padding: 0;
+}
+
+.headerWait .container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+}
+
+.headerWait .logo {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+}
+
+.headerWait .logo img {
+    width: 42px;
+    height: 29px;
+}
+
+.startButton {
+    position: relative;
+}
+
+.startButton a {
+    text-decoration: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 261px;
+    height: 78px;
+    background: url('../../assets/images/bgbtn.png');
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+
+    color: #008024;
+    font-size: 32px;
+    font-weight: 600;
+    text-align: center;
+}
+
+.beforeLine,
+.afterLine {
+    content: '';
+    position: absolute;
+    top: 0;
+
+}
+
+.beforeLine {
+    left: -10px;
+}
+
+.afterLine {
+    right: -10px;
+}
+
+.endBtn {
+    border-radius: 3px;
+    background: #EC0B43;
+    padding: 5px 20px;
+    outline: none;
+    border: none;
+    color: #fff;
+    text-align: center;
+    font-size: 15px;
+    font-weight: 400;
+    cursor: pointer;
+}
+
+.mainWaiting {
+    border: 0px solid #C3C3C3;
+    background: rgba(255, 255, 255, 0.10);
+    backdrop-filter: blur(17.5px);
+    padding: 15px;
+    width: 511px;
+    color: #fff;
+    margin: auto;
+}
+
+.joinBox {
+    border: 0px solid #C3C3C3;
+    background: rgba(255, 255, 255, 0.10);
+    backdrop-filter: blur(17.5px);
+    padding: 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+}
+
+.joinBox div:not(:last-child) {
+    padding-bottom: 25px;
+    border-bottom: 1px solid #fff;
+}
+
+.roomLink,
+.roomCode {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.roomLink span,
+.roomCode span {
+    color: #B4B4B4;
+    font-family: "Poppins", serif;
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 400;
+}
+
+.roomLink input,
+.roomCode input {
+    color: #FFF;
+    text-align: center;
+    font-size: 20px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+    background: transparent;
+    border: none;
+    outline: none;
+}
+
+.roomCode input {
+    font-family: "Poppins", serif;
+    letter-spacing: 20px;
+    font-size: 20px;
+}
+
+.copyBtn {
+    border: none;
+    outline: none;
+    padding: 8px;
+    border-radius: 3px;
+    opacity: 0.52;
+    background: #919191;
+    cursor: pointer;
+    color: #fff;
+}
+
+.waitTitle {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.waitTitle h4 {
+    color: #FFF;
+    text-align: center;
+    font-size: 25.94px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+}
+
+.studentNameCardList {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}
+
+.studentNameCard {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    border: 1px solid #C3C3C3;
+    background: rgba(255, 255, 255, 0.10);
+    backdrop-filter: blur(17.5px);
+    border-radius: 12px;
+    padding: 10px 16px;
+    margin-top: 20px;
+}
+
+.studentNameCard h5 {
+    color: #FFF;
+    text-align: center;
+    font-size: 12px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+    text-transform: uppercase;
+}
+
+/* end wait page */
+.person-icon {
+    width: 28.31px;
+    height: 28.31px;
+    flex-shrink: 0;
+    object-fit: cover;
+    border-radius: 50px;
+}
+
+/* start statistics list */
+.timer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}
+
+.timer .time span {
+    color: #FFF;
+    font-variant-numeric: lining-nums tabular-nums;
+    font-feature-settings: 'case' on;
+    font-family: "Poppins", serif;
+    font-size: 18.37px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: 140%;
+    /* 25.719px */
+}
+
+.headerStatistics {
+    padding: 16px 0;
+}
+
+.listpracticipants {
+    border-radius: 8.072px;
+    border: 0px solid #C3C3C3;
+    background: rgba(255, 255, 255, 0.10);
+    backdrop-filter: blur(23px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 0;
+    width: 600px;
+}
+
+.numpracticipants {
+    border-radius: 8px 8px 0px 0px;
+    border: 0px solid #C3C3C3;
+    background: rgba(255, 255, 255, 0.10);
+    backdrop-filter: blur(23px);
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 0;
+}
+
+.numpracticipants span {
+    color: #FFF;
+    text-align: center;
+    font-family: "Poppins";
+    font-size: 20px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: normal;
+}
+
+.ListStudents {
+    padding: 30px;
+    width: 100%;
+}
+
+.ListStudents table {
+    width: 100%;
+}
+
+.ListStudents table tr {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.ListStudents table thead td {
+    color: #FFF;
+    text-align: center;
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: normal;
+    text-transform: uppercase;
+}
+
+.ListStudents table tbody tr {
+    border-radius: 8px;
+    border: 0px solid #C3C3C3;
+    background: rgba(255, 255, 255, 0.10);
+    backdrop-filter: blur(21px);
+    padding: 16px;
+    margin: 20px 0;
+}
+
+.ListStudents table tbody tr .personData {
+    display: flex !important;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+}
+
+.ListStudents table tbody tr td {
+    text-transform: uppercase;
+    color: #FFF;
+    text-align: center;
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+    text-transform: uppercase;
+}
+
+.personScore span {
+    font-family: "Poppins";
+}
+
+/* end statistics list */
+
+/* start facts style */
+.header-facts {
+    padding: 20px 0 !important;
+}
+
+.mainFacts {
+    margin-top: 200px;
+    /* border: 0.5px solid rgba(255, 255, 255, 0.20); */
+    background: rgba(0, 0, 0, 0.01);
+    /*backdrop-filter: blur(18px);*/
+    /* height: 100vh; */
+}
+
+.titleFactHeader {
+    color: #FFF;
+    text-align: center;
+    font-family: "Poppins";
+    font-size: 24;
+    font-style: normal;
+    font-weight: 400;
+    line-height: normal;
+}
+
+.mainDegrees {
+    height: 100%;
+    position: absolute !important;
+    bottom: 0;
+    padding: 0 !important;
+    /* min-height: auto; */
+}
+
+.studentsRateList {
+    display: flex;
+    justify-content: center;
+    align-items: end;
+    gap: 10px;
+}
+
+
+
+.studentRatecard {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+}
+
+.studentInfo {
+    position: relative;
+    width: 169px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.studentInfo .person-facts-icon {
+    width: 120px;
+    height: 130px;
+    flex-shrink: 0;
+}
+
+.studentInfo h2 {
+    border-radius: 41px;
+    background: #15E0F6;
+    padding: 10px 15px !important;
+    color: #FFF;
+    text-align: center;
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+    position: absolute;
+    bottom: 0;
+}
+
+.studentDegree {
+    background: rgba(217, 217, 217, 0.38);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 30px;
+    width: 260px;
+    padding: 20px 0 80px;
+}
+
+.studentDegree h3 {
+    color: #15E0F6;
+    text-align: center;
+    font-family: "Poppins";
+    font-size: 39.983px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+}
+
+.studentDegree .Accuracy {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: #FFF;
+    text-align: center;
+    font-family: "Poppins";
+    font-size: 22px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: normal;
+}
+
+.st .studentInfo h2 {
+    background: #FF9B00 !important;
+}
+
+.rd .studentInfo h2 {
+    background: #2B2 !important;
+}
+
+.st .studentDegree h3 {
+    color: #FF9B00 !important;
+}
+
+.rd .studentDegree h3 {
+    color: #2B2 !important;
+}
+
+.nd .studentDegree {
+    gap: 50px !important;
+    padding-bottom: 100px !important;
+}
+
+.st .studentDegree {
+    gap: 115px !important;
+    padding-bottom: 160px !important;
+}
+
+.stTag {
+    position: absolute;
+    top: -50px;
+}
+
+.stTag img {
+    width: 70px;
+    /*cursor: pointer;*/
+}
+
+
+@media(max-width:994px) {
+    .mainDegrees {
+        position: relative !important;
+    }
+
+    .studentsRateList {
+        flex-direction: column !important;
+    }
+
+    .studentInfo .person-facts-icon {
+        width: 80px !important;
+        height: 80px !important;
+    }
+
+    .studentInfo h2 {
+        padding: 4px 10px !important;
+    }
+
+    .st {
+        order: 1;
+    }
+
+    .nd {
+        order: 2;
+    }
+
+    .rd {
+        order: 3;
+    }
+
+    .mainDegrees {
+        padding-top: 80px !important;
+    }
+}
+
+/* style.css */
+
+/* تحديد الأنيميشن */
+@keyframes slideUp {
+    0% {
+        transform: translateY(100%);
+        /* يبدأ العنصر من أسفل */
+        opacity: 0;
+        /* يبدأ العنصر شفاف */
+    }
+
+    100% {
+        transform: translateY(0);
+        /* يصل العنصر إلى مكانه الطبيعي */
+        opacity: 1;
+        /* يصبح العنصر غير شفاف */
+    }
+}
+
+/* تطبيق الأنيميشن على العناصر */
+.st,
+.nd,
+.rd {
+    animation: slideUp 1s ease-out forwards;
+    /* مدة الأنيميشن، نوع التوقيت، والحفاظ على الحالة النهائية */
+    opacity: 0;
+    /* التأكد من أن العنصر يبدأ بشفافية */
+}
+
+.musicBtn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 24px;
+    color: #000;
+    transition: transform 0.3s ease;
+}
+
+.musicBtn:hover {
+    transform: scale(1.1);
+}
+
+/* end facts style */
