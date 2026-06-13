@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  client:
+    container_name: client
+    build:
+      context: .
+      dockerfile: .docker/node/Dockerfile
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/usr/src/app
+    environment:
+      - ENV_MODE=dev
+  # runner:
+  #   image: gitlab/gitlab-runner:latest
+  #   container_name: jadwalh-frontend-runner-container
+  #   volumes:
+  #     - .docker/runner/config:/etc/gitlab-runner/
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #   environment:
+  #     - RUNNER_NAME=${RUNNER_NAME}
+  #     - CI_SERVER_URL=${CI_SERVER_URL}
+  #     - REGISTRATION_TOKEN=${REGISTRATION_TOKEN}

@@ -1,0 +1,78 @@
+.accordion__panel .accordionLesson {
+	padding: 0px !important;
+	/* background-color: aqua; */
+}
+
+.accordion__button .accordionLesson {
+	padding: 2px !important;
+}
+
+.accordionLessonContainer {
+	width: 290px;
+	height: 90vh;
+	border: 1px solid #f4f4f4;
+	overflow: scroll;
+}
+
+.accordion__item {
+	position: relative;
+}
+.accordionLesson .box_accordion {
+	padding: 10px 10px 10px 45px;
+	background-color: #f4f4f4;
+}
+.accordionLesson .accordion__button:before {
+	position: absolute;
+	top: 30px;
+	right: 15px;
+	margin-top: -2px;
+	color: #ffad0d;
+}
+.subLesson {
+	/* padding: 20px 20px 20px 30px; */
+	border-bottom: 2px solid #f4f4f4;
+	align-items: center;
+}
+
+.activeLesson {
+	background-color: #f3fffa;
+	/* margin-top: 20px; */
+	border-left: 3px solid #1ebba3;
+}
+.absoluteIcon {
+	position: absolute;
+	left: 290px;
+	z-index: 28;
+}
+.absoluteIconAfter {
+	z-index: 28;
+
+	position: absolute;
+}
+
+.content {
+	width: 90%;
+	height: 80%;
+	background-color: #f3fffa;
+	position: relative;
+}
+.contentShow {
+	width: 100%;
+	height: 80%;
+	background-color: #f3fffa;
+	position: relative;
+}
+
+.content img {
+	/* width: 100px;
+	height: 100px; */
+	position: absolute;
+	/* top: 50%;
+	left: 50%; */
+	/* transform: translateX(-50%) translateY(-50%); */
+}
+
+.accordionGames {
+	border-bottom: 2px solid #f4f4f4;
+	padding: 20px;
+}

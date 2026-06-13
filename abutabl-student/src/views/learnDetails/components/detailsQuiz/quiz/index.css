@@ -1,0 +1,14 @@
+.mantine-gszoqu {
+	border: none !important;
+}
+input[type='checkbox'] {
+	width: 20px;
+	height: 20px;
+	margin-top: 60px;
+	border: 0.25rem solid green;
+	border-radius: 0.5rem;
+	accent-color: green;
+}
+.mantine-Input-input {
+	background-color: transparent;
+}
