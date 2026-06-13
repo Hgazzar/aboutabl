@@ -1,0 +1,108 @@
+{
+  "DASHBOARD": "Dashboard",
+
+  "subjectThumbnail": "Subject thumbnail",
+  "thisCourseIncludes": "This course include",
+  "hoursOnDemandVideos": "hours on demand videos",
+  "downloadableResources": "downloadable resources",
+  "lessons": "Lessons",
+  "article": "Article",
+  "quiz": "Quiz",
+  "game": "Game",
+  "workSheets": "Work sheets",
+  "basicInfo": "Basic info",
+  "about": "About",
+  "syllabus": "Syllabus",
+  "noContentToDisplay": "No content to display!",
+
+  "fileName": "File name",
+  "type": "Type",
+  "createdAt": "Created at",
+  "createdBy": "Created by",
+  "units": "Units",
+  "items": "items",
+  "editUnitName": "Edit unit name",
+  "editActivityName": "Edit activity name",
+  "lessonsAdd": {
+    "addLesson": "Add Lesson",
+    "AddNew": "Add New Lesson",
+    "LessonNameAr": "Lesson Name [in Arabic] *",
+    "LessonNameEn": "Lesson Name [in English] *"
+  },
+  "changePrivacy": "Change Privacy",
+  "deleteUnit": "Delete unit",
+  "deleteActivity": "Delete Activity",
+  "startCourseText": "Start putting together your course by creating units, add videos, audios, documents, presentations, resources and quizzes",
+  "forTeacher": "For Teacher",
+
+  "placeholder": {
+    "noNameAdded": "No {{name}} added yet",
+    "noData": "No data to display",
+    "text": "{{text}}"
+  },
+
+  "modalUnit": {
+    "addNewUnit": "Add New unit",
+    "editUnit": "Edit unit",
+    "unitNameEnglish": "Unit name [ English ]",
+    "unitNameArabic": "Unit name [ Arabic ]",
+    "discard": "Discard",
+    "save": "Save",
+    "englishPlaceholder": "ex (unit 1)",
+    "arabicPlaceholder": "ex )الوحدة الأولى("
+  },
+  "activity": {
+    "addNewActivity": "Add New Activity",
+    "editActivity": "Edit Activity",
+    "activityNameEnglish": "Activity name [ English ]",
+    "activityNameArabic": "Activity name [ Arabic ]",
+    "discard": "Discard",
+    "save": "Save",
+    "englishPlaceholder": "ex (activity 1)",
+    "arabicPlaceholder": "مثال )النشاط الأول("
+  },
+
+  "quizzes": "Quizzes",
+  "games": "Games",
+  "worksheets": "Worksheets",
+  "schools": "Schools",
+  "overview": "Overview",
+
+  "addquiz": "Add Quiz",
+  "quizname": "Quiz name",
+  "clearfilters": "Clear filters",
+  "quiz_code": "Quiz code",
+  "creation_date": "Creation date",
+  "due_date": "Due date",
+
+  "add_new_game": "Add new game",
+  "game_name": "Game name",
+
+  "addNewResource": "Add new resource",
+  "clearFilters": "Clear filters",
+  "worksheetName": "Worksheet name",
+
+  "school_name": "School name",
+  "email": "Email",
+  "contact_number": "Contact Number",
+  "address": "Address",
+  "government": "Government",
+  "city": "City",
+  "active": "Active",
+  "inactive": "Inactive",
+  "assign_school": "Assign school",
+  "edit": "Edit",
+  "delete": "Delete",
+  "filter": "Filter",
+  "status": "Status",
+  "action": "Action",
+  "clear_filters": "Clear filters",
+
+  "subjectstatus": "Subject status",
+  "activities": "Activities",
+  "scoretopass": "Score To Pass",
+
+  "downloadTemplate": "Download Blank Excel Template",
+  "downloadQuizzesDemo": "Download Quizzes demo (sample)",
+  "uploadQuizzes": "Upload File"
+}

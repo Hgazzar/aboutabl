@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>دليل قالب بنك الأسئلة - أمثلة عملية</title>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card: #fff;
+      --primary: #0f766e;
+      --primary-light: #ccfbf1;
+      --accent: #ea580c;
+      --border: #e2e8f0;
+      --text: #1e293b;
+      --green: #059669;
+      --blue: #2563eb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Tajawal', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      padding: 2rem;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    h1 {
+      color: var(--primary);
+      font-weight: 800;
+      font-size: 1.75rem;
+      border-bottom: 3px solid var(--primary);
+      padding-bottom: 0.5rem;
+    }
+    h2 {
+      color: var(--primary);
+      font-weight: 700;
+      font-size: 1.35rem;
+      margin-top: 2rem;
+    }
+    .card {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin: 1rem 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      border: 1px solid var(--border);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.5rem 0.75rem;
+      text-align: right;
+    }
+    th {
+      background: var(--primary);
+      color: #fff;
+      font-weight: 700;
+    }
+    td.col-header { background: var(--primary-light); font-weight: 700; color: var(--primary); }
+    .col-letter { font-family: monospace; background: #f1f5f9; }
+    .example-row { background: #fefce8; }
+    .matching-diagram {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 2rem;
+      flex-wrap: wrap;
+      margin: 1.5rem 0;
+    }
+    .matching-col {
+      border: 2px solid var(--primary);
+      border-radius: 8px;
+      padding: 1rem 1.5rem;
+      min-width: 200px;
+    }
+    .matching-col h4 {
+      margin: 0 0 0.75rem 0;
+      color: var(--primary);
+      font-size: 1rem;
+    }
+    .matching-col ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .matching-col li {
+      padding: 0.4rem 0;
+      border-bottom: 1px dashed var(--border);
+    }
+    .arrow-between {
+      font-size: 1.5rem;
+      color: var(--accent);
+    }
+    .note {
+      background: #fef3c7;
+      border-right: 4px solid var(--accent);
+      padding: 0.75rem 1rem;
+      margin: 1rem 0;
+      border-radius: 0 8px 8px 0;
+    }
+    .success { background: #d1fae5; border-color: var(--green); }
+    .small { font-size: 0.85rem; color: #64748b; }
+    .mcq-example { background: #eff6ff; border: 1px solid #93c5fd; border-radius: 8px; padding: 1rem; }
+  </style>
+</head>
+<body>
+
+  <h1>📋 دليل قالب بنك الأسئلة (Questions Bank Template)</h1>
+  <p class="small">أمثلة عملية وتوضيح للحقول — خاصة أسئلة التوصيل (Matching)</p>
+
+  <h2>١) أعمدة ملف الإكسل (بالترتيب)</h2>
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th>العمود</th>
+          <th>اسم الحقل</th>
+          <th>الوصف</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="col-letter">A</td><td>subject</td><td>رقم المادة (معرّف)</td></tr>
+        <tr><td class="col-letter">B</td><td>unit</td><td>رقم الوحدة</td></tr>
+        <tr><td class="col-letter">C</td><td>lesson</td><td>رقم الدرس</td></tr>
+        <tr><td class="col-letter">D</td><td>type</td><td>MCQ أو TF أو SHN أو Matching</td></tr>
+        <tr><td class="col-letter">E</td><td>code</td><td>كود المعيار (اختياري)</td></tr>
+        <tr><td class="col-letter">F</td><td>question</td><td>نص السؤال</td></tr>
+        <tr><td class="col-letter">G</td><td>corAnswer</td><td>الإجابة الصحيحة</td></tr>
+        <tr><td class="col-letter">H</td><td>reasoning</td><td>تعليل الإجابة</td></tr>
+        <tr><td class="col-letter">I</td><td>reasoningIsRequired</td><td>1 = مطلوب تعليل، 0 = لا</td></tr>
+        <tr><td class="col-letter">J–Q</td><td>answer1 … answer8</td><td>خيارات (MCQ) أو العمود الأول (Matching)</td></tr>
+        <tr><td class="col-letter">R–Y</td><td>answer2.1 … answer2.8</td><td>فقط في Matching: العمود الثاني للتوصيل</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>٢) مثال عملي: سؤال اختيار من متعدد (MCQ)</h2>
+  <div class="card mcq-example">
+    <p><strong>صف واحد في الإكسل:</strong></p>
+    <table>
+      <thead>
+        <tr>
+          <th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th>H</th><th>I</th>
+          <th>J</th><th>K</th><th>L</th><th>M</th><th>N–Y</th>
+        </tr>
+        <tr>
+          <th>subject</th><th>unit</th><th>lesson</th><th>type</th><th>code</th><th>question</th>
+          <th>corAnswer</th><th>reasoning</th><th>reasoningIsRequired</th>
+          <th>answer1</th><th>answer2</th><th>answer3</th><th>answer4</th><th>فارغ</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="example-row">
+          <td>1</td><td>2</td><td>5</td><td>MCQ</td><td>SCI-G5</td>
+          <td>ما العضو المسؤول عن ضخ الدم في الجسم؟</td>
+          <td>2</td>
+          <td>القلب يضخ الدم عبر الأوعية الدموية.</td>
+          <td>0</td>
+          <td>المخ</td><td>القلب</td><td>الكبد</td><td>الرئتان</td>
+          <td>—</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="note success">في MCQ نترك answer2.1 … answer2.8 فارغة. الإجابة الصحيحة هنا "2" = الخيار الثاني (القلب).</p>
+  </div>
+
+  <h2>٣) مثال عملي: سؤال توصيل (Matching) — ما معنى answer2.1 … answer2.8؟</h2>
+  <div class="card">
+    <p><strong>الفكرة:</strong> الطالب يوصّل كل عنصر في <strong>العمود الأول</strong> بالعنصر المناسب في <strong>العمود الثاني</strong>.</p>
+
+    <div class="matching-diagram">
+      <div class="matching-col">
+        <h4>العمود الأول (answer1 … answer8)</h4>
+        <ul>
+          <li>١ → القاهرة</li>
+          <li>٢ → الرياض</li>
+          <li>٣ → بغداد</li>
+        </ul>
+      </div>
+      <span class="arrow-between">⟷ يوصّل الطالب بينها</span>
+      <div class="matching-col">
+        <h4>العمود الثاني (answer2.1 … answer2.8)</h4>
+        <ul>
+          <li>أ → مصر</li>
+          <li>ب → السعودية</li>
+          <li>ج → العراق</li>
+        </ul>
+      </div>
+    </div>
+
+    <p><strong>كيف تكتبها في الإكسل؟</strong></p>
+    <table>
+      <thead>
+        <tr>
+          <th>…</th>
+          <th>answer1</th>
+          <th>answer2</th>
+          <th>answer3</th>
+          <th>answer2.1</th>
+          <th>answer2.2</th>
+          <th>answer2.3</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="example-row">
+          <td>…</td>
+          <td>القاهرة</td>
+          <td>الرياض</td>
+          <td>بغداد</td>
+          <td>مصر</td>
+          <td>السعودية</td>
+          <td>العراق</td>
+        </tr>
+      </tbody>
+    </table>
+    <ul>
+      <li><strong>answer1</strong> = القاهرة ← يوصّل بـ <strong>answer2.1</strong> = مصر</li>
+      <li><strong>answer2</strong> = الرياض ← يوصّل بـ <strong>answer2.2</strong> = السعودية</li>
+      <li><strong>answer3</strong> = بغداد ← يوصّل بـ <strong>answer2.3</strong> = العراق</li>
+    </ul>
+    <p><strong>صورة توضيحية:</strong></p>
+    <p style="text-align:center;"><img src="matching-question-guide-ar.png" alt="رسم توضيحي لسؤال التوصيل" style="max-width:100%; height:auto; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1);" /></p>
+    <p class="note">حقل <strong>corAnswer</strong> يحدد التوصيلة الصحيحة (مثل: 1:1,2:2,3:3 أو حسب شكل النظام). إذن answer2.1 … answer2.8 هي <strong>نصوص العمود الثاني</strong> فقط، وليست «أي إجابة من عدة إجابات تقبل».</p>
+  </div>
+
+  <h2>٤) ملخص سريع</h2>
+  <div class="card">
+    <ul>
+      <li><strong>MCQ / TF / SHN:</strong> استخدم question, corAnswer, answer1…answer8 حسب الحاجة. اترك answer2.1 … answer2.8 فارغة.</li>
+      <li><strong>Matching:</strong> answer1…answer8 = العمود الأول، answer2.1…answer2.8 = العمود الثاني، وcorAnswer يحدد التوصيل الصحيح.</li>
+      <li>الأعمدة A, B, C يجب أن تكون <strong>أرقام</strong> (معرّفات المادة والوحدة والدرس).</li>
+    </ul>
+  </div>
+
+</body>
+</html>

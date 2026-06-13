@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <!-- head of the page-->
+    <meta charset=" utf-8" />
+    <!-- for all languages -->
+    <title>mobile shop</title>
+    <!-- title of page-->
+    <meta name="description" content="welcome to AnM mobile shop" />
+    <!--description of page-->
+    <style></style>
+    <!--css style-->
+    <script></script>
+    <!-- java script-->
+    <link rel="stylesheet" href="" />
+    <!-- css link-->
+  </head>
+  <body>
+    <!-- body of page-->
+    This is my mobile shop
+    <!-- This is heading:- defferent font sizes in showed in user agent style sheet, used mainly in CSS
+    <h1>Book title// only written once</h1>
+    <h2>Chapter title</h2> 
+    <h3>Paragraph title</h3>
+    <hr /> : for making a line to separate to paragraphs
+    <h4>Book title// only written once</h4>
+    <h5>Book title// only written once</h5>
+    <h6>Book title// only written once</h6>
+    <p> Paragraph is a block element to creat a new line not like inline elements</p> -->
+
+    <!-- Global atributes can be used in any element like id, class and name 
+    and there are other atributes like link, style, 
+    audio which are specific to element like href, src and rel  -->
+
+    <!-- Foramting elements:- 
+      B= bold , Strong = bold but for important words , 
+      I = italic , em = emphasize but for important words
+      mark = for marking text 
+      // U = underline 
+      Small = smaller text
+      Del = deleted text
+      ins = inserted text
+      sup  = elrakm fo2 el klam fe H2O // sub el rakam t7t el klam fe H2O
+    -->
+    <a href="http://att.com" target="_blank" title="shop at at&t">at&t</a>
+    <a href="#abdo" title="go to abdo">Abdo paragraph</a>
+    <a href="mailto:kenzoabdo20@gmail.com" title="aproach abdo">Contact me</a>
+    <!-- href = link to another page or web site and it is not a block element
+      Target '_blank' opens the link in a new page
+      title = title of the link
+      id = directing to a speceific paragraph in the page #abdo -->
+
+    <img src="" alt="" />
+    <!-- 
+        src = source of the image 
+        alt = alternate text for the image
+        -->
+    <img
+      src="https://www.s/global/devicesh/carousel/black-titanium-1.png"
+      alt=""
+    />
+    <!-- to get an img from other website-->
+    <img src="imgs/black-titanium-1.webp" alt="done" wedth="40" height="40" />
+    <!-- / the slash referes to double click  -->
+    <!-- wedth = wedth of img and hight = height of img-->
+    <img src="../imgs/black-titanium-1.ebp" alt="error" />
+    <!-- ../ refers to double click to go back -->
+
+    <!-- 
+      ul = unordered list // ol = ordered list // li = list item // dl = description list
+      atrs for the ordered list
+      atr: Reversed = in reverse order 123 -> 321
+      atr: start = start the list from a specefic number
+      atr: type = type of list ex: Type 'A' = A to Z Type '1' = 1 to 9
+      atr: value only used in Li and is the same of atr: type-->
+    <ul>
+      <li>
+        omar
+        <ul>
+          <li>Rania</li>
+        </ul>
+      </li>
+      <li>
+        abdo
+        <ul>
+          <li>Mariam</li>
+        </ul>
+      </li>
+      <li>maisara</li>
+    </ul>
+    <!-- dl = description list // dt = title // dd = description of the title -->
+    <dl>
+      <dt>kenzo
+        <dd>abo farid</dd>
+      </dt>
+    </dl>
+    <!-- Separatoooooooooooooooooooor -->
+    <!-- 
+      Tables
+      thead = table head // tbody = table body // tfoot = table foot
+      tr = table row // td = table data
+    -->
+    <table border="2"> <!-- don't use border -->
+      <caption>title of the table</caption>
+      <thead>
+        <tr>
+          <th>name</th>
+          <th>age</th>
+          <th>marks</th>
+        </tr>
+      
+      </thead>
+      <tbody>
+        <tr>
+          <td>bob</td>
+          <td>54</td>
+          <td>30</td>
+        </tr>
+      </tbody>
+      <tbody>
+        <tr>
+          <td>bob</td>
+          <td>54</td>
+          <td>50</td>
+        </tr>
+      </tbody>
+      <tfoot>
+        <tr>
+          <Td colspan="2">Total</Td> <!-- colspan = merge cells-->          
+          <Td>80</Td>
+        </tr>
+      </tfoot>  
+    </table>
+    <!-- -------------------------- -->
+    This is an element to <span>Customize</span> a single word in a paragraph <br>
+    <!-- Span = for example to work on one word with CSS without impacting other words -->
+    This Element to Break the <br> Line  
+    <hr>
+      <!-- Hr is for making a line to separate the page -->
+      <div>
+        <p>Div is for using same format and contain specefic elements </p>
+      <p>for more than one paragraphs such as making back ground color </p>
+      <p>specific part of the page and used mainly in css</p>
+      </div>
+
+      Entities is to right Tags such as <!--<p>--> &lt;p &gt; but show on the web page as a word not tag
+        You can check all the Entitis in 
+        <a href="https://www.freeformatter.com/html-entities.html" target="_blank" >html-entities</a> and also to type 
+        symbols like &copy; &frac34; and more...
+        <hr>
+      <!-- Semantic elements to replace the Div============================= -->
+      <header> The head part of the page</header>
+      <nav> the navigation bar of the page</nav>
+      <aside>The side bar of the page</aside>
+      <figure>This element to put an img and the caption of the img in same div</figure>
+      <figcaption>The capion of the img used in Figure</figcaption>
+      <section>Section or main which contains articles</section>
+      <article>Articles in the page</article>
+      <footer>Foter of the page </footer>
+      <hr>
+      <!-- -------------------- Audio------------------------------------ -->
+      <audio controls autoplay muted loop>
+        <Source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mp3"></Source>
+        <!-- 
+          Type = audio/mp3 which is the mp3 format and there are alot of other formats. 
+          Controls = show the controls
+          Autoplay = play the audio automatically when the page is loaded
+          Muted = mute the audio
+          Loop = loop the audio to replay it
+        -->
+        Your browser does not support the audio element.
+      </audio>
+      <hr>
+      <!-- -------------------- Video------------------------------------ -->
+      <video controls autoplay muted loop width="200" height="100" poster="imgs/black-titanium-1.webp">
+        <source src="https://www.w3schools.com/html/mov_bbb.mp4" type="video/mp4"></source>
+        <track src="https://www.w3schools.com/html/mov_bbb_en.vtt" kind="subtitles" srclang="en" label="English"></track>
+        <!-- width = width of the video // height = height of the video
+        Poster = show the first frame of the video untill the video is loaded or played
+        Track = show the subtitles in the video and other features related to translators 
+      kind = type of track // srclang = language of the track // label = name of the track-->
+      </video>
+      <hr>
+      <!-- -------------------- Form------------------------------------ -->
+      <form action="" method="get">
+        <!-- method = get or post // get = show the data in url // post = hide the data in url -->
+        <!-- action = where to send the form data and used in Back end -->
+        <div>
+        <label for="username">User name</label>
+        <input type="text" required placeholder="User name" name="username">
+        <!-- name = name of the input that shows the data in browser search engine 
+        and in query string parameters and used in Back end -->
+        </div><br>
+        <div>
+        <label for="password">Password</label>
+        <input type="password" placeholder="Password">
+        </div> <br>
+        <div>
+        <label for="Phone number">Phone number</label>
+        <input type="tel" id="mobile number" value="01234567890" pattern="01234567890" placeholder="Phone number"> 
+        </div><br>
+        <div>
+        <label for="Email">Email</label>
+        <input type="email" required placeholder="Email" value="kenzoabdo20@gmail.com"> 
+        </div><br>
+        <div>
+        <label for="subject">subject</label>
+        <input type="text" placeholder="subject">
+        <input type="hidden" placeholder="subject">
+        <!-- Hidden input to send input but be hidden in the browser only shows in query string --> 
+        </div><br>
+        <input type="submit" value="Save">
+        <input type="reset" value="Reset">
+      </form>
+  </body>
+</html>

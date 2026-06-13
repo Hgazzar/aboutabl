@@ -1,0 +1,7 @@
+.lesson-card__icon {
+  background-color: #eeeeee;
+}
+
+.lesson-card:hover .lesson-card__icon {
+  background-color: #fff;
+}

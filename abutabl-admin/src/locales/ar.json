@@ -1,0 +1,108 @@
+{
+  "DASHBOARD": "لوحة التحكم",
+
+  "subjectThumbnail": "صورة المادة",
+  "thisCourseIncludes": "يشمل هذا الكورس",
+  "hoursOnDemandVideos": "ساعات من الفيديوهات حسب الطلب",
+  "downloadableResources": "موارد قابلة للتنزيل",
+  "lessons": "دروس",
+  "article": "مقالة",
+  "quiz": "اختبار",
+  "game": "لعبة",
+  "workSheets": "أوراق عمل",
+  "basicInfo": "معلومات أساسية",
+  "about": "حول",
+  "syllabus": "المنهج",
+  "noContentToDisplay": "لا يوجد محتوى للعرض!",
+  "lessonsAdd": {
+    "addLesson": "إضافة درس",
+    "AddNew": "إضافة درس جديد",
+    "Edit": "تعديل الدرس",
+    "LessonNameAr": "اسم الدرس ] بالعربي [ ",
+    "LessonNameEn": "اسم الدرس ] بالانجليزي [ "
+  },
+  "fileName": "اسم الملف",
+  "type": "النوع",
+  "createdAt": "تاريخ الإنشاء",
+  "createdBy": "تم الإنشاء بواسطة",
+  "units": "الوحدات",
+  "items": "عناصر",
+  "editUnitName": "تعديل اسم الوحدة",
+  "editActivityName": "تعديل اسم النشاط",
+  "changePrivacy": "تغيير الخصوصية",
+  "deleteUnit": "حذف الوحدة",
+  "deleteActivity": "حذف النشاط",
+  "startCourseText": "ابدأ في إعداد دورتك التدريبية عن طريق إنشاء وحدات وإضافة مقاطع فيديو وصوتيات ومستندات وعروض تقديمية وموارد واختبارات",
+  "forTeacher": "للمعلم",
+
+  "placeholder": {
+    "noNameAdded": "لا يوجد {{name}} مضافة بعد",
+    "noData": "لا توجد بيانات للعرض",
+    "text": "{{text}}"
+  },
+
+  "modalUnit": {
+    "addNewUnit": "إضافة وحدة جديدة",
+    "editUnit": "تعديل وحدة",
+    "unitNameEnglish": "اسم الوحدة ] إنجليزي[",
+    "unitNameArabic": "اسم الوحدة ] عربي[",
+    "discard": "تجاهل",
+    "save": "حفظ",
+    "englishPlaceholder": "مثال )الوحدة 1(",
+    "arabicPlaceholder": "مثال )الوحدة الأولى("
+  },
+  "activity": {
+    "addNewActivity": "إضافة نشاط جديد",
+    "editActivity": "تعديل النشاط",
+    "activityNameEnglish": "اسم النشاط ] إنجليزي[",
+    "activityNameArabic": "اسم النشاط ] عربي[",
+    "discard": "تجاهل",
+    "save": "حفظ",
+    "englishPlaceholder": "مثال )النشاط 1(",
+    "arabicPlaceholder": "مثال )النشاط الأول("
+  },
+
+  "quizzes": "الاختبارات",
+  "games": "الألعاب",
+  "worksheets": "أوراق العمل",
+  "schools": "المدارس",
+  "overview": "نظرة عامة",
+
+  "addquiz": "إضافة اختبار",
+  "quizname": "اسم الاختبار",
+  "clearfilters": "مسح الفلاتر",
+  "quiz_code": "كود الاختبار",
+  "creation_date": "تاريخ الإنشاء",
+  "due_date": "تاريخ الاستحقاق",
+
+  "add_new_game": "إضافة لعبة جديدة",
+  "game_name": "اسم اللعبة",
+
+  "addNewResource": "إضافة مورد جديد",
+  "clearFilters": "مسح الفلاتر",
+  "worksheetName": "اسم ورقة العمل",
+
+  "school_name": "اسم المدرسة",
+  "email": "البريد الإلكتروني",
+  "contact_number": "رقم التواصل",
+  "address": "العنوان",
+  "government": "المحافظة",
+  "city": "المدينة",
+  "status": "الحالة",
+  "action": "الإجراء",
+  "edit": "تعديل",
+  "delete": "حذف",
+  "active": "نشط",
+  "inactive": "غير نشط",
+  "assign_school": "تعيين مدرسة",
+  "filter": "تصفية",
+  "clear_filters": "مسح التصفية",
+
+  "subjectstatus": "حالة المادة",
+
+  "activities": "الأنشطة",
+  "scoretopass": "درجة النجاح",
+  "downloadTemplate": "تحميل قالب Excel فارغ",
+  "downloadQuizzesDemo": "تحميل ملف تجريبي للاختبارات",
+  "uploadQuizzes": "رفع الملف"
+}
