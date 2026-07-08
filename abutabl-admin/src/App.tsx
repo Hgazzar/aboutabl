@@ -1,7 +1,7 @@
 import React, { Suspense, lazy, useEffect, useState } from "react";
 import TopBarProgress from "./components/shared/TopBarProgress";
 import { Navigate, Route, Routes } from "react-router-dom";
-import { DashboardLayout } from "./layout/DashboardLayout";
+import { PortalLayout } from "./layout/PortalLayout";
 import AuthGuard from "./auth/AuthGuard";
 import PermissionGuard from "./auth/PermissionGuard";
 import { ToastContainer } from "react-toastify";
@@ -11,6 +11,8 @@ import "reactflow/dist/style.css";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "./redux/store";
 import { getPermissions } from "./redux/reducers/permissionReducer";
+import { setUser } from "./redux/reducers/loginReducer";
+import { readPersistedLoginUser } from "./utils/authSession";
 import Cookies from "js-cookie";
 import NotFound from "./pages/NotFound/NotFound";
 import { useTranslation } from "react-i18next";
@@ -18,6 +20,10 @@ import EditQuiz from "./components/QuizDetails/EditQuiz";
 import { setupScormAPIHandler } from "./utils/scormProxy";
 
 const Dashboard = lazy(() => import("./pages/dashboard/Dashboard"));
+const ClassDetailsView = lazy(() => import("./pages/teacher/ClassDetailsView"));
+const TeacherSettingsPlaceholder = lazy(
+  () => import("./pages/teacher/TeacherSettingsPlaceholder")
+);
 
 const Login = lazy(() => import("./pages/login/Login"));
 const SelectSchool = lazy(() => import("./pages/login/SelectSchool"));
@@ -109,6 +115,17 @@ function App() {
   useEffect(() => {
     setupScormAPIHandler();
   }, []);
+
+  useEffect(() => {
+    if (loginState?.id || !Cookies.get("token_")) {
+      return;
+    }
+
+    const persisted = readPersistedLoginUser();
+    if (persisted?.id) {
+      dispatch(setUser(persisted));
+    }
+  }, [dispatch, loginState?.id]);
   
   useEffect(() => {
     if (userId) {
@@ -249,14 +266,17 @@ function App() {
           <Route
             path="/*"
             element={
-              <DashboardLayout>
+              <PortalLayout>
                 <AuthGuard />
-              </DashboardLayout>
+              </PortalLayout>
             }
           >
             {/* dashboard routes  */}
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
+            <Route path="teacher/classes" element={<ClassDetailsView />} />
+            <Route path="teacher/classes/:classId/:tab?" element={<ClassDetailsView />} />
+            <Route path="teacher/settings" element={<TeacherSettingsPlaceholder />} />
             <Route path="profile" element={<Profile />} />
 
             <Route path="games" element={<GamesList />} />

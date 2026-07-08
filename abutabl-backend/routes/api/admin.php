@@ -35,6 +35,11 @@ Route::group([ 'middleware' => ['api' , 'checkSecretApi' , 'changeLanguage','che
 
     Route::get('/dashboard/stats', 'DashboardController@stats');
     Route::get('/dashboard/teacher-assignments', 'DashboardController@teacherAssignments');
+    Route::get('/dashboard/teacher/overview', 'TeacherDashboardController@overview');
+    Route::get('/dashboard/teacher/stats', 'TeacherDashboardController@stats');
+    Route::get('/dashboard/teacher/alerts', 'TeacherDashboardController@alerts');
+    Route::get('/dashboard/teacher/classes', 'TeacherClassesController@index');
+    Route::get('/dashboard/teacher/classes/{classId}/overview', 'TeacherClassesController@overview');
     
     ///roles
     Route::get('/roles/create','RolesController@create');

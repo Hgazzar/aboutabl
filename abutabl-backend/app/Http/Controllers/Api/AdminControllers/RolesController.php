@@ -380,6 +380,13 @@ class RolesController extends Controller
             'status'  => true ,
             'role' => $role,
             'permissions' => $arr,
+            'user' => [
+                'id' => $user->id,
+                'type' => $user->type ?? 'user',
+                'username' => $user->username,
+                'role_id' => $user->role_id,
+                'role_name' => $role[0]->name ?? '',
+            ],
             ] , 200);
 
             

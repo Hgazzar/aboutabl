@@ -6,6 +6,7 @@ import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 const PasswordInput = ({
   value,
   onChange,
+  onBlur,
   id = "password",
   name = "password",
 }: any) => {
@@ -27,6 +28,7 @@ const PasswordInput = ({
         name={name}
         type={showPassword ? "text" : "password"}
         onChange={onChange}
+        onBlur={onBlur}
         value={value}
         id={id}
         placeholder="Enter your password"

@@ -1,6 +1,11 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import { postRequest, buildUrl } from "../../utils/fetchMethods";
 import { notify } from "../../utils/notify";
+import {
+  clearPersistedLoginUser,
+  persistLoginUser,
+} from "../../utils/authSession";
+import { getPermissions } from "./permissionReducer";
 import Cookies from "js-cookie";
 import axios from "axios";
 
@@ -15,11 +20,12 @@ export const login: any = createAsyncThunk("login", async (body: any) => {
 
   try {
     const response: any = await axios.post(
-      buildUrl(process.env.REACT_APP_BASE_URL, '/api/login'),
+      buildUrl(process.env.REACT_APP_BASE_URL, "/api/login"),
       body,
       {
         headers: {
-          "Content-Type": "multipart/form-data",
+          "Content-Type": "application/json",
+          Accept: "application/json",
           apiSecret: `${process.env.REACT_APP_API_SECRET}`,
           Authorizations: "Bearer " + (Cookies.get("token_") ?? ""),
         },
@@ -74,8 +80,12 @@ export const login: any = createAsyncThunk("login", async (body: any) => {
     notify("Logged in successfully", "success");
     return response.data;
   } catch (error: any) {
-    notify(error.response.data.msg, "error");
-    throw new Error(error);
+    const message =
+      error?.response?.data?.msg ||
+      error?.message ||
+      "Login failed. Check your connection and try again.";
+    notify(message, "error");
+    throw new Error(message);
   }
 });
 
@@ -134,6 +144,11 @@ export const loginSlice = createSlice({
     },
     setUser: (state, action) => {
       state.user = action.payload;
+      if (action.payload?.id) {
+        persistLoginUser(action.payload);
+      } else {
+        clearPersistedLoginUser();
+      }
     },
     setVerificationCode: (state, action) => {
       state.verification_code = action.payload;
@@ -142,6 +157,18 @@ export const loginSlice = createSlice({
   extraReducers: {
     [login.fulfilled]: (state: any, { payload }) => {
       state.user = payload.user;
+      persistLoginUser(payload.user);
+    },
+    [getPermissions.fulfilled]: (state: any, { payload }) => {
+      if (!payload?.user?.id || state.user?.id) {
+        return;
+      }
+
+      state.user = {
+        ...payload.user,
+        api_token: Cookies.get("token_"),
+      };
+      persistLoginUser(state.user);
     },
   },
 });

@@ -28,7 +28,26 @@ protected $guarded = [];
     }
     public function Students()
     {
-        return $this->hasMany(AssignsStudents::class,'assign_id','id');
+        return $this->hasMany(AssignsStudents::class, 'assign_id', 'id');
+    }
+
+    public function submissions()
+    {
+        return $this->hasMany(AssignsStudents::class, 'assign_id', 'id');
+    }
+
+    public function scopeCreatedByTeacher($query, int $teacherId)
+    {
+        return $query
+            ->where('created_by', $teacherId)
+            ->where('status', 1);
+    }
+
+    public function scopeForTeacher($query, int $teacherId, array $schoolIds = [])
+    {
+        return $query
+            ->createdByTeacher($teacherId)
+            ->when($schoolIds !== [], fn ($q) => $q->whereIn('school_id', $schoolIds));
     }
 
     public function School()

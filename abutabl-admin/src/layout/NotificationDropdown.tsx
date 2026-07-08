@@ -16,7 +16,15 @@ import { useGetNotificationsQuery } from "@/redux/reducers/notificationsApi";
 import axios from "axios";
 import { deleteRequest, postRequest } from "@/utils/fetchMethods";
 
-const NotificationDropdown = () => {
+const NotificationDropdown = ({
+  icon,
+  badgeVariant = "standard",
+  iconButtonSx,
+}: {
+  icon?: React.ReactNode;
+  badgeVariant?: "standard" | "dot";
+  iconButtonSx?: object;
+}) => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
 
@@ -48,25 +56,72 @@ const NotificationDropdown = () => {
     // console.log(res);
   };
 
-  if (isLoading) return <div>Loading...</div>;
-  if (error) return <div>Error loading notifications</div>;
+  const bellButton = (
+    <IconButton onClick={handleClick} sx={iconButtonSx}>
+      <Badge
+        badgeContent={
+          badgeVariant === "dot"
+            ? notReaded?.length
+              ? ""
+              : 0
+            : notReaded?.length ?? ""
+        }
+        color="error"
+        variant={badgeVariant}
+        invisible={badgeVariant === "dot" && !notReaded?.length}
+        sx={
+          badgeVariant === "dot"
+            ? {
+                "& .MuiBadge-badge": {
+                  minWidth: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  top: 4,
+                  right: 4,
+                },
+              }
+            : undefined
+        }
+      >
+        {icon ?? (
+          <SvgIcon fontSize="small">
+            <NotificationsNoneIcon />
+          </SvgIcon>
+        )}
+      </Badge>
+    </IconButton>
+  );
+
+  if (isLoading) {
+    return (
+      <Tooltip title="">
+        <span>{bellButton}</span>
+      </Tooltip>
+    );
+  }
+
+  if (error) {
+    return (
+      <Tooltip title="">
+        <span>
+          <IconButton disabled sx={iconButtonSx}>
+            {icon ?? (
+              <SvgIcon fontSize="small">
+                <NotificationsNoneIcon />
+              </SvgIcon>
+            )}
+          </IconButton>
+        </span>
+      </Tooltip>
+    );
+  }
 
   //   console.log(data);
 
   return (
     <Tooltip title="">
       <div>
-        <IconButton onClick={handleClick}>
-          <Badge
-            badgeContent={notReaded?.length ?? ""}
-            color="success"
-            variant={"standard"}
-          >
-            <SvgIcon fontSize="small">
-              <NotificationsNoneIcon />
-            </SvgIcon>
-          </Badge>
-        </IconButton>
+        {bellButton}
         <Menu
           anchorEl={anchorEl}
           open={open}

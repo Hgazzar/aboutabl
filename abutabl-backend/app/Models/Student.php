@@ -75,5 +75,18 @@ class Student extends Authenticatable implements JWTSubject
         return $this->hasMany(InteractiveStudentAnswer::class, 'student_id');
     }
 
+    public function subjectProgress()
+    {
+        return $this->hasMany(StudentSubjectProgress::class, 'student_id');
+    }
 
+    public function assignSubmissions()
+    {
+        return $this->hasMany(AssignsStudents::class, 'student_id');
+    }
+
+    public function scopeActiveInClasses($query, $classIds)
+    {
+        return $query->whereIn('class_id', $classIds)->where('status', '1');
+    }
 }

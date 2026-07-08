@@ -1,0 +1,315 @@
+import { useEffect, useMemo, useState } from "react";
+import { Box, CircularProgress, Typography } from "@mui/material";
+import { useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import ClassDetailsHeader from "@/components/teacher/class-details/ClassDetailsHeader";
+import ClassOverviewTab from "@/components/teacher/class-details/ClassOverviewTab";
+import { getRequest } from "@/utils/fetchMethods";
+import {
+  CLASS_DETAILS_TABS,
+  ClassDetailsTab,
+  ClassDetailsTimeRange,
+  isClassDetailsTab,
+} from "@/types/classDetails";
+import { ClassDetailsOverviewResponse } from "@/types/classDetailsOverview";
+import {
+  TeacherClassesOverviewResponse,
+  TeacherClassOverviewItem,
+} from "@/types/teacherClasses";
+
+const ClassDetailsTabPlaceholder = ({ tab }: { tab: ClassDetailsTab }) => {
+  const { t } = useTranslation();
+
+  if (tab === "overview") {
+    return null;
+  }
+
+  return (
+    <Box
+      sx={{
+        m: { xs: 2, md: 3 },
+        p: 4,
+        bgcolor: "#FFFFFF",
+        borderRadius: "16px",
+        border: "1px dashed #D1D5DB",
+        minHeight: 280,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Typography color="text.secondary" sx={{ textAlign: "center" }}>
+        {t(`TEACHER_CLASS_DETAILS.PLACEHOLDER_${tab.toUpperCase()}`)}
+      </Typography>
+    </Box>
+  );
+};
+
+/**
+ * Unified teacher Classes screen — sidebar /teacher/classes and
+ * /teacher/classes/:classId/:tab share this view + ClassDetailsHeader.
+ */
+const ClassDetailsView = () => {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { classId: classIdParam, tab: tabParam } = useParams<{
+    classId?: string;
+    tab?: string;
+  }>();
+
+  const [classes, setClasses] = useState<TeacherClassOverviewItem[]>([]);
+  const [overview, setOverview] = useState<ClassDetailsOverviewResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [overviewLoading, setOverviewLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [overviewError, setOverviewError] = useState<string | null>(null);
+  const [timeRange, setTimeRange] = useState<ClassDetailsTimeRange>("week");
+
+  const activeClassId = classIdParam ? Number(classIdParam) : null;
+  const activeTab: ClassDetailsTab = isClassDetailsTab(tabParam) ? tabParam : "overview";
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadClasses = async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = (await getRequest(
+          {},
+          "/api/dashboard/teacher/classes"
+        )) as TeacherClassesOverviewResponse;
+
+        if (cancelled) {
+          return;
+        }
+
+        const classesList = Array.isArray(response?.classes) ? response.classes : [];
+        setClasses(classesList);
+
+        console.log("[ClassDetailsView] GET /api/dashboard/teacher/classes", {
+          status: response?.status,
+          total: response?.meta?.total,
+          classes: classesList,
+        });
+      } catch (err: any) {
+        if (!cancelled) {
+          setError(err?.message || t("TEACHER_CLASS_DETAILS.LOAD_ERROR"));
+          setClasses([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadClasses();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [t]);
+
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+
+    if (classes.length === 0) {
+      return;
+    }
+
+    if (!classIdParam) {
+      navigate(`/teacher/classes/${classes[0].class_id}/overview`, { replace: true });
+      return;
+    }
+
+    if (!tabParam) {
+      navigate(`/teacher/classes/${classIdParam}/overview`, { replace: true });
+      return;
+    }
+
+    if (!isClassDetailsTab(tabParam)) {
+      navigate(`/teacher/classes/${classIdParam}/overview`, { replace: true });
+    }
+  }, [classIdParam, classes, loading, navigate, tabParam]);
+
+  useEffect(() => {
+    if (activeTab !== "overview" || !activeClassId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadOverview = async () => {
+      setOverviewLoading(true);
+      setOverviewError(null);
+
+      try {
+        const response = (await getRequest(
+          { range: timeRange },
+          `/api/dashboard/teacher/classes/${activeClassId}/overview`
+        )) as ClassDetailsOverviewResponse;
+
+        if (cancelled) {
+          return;
+        }
+
+        const overviewData = response?.status ? response : null;
+        setOverview(overviewData);
+
+        console.log(
+          `[ClassDetailsView] GET /api/dashboard/teacher/classes/${activeClassId}/overview`,
+          {
+            range: timeRange,
+            status: response?.status,
+            overview: overviewData,
+          }
+        );
+      } catch (err: any) {
+        if (!cancelled) {
+          setOverviewError(err?.message || t("TEACHER_CLASS_DETAILS.OVERVIEW_LOAD_ERROR"));
+          setOverview(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setOverviewLoading(false);
+        }
+      }
+    };
+
+    loadOverview();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeClassId, activeTab, timeRange, t]);
+
+  const activeClass = useMemo(
+    () =>
+      activeClassId !== null
+        ? classes.find((item) => item.class_id === activeClassId) ?? null
+        : null,
+    [activeClassId, classes]
+  );
+
+  const subjectLabel = useMemo(() => {
+    if (!activeClass) {
+      return "";
+    }
+
+    return overview?.class?.subject_name || activeClass.grade_name || activeClass.name;
+  }, [activeClass, overview]);
+
+  const studentCount = useMemo(() => {
+    if (!activeClass) {
+      return 0;
+    }
+
+    return overview?.class?.student_count ?? activeClass.student_count;
+  }, [activeClass, overview]);
+
+  useEffect(() => {
+    if (loading || !activeClass) {
+      return;
+    }
+
+    console.log("[ClassDetailsView] active class + header props", {
+      activeClassId: activeClass.class_id,
+      activeClass,
+      classesFromApi: classes,
+      headerProps: {
+        subjectLabel,
+        studentCount,
+        classes,
+        activeClassId: activeClass.class_id,
+        activeTab,
+        timeRange,
+      },
+      overviewLoaded: Boolean(overview),
+    });
+  }, [activeClass, activeTab, classes, loading, overview, studentCount, subjectLabel, timeRange]);
+
+  useEffect(() => {
+    if (loading || classes.length === 0 || activeClassId === null) {
+      return;
+    }
+
+    const isValidClass = classes.some((item) => item.class_id === activeClassId);
+
+    if (!isValidClass) {
+      navigate(`/teacher/classes/${classes[0].class_id}/overview`, { replace: true });
+    }
+  }, [activeClassId, classes, loading, navigate]);
+
+  const handleClassChange = (classId: number) => {
+    navigate(`/teacher/classes/${classId}/${activeTab}`);
+  };
+
+  const handleTabChange = (tab: ClassDetailsTab) => {
+    if (activeClassId === null) {
+      return;
+    }
+
+    navigate(`/teacher/classes/${activeClassId}/${tab}`);
+  };
+
+  const isRedirecting =
+    loading || (!classIdParam && classes.length > 0) || (classIdParam && !tabParam);
+
+  if (isRedirecting) {
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", py: 10, bgcolor: "#F7F9FA" }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box sx={{ p: 3, bgcolor: "#F7F9FA" }}>
+        <Typography color="error">{error}</Typography>
+      </Box>
+    );
+  }
+
+  if (!activeClass) {
+    return (
+      <Box sx={{ p: 3, bgcolor: "#F7F9FA" }}>
+        <Typography color="text.secondary">{t("TEACHER_CLASS_DETAILS.EMPTY")}</Typography>
+      </Box>
+    );
+  }
+
+  return (
+    <Box sx={{ minHeight: "100%", bgcolor: "#F7F9FA" }}>
+      <ClassDetailsHeader
+        subjectLabel={subjectLabel}
+        studentCount={studentCount}
+        classes={classes}
+        activeClassId={activeClass.class_id}
+        activeTab={activeTab}
+        timeRange={timeRange}
+        onClassChange={handleClassChange}
+        onTabChange={handleTabChange}
+        onTimeRangeChange={setTimeRange}
+      />
+
+      {activeTab === "overview" ? (
+        <ClassOverviewTab
+          data={overview}
+          loading={overviewLoading}
+          error={overviewError}
+        />
+      ) : (
+        CLASS_DETAILS_TABS.includes(activeTab) && (
+          <ClassDetailsTabPlaceholder tab={activeTab} />
+        )
+      )}
+    </Box>
+  );
+};
+
+export default ClassDetailsView;

@@ -23,6 +23,16 @@ class Classes extends Model
 
     public function students()
     {
-        return $this->hasMany(Student::class,'class_id','id');
+        return $this->hasMany(Student::class, 'class_id', 'id');
+    }
+
+    public function grade()
+    {
+        return $this->belongsTo(Grades::class, 'grade_id');
+    }
+
+    public function teacherAssignments()
+    {
+        return $this->hasMany(TeachersGrades::class, 'class_id');
     }
 }
