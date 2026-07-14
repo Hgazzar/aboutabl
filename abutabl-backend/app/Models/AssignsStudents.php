@@ -38,15 +38,43 @@ class AssignsStudents extends Model
      */
     public function scopeOverdue($query)
     {
-        $today = now()->toDateString();
+        $now = now();
 
         return $query
             ->pendingReview()
-            ->whereHas('assign', function ($assignQuery) use ($today) {
+            ->whereHas('assign', function ($assignQuery) use ($now) {
                 $assignQuery
                     ->where('status', 1)
-                    ->whereNotNull('due_date')
-                    ->where('due_date', '<', $today);
+                    ->whereNotNull('due_at')
+                    ->where('due_at', '<', $now);
+            });
+    }
+
+    /**
+     * Completed submissions for a student assignment row.
+     */
+    public function scopeCompleted($query)
+    {
+        return $query->whereNotNull('opened_at')->where('status', 1);
+    }
+
+    /**
+     * Pending: not opened and not yet past due (or no due date).
+     */
+    public function scopePending($query)
+    {
+        $now = now();
+
+        return $query
+            ->pendingReview()
+            ->whereHas('assign', function ($assignQuery) use ($now) {
+                $assignQuery
+                    ->where('status', 1)
+                    ->where(function ($dueQuery) use ($now) {
+                        $dueQuery
+                            ->whereNull('due_at')
+                            ->orWhere('due_at', '>=', $now);
+                    });
             });
     }
     //  protected $fillable =[

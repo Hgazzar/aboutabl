@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Box, CircularProgress, Typography } from "@mui/material";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import ClassDetailsHeader from "@/components/teacher/class-details/ClassDetailsHeader";
 import ClassOverviewTab from "@/components/teacher/class-details/ClassOverviewTab";
+import ClassStudentsTab from "@/components/teacher/class-details/ClassStudentsTab";
 import { getRequest } from "@/utils/fetchMethods";
 import {
   CLASS_DETAILS_TABS,
@@ -20,7 +21,7 @@ import {
 const ClassDetailsTabPlaceholder = ({ tab }: { tab: ClassDetailsTab }) => {
   const { t } = useTranslation();
 
-  if (tab === "overview") {
+  if (tab === "overview" || tab === "students") {
     return null;
   }
 
@@ -64,6 +65,7 @@ const ClassDetailsView = () => {
   const [error, setError] = useState<string | null>(null);
   const [overviewError, setOverviewError] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState<ClassDetailsTimeRange>("week");
+  const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
 
   const activeClassId = classIdParam ? Number(classIdParam) : null;
   const activeTab: ClassDetailsTab = isClassDetailsTab(tabParam) ? tabParam : "overview";
@@ -87,12 +89,6 @@ const ClassDetailsView = () => {
 
         const classesList = Array.isArray(response?.classes) ? response.classes : [];
         setClasses(classesList);
-
-        console.log("[ClassDetailsView] GET /api/dashboard/teacher/classes", {
-          status: response?.status,
-          total: response?.meta?.total,
-          classes: classesList,
-        });
       } catch (err: any) {
         if (!cancelled) {
           setError(err?.message || t("TEACHER_CLASS_DETAILS.LOAD_ERROR"));
@@ -157,17 +153,7 @@ const ClassDetailsView = () => {
           return;
         }
 
-        const overviewData = response?.status ? response : null;
-        setOverview(overviewData);
-
-        console.log(
-          `[ClassDetailsView] GET /api/dashboard/teacher/classes/${activeClassId}/overview`,
-          {
-            range: timeRange,
-            status: response?.status,
-            overview: overviewData,
-          }
-        );
+        setOverview(response?.status ? response : null);
       } catch (err: any) {
         if (!cancelled) {
           setOverviewError(err?.message || t("TEACHER_CLASS_DETAILS.OVERVIEW_LOAD_ERROR"));
@@ -212,27 +198,6 @@ const ClassDetailsView = () => {
   }, [activeClass, overview]);
 
   useEffect(() => {
-    if (loading || !activeClass) {
-      return;
-    }
-
-    console.log("[ClassDetailsView] active class + header props", {
-      activeClassId: activeClass.class_id,
-      activeClass,
-      classesFromApi: classes,
-      headerProps: {
-        subjectLabel,
-        studentCount,
-        classes,
-        activeClassId: activeClass.class_id,
-        activeTab,
-        timeRange,
-      },
-      overviewLoaded: Boolean(overview),
-    });
-  }, [activeClass, activeTab, classes, loading, overview, studentCount, subjectLabel, timeRange]);
-
-  useEffect(() => {
     if (loading || classes.length === 0 || activeClassId === null) {
       return;
     }
@@ -244,7 +209,12 @@ const ClassDetailsView = () => {
     }
   }, [activeClassId, classes, loading, navigate]);
 
+  useEffect(() => {
+    setSelectedStudentId(null);
+  }, [activeClassId]);
+
   const handleClassChange = (classId: number) => {
+    setSelectedStudentId(null);
     navigate(`/teacher/classes/${classId}/${activeTab}`);
   };
 
@@ -255,6 +225,22 @@ const ClassDetailsView = () => {
 
     navigate(`/teacher/classes/${activeClassId}/${tab}`);
   };
+
+  const handleSelectStudent = useCallback((studentId: number) => {
+    setSelectedStudentId(studentId);
+  }, []);
+
+  const handleOpenStudentProfile = useCallback(
+    (studentId: number) => {
+      if (activeClassId === null) {
+        return;
+      }
+
+      setSelectedStudentId(studentId);
+      navigate(`/teacher/classes/${activeClassId}/students`);
+    },
+    [activeClassId, navigate]
+  );
 
   const isRedirecting =
     loading || (!classIdParam && classes.length > 0) || (classIdParam && !tabParam);
@@ -302,6 +288,15 @@ const ClassDetailsView = () => {
           data={overview}
           loading={overviewLoading}
           error={overviewError}
+          timeRange={timeRange}
+          onOpenStudentProfile={handleOpenStudentProfile}
+        />
+      ) : activeTab === "students" ? (
+        <ClassStudentsTab
+          classId={activeClass.class_id}
+          timeRange={timeRange}
+          selectedStudentId={selectedStudentId}
+          onSelectStudent={handleSelectStudent}
         />
       ) : (
         CLASS_DETAILS_TABS.includes(activeTab) && (

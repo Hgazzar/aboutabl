@@ -79,7 +79,7 @@ class DemoStudentAssignmentSeeder extends Seeder
                 'status' => 1,
                 'created_by' => $teacherId,
                 'subject_id' => $subject->id,
-                'due_date' => now()->addDays(self::DUE_DAYS),
+                'due_at' => now()->addDays(self::DUE_DAYS)->endOfDay(),
             ]);
 
             AssignsStudents::create([

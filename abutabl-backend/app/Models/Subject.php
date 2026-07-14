@@ -69,6 +69,16 @@ class Subject extends Model
     {
         return $this->hasMany(WorkSheets::class,'subject_id','id');
     }
+
+    public function standardDomains()
+    {
+        return $this->hasMany(StandardDomain::class, 'subject_id');
+    }
+
+    public function standards()
+    {
+        return $this->hasMany(Standard::class, 'subject_id');
+    }
   
     public function getPhotoAttribute($val)
     {

@@ -108,7 +108,7 @@ class DashboardController extends Controller
                 ->withCount('Students')
                 ->orderByDesc('created_at')
                 ->limit(20)
-                ->get(['id', 'type', 'assigned_name', 'subject_id', 'created_at', 'due_date']);
+                ->get(['id', 'type', 'assigned_name', 'subject_id', 'created_at', 'due_at']);
 
             return response()->json([
                 'status' => true,

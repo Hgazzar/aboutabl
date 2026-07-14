@@ -25,6 +25,12 @@ class Lessons extends Model
     {
         return $this->hasMany(LessonsContents::class,'lesson_id','id');
     }
+
+    public function contentStandards()
+    {
+        return $this->hasMany(ContentStandard::class, 'content_id')
+            ->where('content_type', 'lessons');
+    }
 }
 
 

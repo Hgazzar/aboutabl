@@ -182,7 +182,7 @@ export const ClassOverviewChartsSection = ({
   );
 
   return (
-    <section className="bg-[#F7F9FA] px-6 pb-2 pt-1 md:px-8">
+    <section className="bg-[#F7F9FA] px-6 pb-0 pt-1 md:px-8">
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.55fr_1fr]">
         <PerformanceLineCard data={performanceData} />
         <TeacherAnalyticsChartCard title={t("TEACHER_ANALYTICS.COMPLETION_STATUS")}>

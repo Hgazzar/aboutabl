@@ -24,9 +24,7 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule)
     {
-        // $schedule->command('inspire')
-        //          ->hourly();
-        
+        $schedule->command('performance:capture-daily')->dailyAt('01:15');
     }
 
     /**

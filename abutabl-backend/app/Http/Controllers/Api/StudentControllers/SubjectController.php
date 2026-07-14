@@ -759,8 +759,8 @@ class SubjectController extends Controller
                    $assignsTodayObjects[$i]['name'] = $assign->assigned_name;
                    $assignsTodayObjects[$i]['path'] = $assign->assigned_path;
                    $assignsTodayObjects[$i]['date'] = \Carbon\Carbon::parse($assignDB->created_at)->format('d F Y - h:m A');
-                   $assignsTodayObjects[$i]['due_date'] = !empty($assignDB->due_date)
-                       ? \Carbon\Carbon::parse($assignDB->due_date)->format('d M Y')
+                   $assignsTodayObjects[$i]['due_date'] = !empty($assignDB->due_at)
+                       ? \Carbon\Carbon::parse($assignDB->due_at)->format('d M Y')
                        : null;
                    $assignsTodayObjects[$i]['subject_id'] = $assign->subject_id;
                    $courseName = $this->todoSubjectCourseName((int) $assign->subject_id);

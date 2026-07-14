@@ -40,6 +40,15 @@ Route::group([ 'middleware' => ['api' , 'checkSecretApi' , 'changeLanguage','che
     Route::get('/dashboard/teacher/alerts', 'TeacherDashboardController@alerts');
     Route::get('/dashboard/teacher/classes', 'TeacherClassesController@index');
     Route::get('/dashboard/teacher/classes/{classId}/overview', 'TeacherClassesController@overview');
+    Route::get('/dashboard/teacher/classes/{classId}/standards', 'TeacherClassesController@standards');
+    Route::get('/dashboard/teacher/classes/{classId}/activities-tasks', 'TeacherClassesController@activitiesTasks');
+    Route::get('/dashboard/teacher/classes/{classId}/students-overview', 'TeacherClassesController@studentsOverview');
+    Route::get('/dashboard/teacher/classes/{classId}/students/{studentId}/profile', 'TeacherClassesController@studentProfile');
+    Route::get('/dashboard/teacher/classes/{classId}/alerts', 'TeacherClassesController@classAlerts');
+    Route::post('/dashboard/teacher/classes/{classId}/alerts/dismiss', 'TeacherClassesController@dismissClassAlert');
+    Route::post('/dashboard/teacher/classes/{classId}/alerts/reset-dismissals', 'TeacherClassesController@resetClassAlertDismissals');
+    Route::delete('/dashboard/teacher/classes/{classId}/alerts/{alertKey}', 'TeacherClassesController@undoClassAlertDismiss')
+        ->where('alertKey', '.*');
     
     ///roles
     Route::get('/roles/create','RolesController@create');

@@ -10,6 +10,10 @@ class Assigns extends Model
     use HasFactory;
 
 protected $guarded = [];
+
+    protected $casts = [
+        'due_at' => 'datetime',
+    ];
     // protected $fillable =[
     //             'type',
     //             'type_id',
@@ -64,6 +68,14 @@ protected $guarded = [];
         return $this->hasOne(User::class,'id','created_by');
     }
 
+    public function standards()
+    {
+        return $this->belongsToMany(Standard::class, 'assign_standard', 'assign_id', 'standard_id')
+            ->withPivot('link_source', 'created_at');
+    }
 
-      
+    public function assignStandards()
+    {
+        return $this->hasMany(AssignStandard::class, 'assign_id');
+    }
 }

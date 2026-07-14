@@ -11,7 +11,6 @@ import {
   ClassDetailsTimeRange,
 } from "@/types/classDetails";
 import { TeacherClassOverviewItem } from "@/types/teacherClasses";
-// @ts-expect-error CRA svgr
 import { ReactComponent as NoteIcon } from "@/assets/note.svg";
 
 export type ClassDetailsHeaderProps = {

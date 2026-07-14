@@ -11,6 +11,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Http\Resources\LoginResource;
 use App\Traits\GeneralTrait;
+use App\Services\PerformanceAnalytics\PerformanceSnapshotSource;
+use App\Services\PerformanceAnalytics\PerformanceSnapshotTrigger;
 use Validator;
 use Auth;
 use Tymon\JWTAuth\Facades\JWTAuth;
@@ -102,7 +104,8 @@ class AssignsController extends Controller
                                   ],
                 "type"         => "required|in:subjects,units,lessons,lessons_contents,quizes,games",
                 "type_id"      => "required",
-                "due_date"     => "required|date",
+                "due_at"       => "nullable|date",
+                "due_date"     => "nullable|date",
             ];
            
             $validator = Validator::make($request->all(), $rules);
@@ -111,6 +114,14 @@ class AssignsController extends Controller
                 $code = $this->returnCodeAccordingToInput($validator);
                 return $this->returnValidationError($code, $validator);
             }
+
+            $dueAtInput = $request->input('due_at', $request->input('due_date'));
+
+            if (empty($dueAtInput)) {
+                return $this->returnValidationError('E001', validator([], ['due_at' => 'required'])->errors());
+            }
+
+            $dueAt = \Carbon\Carbon::parse($dueAtInput);
 
            if(request()->has('student_id') and !empty(request('student_id')))
            {
@@ -174,7 +185,7 @@ class AssignsController extends Controller
                         'status'     => 1,
                         'created_by' => $createdBy,
                         'subject_id' => $request->type == 'subjects' ? $data->id : $data->subject_id,
-                        'due_date'   => $request->due_date,
+                        'due_at'     => $dueAt,
                   ]);
 
                    foreach ($students as $student) 
@@ -216,6 +227,15 @@ class AssignsController extends Controller
 
             DB::commit();
 
+            app(PerformanceSnapshotTrigger::class)->captureStudents(
+                $students,
+                PerformanceSnapshotSource::ASSIGN_CREATED,
+                (int) $createdBy,
+                (int) $request->school_id,
+                Assigns::class,
+                (int) $assign->id
+            );
+
           return $this -> returnSuccessMessage( __('Successfully') ,"200",200);
 
         }catch (\Exception $ex){
@@ -231,9 +251,29 @@ class AssignsController extends Controller
             
              if(!$assign)
                 return $this->returnError('E001',__('api.not_exists_item_for_this_data'),400);
+
+                  $affectedStudentIds = AssignsStudents::where('assign_id', $id)
+                      ->pluck('student_id')
+                      ->map(fn ($studentId) => (int) $studentId)
+                      ->unique()
+                      ->values()
+                      ->all();
+                  $teacherId = (int) ($assign->created_by ?? 0);
+                  $schoolId = (int) ($assign->school_id ?? 0);
                   
                   Assigns::where('id',$id)->delete();
                   AssignsStudents::where('assign_id',$id)->delete();
+
+                 // Snapshot today's metric only (fact_key uses metric_date = today).
+                 // Does NOT rewrite or delete prior days' performance_facts rows.
+                 app(PerformanceSnapshotTrigger::class)->captureStudents(
+                     $affectedStudentIds,
+                     PerformanceSnapshotSource::ASSIGN_DELETED,
+                     $teacherId > 0 ? $teacherId : null,
+                     $schoolId > 0 ? $schoolId : null,
+                     Assigns::class,
+                     (int) $id
+                 );
                
                  return $this -> returnSuccessMessage( __('Assign Deleted Successfully') ,"200",200);
           

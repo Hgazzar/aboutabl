@@ -78,5 +78,11 @@ class Quizes extends Model
     {
         return $this->hasMany(QuizesQuestions::class,'quize_id','id');
     }
+
+    public function contentStandards()
+    {
+        return $this->hasMany(ContentStandard::class, 'content_id')
+            ->where('content_type', 'quizes');
+    }
   
 }

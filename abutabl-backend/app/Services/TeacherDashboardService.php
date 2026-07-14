@@ -8,6 +8,9 @@ use App\Models\Classes;
 use App\Models\Student;
 use App\Models\StudentSubjectProgress;
 use App\Models\TeachersGrades;
+use App\Services\PerformanceAnalytics\PerformanceFallback;
+use App\Services\PerformanceAnalytics\PerformanceTimeSeriesService;
+use App\Services\PerformanceAnalytics\PerformanceTrendService;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
@@ -234,9 +237,9 @@ class TeacherDashboardService
         int $classId,
         string $range = 'week'
     ): array {
-        $scope = $this->hydrateTeacherScope($teacherId, $schoolIds);
+        $scope = $this->resolveClassAccess($teacherId, $schoolIds, $classId);
 
-        if ($scope === null || ! $scope['class_ids']->contains($classId)) {
+        if ($scope === null) {
             throw new \InvalidArgumentException('The selected class is not assigned to this teacher.');
         }
 
@@ -266,7 +269,6 @@ class TeacherDashboardService
 
         $classCard = $classCards[0] ?? null;
         $performancePercent = (float) ($classCard['performance_percent'] ?? 0);
-        $performanceTrend = $this->resolvePerformanceTrend($performancePercent);
 
         $classAssignRows = $scope['assign_rows']->filter(
             fn ($row) => $classStudentIds->contains((int) $row->student_id)
@@ -302,10 +304,11 @@ class TeacherDashboardService
             'range' => $range,
             'stats' => [
                 'performance_percent'       => $performancePercent,
-                'performance_trend'         => [
-                    'direction'     => $performanceTrend,
-                    'delta_percent' => 0.0,
-                ],
+                'performance_trend'         => $this->resolveClassPerformanceTrendPayload(
+                    $classId,
+                    $range,
+                    $performancePercent
+                ),
                 'completion_rate_percent'   => $this->completionPercent($classAssignRows),
                 'students_need_attention'   => $studentsNeedAttention,
             ],
@@ -313,7 +316,9 @@ class TeacherDashboardService
                 'performance_line'    => $this->buildPerformanceLineChart(
                     $performancePercent,
                     $schoolPerformancePercent,
-                    $range
+                    $range,
+                    $classId,
+                    $scope['class_ids']->map(fn ($id) => (int) $id)->values()->all()
                 ),
                 'performance_summary' => [
                     'class_percent'  => $performancePercent,
@@ -321,6 +326,12 @@ class TeacherDashboardService
                 ],
                 'completion_status' => $completionBreakdown,
             ],
+            'learning_progress' => $this->buildClassLearningProgress(
+                $teacherId,
+                $classStudentIds,
+                $rangeStart,
+                $range
+            ),
             'activities'       => $this->buildClassActivities(
                 $scope,
                 $classStudentIds,
@@ -334,6 +345,23 @@ class TeacherDashboardService
                 $scope['need_attention_ids']
             ),
         ];
+    }
+
+    /**
+     * Verify teacher access to a class and return hydrated scope, or null.
+     *
+     * @param  int[]  $schoolIds
+     * @return array<string, mixed>|null
+     */
+    public function resolveClassAccess(int $teacherId, array $schoolIds, int $classId): ?array
+    {
+        $scope = $this->hydrateTeacherScope($teacherId, $schoolIds);
+
+        if ($scope === null || ! $scope['class_ids']->contains($classId)) {
+            return null;
+        }
+
+        return $scope;
     }
 
     /**
@@ -581,7 +609,7 @@ class TeacherDashboardService
 
     /**
      * Overdue assignments per student:
-     * assigns_students.opened_at IS NULL AND assigns.due_date < today.
+     * assigns_students.opened_at IS NULL AND assigns.due_at < now.
      *
      * @param  array<string, mixed>  $scope
      * @return array<int, int>
@@ -1050,7 +1078,15 @@ class TeacherDashboardService
             (float) $card['performance_percent'],
             (int) $card['students_need_attention']
         );
-        $card['performance_trend'] = $this->resolvePerformanceTrend((float) $card['performance_percent']);
+
+        $classId = (int) ($card['class_id'] ?? 0);
+        $temporal = $classId > 0
+            ? $this->resolveClassPerformanceTrendPayload($classId, 'week', (float) $card['performance_percent'])
+            : null;
+
+        $card['performance_trend'] = $temporal !== null
+            ? (string) $temporal['direction']
+            : PerformanceFallback::heuristicTrendDirection((float) $card['performance_percent']);
 
         return $card;
     }
@@ -1069,19 +1105,37 @@ class TeacherDashboardService
     }
 
     /**
-     * Phase 1 simplified trend — no historical snapshots table.
+     * Temporal trend via Performance Analytics SSOT (single comparison + canonical fallback).
+     *
+     * @return array{direction: string, delta_percent: float}
      */
-    private function resolvePerformanceTrend(float $performancePercent): string
-    {
-        if ($performancePercent <= 0) {
-            return 'stable';
-        }
+    private function resolveClassPerformanceTrendPayload(
+        int $classId,
+        string $range,
+        float $fallbackPerformancePercent
+    ): array {
+        $range = $this->normalizeClassDetailsRange($range);
+        $currentTo = now()->copy()->endOfDay();
+        $currentFrom = $this->resolveRangeStart($range)->copy()->startOfDay();
+        $spanDays = max(1, $currentFrom->diffInDays($currentTo));
+        $previousTo = $currentFrom->copy()->subDay()->endOfDay();
+        $previousFrom = $previousTo->copy()->subDays($spanDays)->startOfDay();
 
-        if ($performancePercent >= self::NEED_ATTENTION_THRESHOLD) {
-            return 'up';
-        }
+        /** @var PerformanceTrendService $trendService */
+        $trendService = app(PerformanceTrendService::class);
+        $trend = $trendService->forClassOrFallback(
+            $classId,
+            $currentFrom,
+            $currentTo,
+            $previousFrom,
+            $previousTo,
+            $fallbackPerformancePercent
+        );
 
-        return 'down';
+        return [
+            'direction'     => (string) $trend['direction'],
+            'delta_percent' => (float) $trend['delta_percent'],
+        ];
     }
 
     private function normalizeClassDetailsRange(string $range): string
@@ -1100,6 +1154,26 @@ class TeacherDashboardService
         }
 
         return now()->startOfWeek();
+    }
+
+    /**
+     * Class-scope Learning Progress — delegates to shared LearningProgressService SSOT.
+     *
+     * @param  Collection<int, int|string>  $classStudentIds
+     * @return array<string, mixed>
+     */
+    private function buildClassLearningProgress(
+        int $teacherId,
+        Collection $classStudentIds,
+        Carbon $rangeStart,
+        string $range
+    ): array {
+        return app(LearningProgressService::class)->buildForRange(
+            $teacherId,
+            $classStudentIds,
+            $rangeStart,
+            $range
+        );
     }
 
     private function resolveClassSubjectName(int $teacherId, int $classId): string
@@ -1123,53 +1197,37 @@ class TeacherDashboardService
     }
 
     /**
-     * Phase 1 line chart — flat series at current performance (no snapshots table).
-     * class_percent: active class average student progress.
-     * school_percent: average performance across all classes assigned to the teacher.
+     * Average Scores Over Time via Performance Analytics SSOT (+ canonical flat fallback).
+     * Contract keys unchanged: label, class_percent, school_percent (All Classes average).
      *
+     * @param  int[]  $allClassIds
      * @return array<int, array{label: string, class_percent: float, school_percent: float}>
      */
     private function buildPerformanceLineChart(
         float $classPercent,
         float $schoolPercent,
-        string $range
+        string $range,
+        ?int $classId = null,
+        array $allClassIds = []
     ): array {
-        $points = [];
-
-        if ($range === 'month') {
-            for ($week = 1; $week <= 4; $week++) {
-                $points[] = [
-                    'label'          => sprintf('W%d', $week),
-                    'class_percent'  => $classPercent,
-                    'school_percent' => $schoolPercent,
-                ];
-            }
-
-            return $points;
+        if ($classId === null || $classId < 1 || $allClassIds === []) {
+            return PerformanceFallback::flatAverageScoresLine(
+                $classPercent,
+                $schoolPercent,
+                $range
+            );
         }
 
-        if ($range === 'term') {
-            for ($month = 2; $month >= 0; $month--) {
-                $points[] = [
-                    'label'          => now()->copy()->subMonths($month)->format('M'),
-                    'class_percent'  => $classPercent,
-                    'school_percent' => $schoolPercent,
-                ];
-            }
+        /** @var PerformanceTimeSeriesService $timeSeries */
+        $timeSeries = app(PerformanceTimeSeriesService::class);
 
-            return $points;
-        }
-
-        $dayLabels = ['Su', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        foreach ($dayLabels as $label) {
-            $points[] = [
-                'label'          => $label,
-                'class_percent'  => $classPercent,
-                'school_percent' => $schoolPercent,
-            ];
-        }
-
-        return $points;
+        return $timeSeries->classVersusAllClassesLineOrFallback(
+            $classId,
+            $allClassIds,
+            $range,
+            $classPercent,
+            $schoolPercent
+        );
     }
 
     /**
@@ -1186,7 +1244,7 @@ class TeacherDashboardService
         }
 
         $studentIdList = $classStudentIds->values()->all();
-        $today = now()->toDateString();
+        $today = now();
 
         $assignIds = AssignsStudents::query()
             ->whereIn('student_id', $studentIdList)
@@ -1207,7 +1265,7 @@ class TeacherDashboardService
         $assigns = Assigns::query()
             ->whereIn('id', $assignIds)
             ->orderByDesc('created_at')
-            ->get(['id', 'type', 'assigned_name', 'due_date', 'created_at']);
+            ->get(['id', 'type', 'assigned_name', 'due_at', 'created_at']);
 
         $activities = [];
 
@@ -1226,8 +1284,8 @@ class TeacherDashboardService
             if ($total > 0 && $completed === $total) {
                 $status = 'completed';
             } elseif (
-                ! empty($assign->due_date)
-                && $assign->due_date < $today
+                ! empty($assign->due_at)
+                && \Carbon\Carbon::parse($assign->due_at)->lt($today)
                 && $completed < $total
             ) {
                 $status = 'overdue';
@@ -1237,7 +1295,12 @@ class TeacherDashboardService
                 'id'                  => (int) $assign->id,
                 'title'               => (string) ($assign->assigned_name ?: $assign->type),
                 'type'                => $assign->type === 'quizes' ? 'quiz' : 'assignment',
-                'due_date'            => $assign->due_date,
+                'due_at'              => $assign->due_at
+                    ? \Carbon\Carbon::parse($assign->due_at)->toIso8601String()
+                    : null,
+                'due_date'            => $assign->due_at
+                    ? \Carbon\Carbon::parse($assign->due_at)->toDateString()
+                    : null,
                 'status'              => $status,
                 'completion_percent'  => $completionPercent,
             ];

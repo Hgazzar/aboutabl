@@ -32,6 +32,38 @@ export type ClassDetailsCompletionStatus = CompletionBreakdown;
 
 export type ClassDetailsCompletionStatusByScope = Record<CompletionScope, CompletionBreakdown>;
 
+export type ClassDetailsLearningProgress = {
+  source: "assignments";
+  range: ClassDetailsTimeRange;
+  activity: {
+    completed: number;
+    total: number;
+    percent: number;
+  };
+  submissions: {
+    completed: number;
+    missing: number;
+    total: number;
+  };
+  score_percent: number;
+};
+
+export const EMPTY_CLASS_LEARNING_PROGRESS: ClassDetailsLearningProgress = {
+  source: "assignments",
+  range: "week",
+  activity: {
+    completed: 0,
+    total: 0,
+    percent: 0,
+  },
+  submissions: {
+    completed: 0,
+    missing: 0,
+    total: 0,
+  },
+  score_percent: 0,
+};
+
 export type ClassDetailsActivity = {
   id: number;
   title: string;
@@ -66,6 +98,7 @@ export type ClassDetailsOverviewResponse = {
     performance_summary?: ClassDetailsPerformanceSummary;
     completion_status: ClassDetailsCompletionStatusByScope;
   };
+  learning_progress?: ClassDetailsLearningProgress;
   activities: ClassDetailsActivity[];
   students_preview: ClassDetailsStudentPreview[];
 };
