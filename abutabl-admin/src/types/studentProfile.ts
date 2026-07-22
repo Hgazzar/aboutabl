@@ -1,4 +1,5 @@
 import { ClassDetailsLearningProgress } from "@/types/classDetailsOverview";
+import { StandardsAuditDetail } from "@/types/classStandards";
 
 export type StudentProfileRange = "week" | "month" | "term";
 
@@ -19,7 +20,11 @@ export type StudentProfileSummary = {
   grade_label: string;
   rank: number;
   performance_percent: number;
+  /** Assignment Completion % (assigns_students) — not Accuracy. */
   score_percent: number;
+  /** Accuracy SSOT: Average(quiz_results.percent). */
+  accuracy_percent?: number;
+  accuracy_available?: boolean;
   status: string;
   performance_label: string;
   trend: string;
@@ -107,6 +112,8 @@ export type StudentProfileStandardItem = {
     completed: number;
     total: number;
   };
+  link_sources?: string[];
+  audit_details?: StandardsAuditDetail[];
 };
 
 export type StudentProfileStandards = {
@@ -116,16 +123,109 @@ export type StudentProfileStandards = {
   items: StudentProfileStandardItem[];
 };
 
+export type StudentProfileSmartInsightTask = {
+  id: string;
+  title: string;
+  due: string | null;
+  detail_url: string | null;
+};
+
+export type StudentProfileSmartInsightRecommendation = {
+  title: string;
+  description?: string;
+  priority?: string | number;
+  category?: string;
+  action_type?: string;
+  target_type?: string;
+  target_id?: number | string | null;
+  due_hint?: string | null;
+  source_insight_id?: string;
+  [key: string]: unknown;
+};
+
+export type StudentProfileSmartInsightExecutiveSummary = {
+  overall_student_status?: string | null;
+  strongest_positive_finding?: string | null;
+  highest_priority_concern?: string | null;
+  teacher_focus_area?: string | null;
+  immediate_recommended_action?: string | null;
+  overall_confidence?: number | null;
+  findings?: string[];
+  [key: string]: unknown;
+};
+
+export type StudentProfileSmartInsightCategoryGroup = {
+  category: string;
+  insights?: StudentProfileSmartInsightItem[];
+  visible?: StudentProfileSmartInsightItem[];
+  collapsed?: StudentProfileSmartInsightItem[];
+  collapsed_count?: number;
+  more_label?: string | null;
+  [key: string]: unknown;
+};
+
+/**
+ * One Smart Insight from the backend engine.
+ * Known fields are typed; extra keys are allowed and must render dynamically.
+ */
+export type StudentProfileSmartInsightItem = {
+  id: string;
+  category?: string;
+  severity?: string;
+  title?: string;
+  description?: string;
+  recommendation?: string;
+  /** Backend may send int or Critical/High/Medium/Low/Info — display as returned. */
+  priority?: number | string;
+  priority_rank?: number;
+  generated_at?: string | null;
+  supporting_metrics?: Record<string, unknown>;
+  confidence?: number | string | null;
+  recommendations?: unknown;
+  risk_indicators?: unknown;
+  positive_findings?: unknown;
+  weaknesses?: unknown;
+  trend?: string | null;
+  recommended_tasks?: StudentProfileSmartInsightTask[];
+  tasks?: StudentProfileSmartInsightTask[];
+  [key: string]: unknown;
+};
+
 export type StudentProfileSmartInsight = {
   available: boolean;
   text: string | null;
   generated_at: string | null;
+  insights: StudentProfileSmartInsightItem[];
+  executive_summary?: StudentProfileSmartInsightExecutiveSummary | null;
+  executive_score?: number | null;
+  executive_level?: string | null;
+  executive_confidence?: number | null;
+  categories?: StudentProfileSmartInsightCategoryGroup[];
+  recommendations?: StudentProfileSmartInsightRecommendation[];
+  presentation_sections?: Array<Record<string, unknown>>;
+  /** Optional backend tasks — omitted/empty hides Recommended Tasks UI. */
+  recommended_tasks?: StudentProfileSmartInsightTask[];
+  tasks?: StudentProfileSmartInsightTask[];
+  [key: string]: unknown;
+};
+
+export type TeacherEvaluationNote = {
+  id: number;
+  school_id: number | null;
+  teacher_id: number;
+  teacher_name: string;
+  class_id: number;
+  student_id: number;
+  note: string;
+  created_at: string | null;
+  updated_at: string | null;
+  is_latest?: boolean;
 };
 
 export type StudentProfileTeacherEvaluation = {
   available: boolean;
-  notes: Array<Record<string, unknown>>;
-  latest_feedback: Record<string, unknown> | null;
+  notes: TeacherEvaluationNote[];
+  latest_feedback: TeacherEvaluationNote | null;
   recommendations: Array<Record<string, unknown>>;
   smart_insight: StudentProfileSmartInsight;
 };

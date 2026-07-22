@@ -18,9 +18,15 @@ class ClassActivitiesTasksService
     /** @var TeacherDashboardService */
     private $dashboardService;
 
-    public function __construct(TeacherDashboardService $dashboardService)
-    {
+    /** @var StudentMetricsService */
+    private $metrics;
+
+    public function __construct(
+        TeacherDashboardService $dashboardService,
+        StudentMetricsService $metrics
+    ) {
         $this->dashboardService = $dashboardService;
+        $this->metrics = $metrics;
     }
 
     /**
@@ -137,7 +143,7 @@ class ClassActivitiesTasksService
 
         $dueAt = $row->assign?->due_at;
 
-        if ($dueAt !== null && Carbon::parse($dueAt)->lt(now())) {
+        if ($this->metrics->isOverdue(false, $dueAt !== null ? Carbon::parse($dueAt) : null)) {
             return 'late';
         }
 

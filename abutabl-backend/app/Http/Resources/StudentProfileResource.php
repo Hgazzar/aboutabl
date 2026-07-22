@@ -86,13 +86,28 @@ class StudentProfileResource extends JsonResource
             ],
             'teacher_evaluation' => [
                 'available'       => (bool) ($evaluation['available'] ?? false),
-                'notes'           => array_values($evaluation['notes'] ?? []),
-                'latest_feedback' => $evaluation['latest_feedback'] ?? null,
+                'notes'           => array_values(array_map(
+                    [$this, 'formatEvaluationNote'],
+                    $evaluation['notes'] ?? []
+                )),
+                'latest_feedback' => $this->formatEvaluationNote(
+                    is_array($evaluation['latest_feedback'] ?? null)
+                        ? $evaluation['latest_feedback']
+                        : null
+                ),
                 'recommendations' => array_values($evaluation['recommendations'] ?? []),
                 'smart_insight'   => [
-                    'available'    => (bool) ($evaluation['smart_insight']['available'] ?? false),
-                    'text'         => $evaluation['smart_insight']['text'] ?? null,
-                    'generated_at' => $evaluation['smart_insight']['generated_at'] ?? null,
+                    'available'               => (bool) ($evaluation['smart_insight']['available'] ?? false),
+                    'text'                    => $evaluation['smart_insight']['text'] ?? null,
+                    'generated_at'            => $evaluation['smart_insight']['generated_at'] ?? null,
+                    'insights'                => array_values($evaluation['smart_insight']['insights'] ?? []),
+                    'executive_summary'       => $evaluation['smart_insight']['executive_summary'] ?? null,
+                    'executive_score'         => $evaluation['smart_insight']['executive_score'] ?? null,
+                    'executive_level'         => $evaluation['smart_insight']['executive_level'] ?? null,
+                    'executive_confidence'    => $evaluation['smart_insight']['executive_confidence'] ?? null,
+                    'categories'              => array_values($evaluation['smart_insight']['categories'] ?? []),
+                    'recommendations'         => array_values($evaluation['smart_insight']['recommendations'] ?? []),
+                    'presentation_sections'   => array_values($evaluation['smart_insight']['presentation_sections'] ?? []),
                 ],
             ],
             'rankings' => [
@@ -215,20 +230,46 @@ class StudentProfileResource extends JsonResource
         $percent = (int) ($item['percentage'] ?? $item['percent'] ?? 0);
 
         return [
-            'standard_id' => (int) ($item['standard_id'] ?? 0),
-            'code'        => (string) ($item['code'] ?? ''),
-            'label'       => (string) ($item['label'] ?? ''),
-            'definition'  => $item['definition'] ?? null,
-            'domain'      => (string) ($item['domain'] ?? ''),
-            'percentage'  => $percent,
-            'percent'     => $percent,
-            'status'      => (string) ($item['status'] ?? 'warning'),
-            'color'       => (string) ($item['color'] ?? '#D4A843'),
-            'trend'       => $item['trend'] ?? null,
-            'submissions' => [
+            'standard_id'   => (int) ($item['standard_id'] ?? 0),
+            'code'          => (string) ($item['code'] ?? ''),
+            'label'         => (string) ($item['label'] ?? ''),
+            'definition'    => $item['definition'] ?? null,
+            'domain'        => (string) ($item['domain'] ?? ''),
+            'percentage'    => $percent,
+            'percent'       => $percent,
+            'status'        => (string) ($item['status'] ?? 'warning'),
+            'color'         => (string) ($item['color'] ?? '#D4A843'),
+            'trend'         => $item['trend'] ?? null,
+            'submissions'   => [
                 'completed' => (int) ($item['submissions']['completed'] ?? 0),
                 'total'     => (int) ($item['submissions']['total'] ?? 0),
             ],
+            'link_sources'  => array_values($item['link_sources'] ?? []),
+            'audit_details' => array_values($item['audit_details'] ?? []),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $item
+     * @return array<string, mixed>|null
+     */
+    private function formatEvaluationNote(?array $item): ?array
+    {
+        if ($item === null) {
+            return null;
+        }
+
+        return [
+            'id'           => (int) ($item['id'] ?? 0),
+            'school_id'    => isset($item['school_id']) ? (int) $item['school_id'] : null,
+            'teacher_id'   => (int) ($item['teacher_id'] ?? 0),
+            'teacher_name' => (string) ($item['teacher_name'] ?? ''),
+            'class_id'     => (int) ($item['class_id'] ?? 0),
+            'student_id'   => (int) ($item['student_id'] ?? 0),
+            'note'         => (string) ($item['note'] ?? ''),
+            'created_at'   => $item['created_at'] ?? null,
+            'updated_at'   => $item['updated_at'] ?? null,
+            'is_latest'    => (bool) ($item['is_latest'] ?? false),
         ];
     }
 

@@ -25,6 +25,7 @@ function assignmentNavigatePath(item: {
 	subject_id: string;
 	type_id?: string;
 	path?: string;
+	assign_student_id?: number | null;
 }): string | null {
 	const sid = item.subject_id;
 	if (!sid) return null;
@@ -41,8 +42,16 @@ function assignmentNavigatePath(item: {
 				: `/learn/${sid}`;
 		case 'lessons_contents':
 			return item.type_id ? `/learn/${sid}/details/${item.type_id}` : `/learn/${sid}`;
-		case 'quizes':
-			return item.type_id ? `/learn/${sid}/quiz/${item.type_id}` : `/learn/${sid}`;
+		case 'quizes': {
+			if (!item.type_id) {
+				return `/learn/${sid}`;
+			}
+			const assignQs =
+				item.assign_student_id != null && Number(item.assign_student_id) > 0
+					? `?assign_student_id=${Number(item.assign_student_id)}`
+					: '';
+			return `/learn/${sid}/quiz/${item.type_id}${assignQs}`;
+		}
 		case 'games':
 			return item.type_id ? `/learn/${sid}/detailsGame/${item.type_id}` : `/learn/${sid}`;
 		case 'worksheets':
@@ -91,6 +100,7 @@ export default function Todo() {
 												{item?.data?.map(
 													(item: {
 														assign_id?: number;
+														assign_student_id?: number;
 														by: string;
 														status: string;
 														subject_name: string;

@@ -84,7 +84,9 @@ class StudentProfileApiTest extends TestCase
         $this->assertArrayHasKey('total', $formatted['activities']['assignments']['pagination']);
         $this->assertArrayHasKey('has_more', $formatted['activities']['assignments']['pagination']);
         $this->assertFalse($formatted['teacher_evaluation']['available']);
-        $this->assertFalse($formatted['teacher_evaluation']['smart_insight']['available']);
+        $this->assertArrayHasKey('available', $formatted['teacher_evaluation']['smart_insight']);
+        $this->assertArrayHasKey('insights', $formatted['teacher_evaluation']['smart_insight']);
+        $this->assertIsArray($formatted['teacher_evaluation']['smart_insight']['insights']);
         $this->assertIsArray($formatted['teacher_evaluation']['notes']);
     }
 
@@ -115,8 +117,10 @@ class StudentProfileApiTest extends TestCase
         $this->assertArrayHasKey('submissions', $formatted['learning_progress']);
         $this->assertArrayHasKey('score_percent', $formatted['learning_progress']);
         $this->assertArrayHasKey('current_page', $formatted['activities']['assignments']['pagination']);
-        $this->assertFalse($formatted['teacher_evaluation']['available']);
-        $this->assertFalse($formatted['teacher_evaluation']['smart_insight']['available']);
+        $this->assertArrayHasKey('available', $formatted['teacher_evaluation']);
+        $this->assertArrayHasKey('available', $formatted['teacher_evaluation']['smart_insight']);
+        $this->assertArrayHasKey('insights', $formatted['teacher_evaluation']['smart_insight']);
+        $this->assertIsArray($formatted['teacher_evaluation']['smart_insight']['insights']);
         $this->assertSame('class', $formatted['rankings']['scope']);
         $this->assertArrayHasKey('all_classes_rank', $formatted['rankings']);
         $this->assertArrayHasKey('all_classes_available', $formatted['rankings']);
@@ -349,6 +353,7 @@ class StudentProfileApiTest extends TestCase
                         'available',
                         'text',
                         'generated_at',
+                        'insights',
                     ],
                 ],
                 'rankings' => [

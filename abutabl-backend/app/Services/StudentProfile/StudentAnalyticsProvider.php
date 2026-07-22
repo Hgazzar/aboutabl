@@ -234,13 +234,8 @@ class StudentAnalyticsProvider
             $studentStats = $byDayStudent[$dayKey] ?? ['completed' => 0, 'total' => 0];
             $classStats = $byDayClass[$dayKey] ?? ['completed' => 0, 'total' => 0];
 
-            $studentPercent = $studentStats['total'] > 0
-                ? round(($studentStats['completed'] / $studentStats['total']) * 100, 1)
-                : 0.0;
-
-            $classPercent = $classStats['total'] > 0
-                ? round(($classStats['completed'] / $classStats['total']) * 100, 1)
-                : 0.0;
+            $studentPercent = $this->metrics->computeCompletion($studentStats)['percent'];
+            $classPercent = $this->metrics->computeCompletion($classStats)['percent'];
 
             $series[] = [
                 'day'                => $cursor->format('D'),
@@ -293,7 +288,7 @@ class StudentAnalyticsProvider
         $first = (float) $withActivity[0]['completion_percent'];
         $last = (float) $withActivity[count($withActivity) - 1]['completion_percent'];
 
-        return round($last - $first, 1);
+        return $this->metrics->computeDeltaPercent($last, $first);
     }
 
     /**

@@ -21,6 +21,9 @@ import { setupScormAPIHandler } from "./utils/scormProxy";
 
 const Dashboard = lazy(() => import("./pages/dashboard/Dashboard"));
 const ClassDetailsView = lazy(() => import("./pages/teacher/ClassDetailsView"));
+const AssignmentDetailsView = lazy(
+  () => import("./pages/teacher/AssignmentDetailsView")
+);
 const TeacherSettingsPlaceholder = lazy(
   () => import("./pages/teacher/TeacherSettingsPlaceholder")
 );
@@ -275,6 +278,10 @@ function App() {
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="teacher/classes" element={<ClassDetailsView />} />
+            <Route
+              path="teacher/classes/:classId/assignments/:assignmentId"
+              element={<AssignmentDetailsView />}
+            />
             <Route path="teacher/classes/:classId/:tab?" element={<ClassDetailsView />} />
             <Route path="teacher/settings" element={<TeacherSettingsPlaceholder />} />
             <Route path="profile" element={<Profile />} />

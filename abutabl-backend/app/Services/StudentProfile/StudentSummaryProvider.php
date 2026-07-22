@@ -5,6 +5,8 @@ namespace App\Services\StudentProfile;
 use App\Models\Classes;
 use App\Models\Student;
 use App\Services\StudentMetricsService;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class StudentSummaryProvider
 {
@@ -74,6 +76,7 @@ class StudentSummaryProvider
 
         $completed = (int) ($row['score']['completed'] ?? 0);
         $total = (int) ($row['score']['total'] ?? 0);
+        $accuracy = $this->loadAccuracyFromQuizResults($studentId);
 
         return [
             'student' => [
@@ -84,7 +87,11 @@ class StudentSummaryProvider
                 'grade_label'         => $gradeLabel,
                 'rank'                => (int) $row['rank'],
                 'performance_percent' => (float) $row['performance']['percent'],
+                // Completion % from assigns_students (via Metrics score alias) — not Accuracy.
                 'score_percent'       => (float) $row['score']['percent'],
+                // F-044C Accuracy SSOT: average quiz_results.percent only.
+                'accuracy_percent'    => $accuracy['percent'],
+                'accuracy_available'  => $accuracy['available'],
                 'status'              => (string) $row['status'],
                 'performance_label'   => (string) $row['performance']['label'],
                 'trend'               => (string) $row['performance']['trend'],
@@ -97,6 +104,43 @@ class StudentSummaryProvider
             'ranked_rows' => $rankedRows,
             'class_label' => $classLabel,
             'grade_label' => $gradeLabel,
+        ];
+    }
+
+    /**
+     * Accuracy = Average(quiz_results.percent). Never Completion / computeScore.
+     *
+     * @return array{percent: float, available: bool}
+     */
+    private function loadAccuracyFromQuizResults(int $studentId): array
+    {
+        if ($studentId <= 0 || ! Schema::hasTable('quiz_results')) {
+            return ['percent' => 0.0, 'available' => false];
+        }
+
+        $query = DB::table('quiz_results')->where('student_id', $studentId);
+
+        if (Schema::hasColumn('quiz_results', 'is_authoritative')) {
+            $query->where(function ($inner) {
+                $inner->where('is_authoritative', 1)
+                    ->orWhereNull('is_authoritative');
+            });
+        }
+
+        $percents = $query
+            ->whereNotNull('percent')
+            ->pluck('percent')
+            ->map(fn ($value) => (float) $value)
+            ->values()
+            ->all();
+
+        if ($percents === []) {
+            return ['percent' => 0.0, 'available' => false];
+        }
+
+        return [
+            'percent'   => $this->metrics->computeAveragePercent($percents),
+            'available' => true,
         ];
     }
 }

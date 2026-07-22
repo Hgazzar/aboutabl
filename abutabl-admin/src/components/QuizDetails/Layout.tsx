@@ -1,6 +1,7 @@
 import { Box, Typography, Divider, TextField, Input } from "@mui/material";
 import React, { useRef, useState } from "react";
 import SelectBox from "../shared/SelectBox";
+import SwitchBox from "../shared/SwitchBox";
 
 const Layout = ({ formik }: any) => {
   // ----------- hooks ------------
@@ -72,6 +73,37 @@ const Layout = ({ formik }: any) => {
             />
           </div>
         </Box>
+      </Box>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          flexDirection: "row",
+          alignItems: "center",
+          p: 1,
+          px: 3,
+        }}
+      >
+        <Typography component={"p"} sx={{ color: "#8E9AA0" }}>
+          Shuffle questions
+        </Typography>
+        <SwitchBox id={"shuffle_questions"} formik={formik} />
+      </Box>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          flexDirection: "row",
+          alignItems: "center",
+          p: 1,
+          px: 3,
+          pb: 3,
+        }}
+      >
+        <Typography component={"p"} sx={{ color: "#8E9AA0" }}>
+          Shuffle answers
+        </Typography>
+        <SwitchBox id={"shuffle_answers"} formik={formik} />
       </Box>
     </Box>
   );

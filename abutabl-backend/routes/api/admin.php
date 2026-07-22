@@ -42,8 +42,16 @@ Route::group([ 'middleware' => ['api' , 'checkSecretApi' , 'changeLanguage','che
     Route::get('/dashboard/teacher/classes/{classId}/overview', 'TeacherClassesController@overview');
     Route::get('/dashboard/teacher/classes/{classId}/standards', 'TeacherClassesController@standards');
     Route::get('/dashboard/teacher/classes/{classId}/activities-tasks', 'TeacherClassesController@activitiesTasks');
+    Route::get('/dashboard/teacher/classes/{classId}/assignments', 'TeacherClassesController@assignments');
+    Route::get('/dashboard/teacher/classes/{classId}/assignments/{assignmentId}', 'TeacherClassesController@assignmentShow');
     Route::get('/dashboard/teacher/classes/{classId}/students-overview', 'TeacherClassesController@studentsOverview');
     Route::get('/dashboard/teacher/classes/{classId}/students/{studentId}/profile', 'TeacherClassesController@studentProfile');
+    Route::get('/dashboard/teacher/classes/{classId}/students/{studentId}/evaluations', 'TeacherEvaluationsController@index');
+    Route::get('/dashboard/teacher/classes/{classId}/students/{studentId}/evaluations/latest', 'TeacherEvaluationsController@latest');
+    Route::post('/dashboard/teacher/classes/{classId}/students/{studentId}/evaluations', 'TeacherEvaluationsController@store');
+    Route::put('/dashboard/teacher/classes/{classId}/students/{studentId}/evaluations/{evaluationId}', 'TeacherEvaluationsController@update');
+    Route::patch('/dashboard/teacher/classes/{classId}/students/{studentId}/evaluations/{evaluationId}', 'TeacherEvaluationsController@update');
+    Route::delete('/dashboard/teacher/classes/{classId}/students/{studentId}/evaluations/{evaluationId}', 'TeacherEvaluationsController@destroy');
     Route::get('/dashboard/teacher/classes/{classId}/alerts', 'TeacherClassesController@classAlerts');
     Route::post('/dashboard/teacher/classes/{classId}/alerts/dismiss', 'TeacherClassesController@dismissClassAlert');
     Route::post('/dashboard/teacher/classes/{classId}/alerts/reset-dismissals', 'TeacherClassesController@resetClassAlertDismissals');
@@ -273,4 +281,18 @@ Route::group([ 'middleware' => ['api' , 'checkSecretApi' , 'changeLanguage','che
         Route::get('/interactive-games/{id}/students/{studentId}/answers', 'InteractiveGamesAdminController@studentAnswers');
     });
 
+});
+
+// F-009D Sprint 1 — Quiz Runtime (teacher/admin). /api/quiz-runtime/*
+// Separate group so namespace is not nested under Api\AdminControllers.
+Route::group([
+    'middleware' => ['api', 'checkSecretApi', 'changeLanguage', 'checkUserToken:admin-api'],
+    'prefix' => 'quiz-runtime',
+    'namespace' => 'Api\Admin\QuizRuntime',
+], function () {
+    // F-009D Sprint 2 — Teacher Runtime READ + Manual Grade + Regrade
+    Route::get('/attempts', 'TeacherQuizRuntimeController@attempts');
+    Route::get('/attempts/{attemptId}', 'TeacherQuizRuntimeController@attempt');
+    Route::post('/attempts/{attemptId}/manual-grade', 'TeacherQuizRuntimeController@manualGrade');
+    Route::post('/attempts/{attemptId}/regrade', 'TeacherQuizRuntimeController@regrade');
 });

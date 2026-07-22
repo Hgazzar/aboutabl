@@ -25,6 +25,16 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule)
     {
         $schedule->command('performance:capture-daily')->dailyAt('01:15');
+
+        // F-015 — timed quiz expire / auto-submit sweep (production interval).
+        $schedule->command('quiz-runtime:expire-attempts --limit=200')
+            ->everyMinute()
+            ->withoutOverlapping();
+
+        // F-045B — relay finalized quiz outbox → Completion / Performance Snapshot / Notifications.
+        $schedule->command('quiz-runtime:relay-outbox --limit=100')
+            ->everyMinute()
+            ->withoutOverlapping();
     }
 
     /**

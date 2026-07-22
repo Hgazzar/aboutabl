@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api\AdminControllers;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Assignment\ClassAssignmentsListRequest;
 use App\Http\Resources\StudentProfileResource;
 use App\Http\Resources\TeacherClassOverviewResource;
+use App\Services\Assignment\AssignmentService;
 use App\Services\ClassActivitiesTasksService;
 use App\Services\ClassAlertsService;
 use App\Services\ClassStandardsService;
@@ -37,13 +39,17 @@ class TeacherClassesController extends Controller
     /** @var StudentProfileService */
     private $studentProfileService;
 
+    /** @var AssignmentService */
+    private $assignmentService;
+
     public function __construct(
         TeacherDashboardService $dashboardService,
         ClassStandardsService $standardsService,
         ClassActivitiesTasksService $activitiesTasksService,
         ClassStudentsOverviewService $studentsOverviewService,
         ClassAlertsService $classAlertsService,
-        StudentProfileService $studentProfileService
+        StudentProfileService $studentProfileService,
+        AssignmentService $assignmentService
     ) {
         auth()->setDefaultDriver('admin-api');
         $this->dashboardService = $dashboardService;
@@ -52,6 +58,7 @@ class TeacherClassesController extends Controller
         $this->studentsOverviewService = $studentsOverviewService;
         $this->classAlertsService = $classAlertsService;
         $this->studentProfileService = $studentProfileService;
+        $this->assignmentService = $assignmentService;
     }
 
     /**
@@ -157,6 +164,10 @@ class TeacherClassesController extends Controller
         try {
             $user = auth()->user();
 
+            if ($user->type === 'admin') {
+                return $this->returnError('E403', __('This endpoint is for teachers only.'), 403);
+            }
+
             $validator = Validator::make($request->all(), [
                 'subject' => 'nullable|in:letters-explorer,math-explorer',
                 'range'   => 'nullable|in:week,month,term',
@@ -168,17 +179,15 @@ class TeacherClassesController extends Controller
                 return $this->returnValidationError($code, $validator);
             }
 
-            if ($user->type !== 'admin') {
-                $schoolIds = $this->SchoolsIDs();
-                $scope = $this->dashboardService->resolveClassAccess(
-                    (int) $user->id,
-                    $schoolIds,
-                    $classId
-                );
+            $schoolIds = $this->SchoolsIDs();
+            $scope = $this->dashboardService->resolveClassAccess(
+                (int) $user->id,
+                $schoolIds,
+                $classId
+            );
 
-                if ($scope === null) {
-                    throw new \InvalidArgumentException('The selected class is not assigned to this teacher.');
-                }
+            if ($scope === null) {
+                throw new \InvalidArgumentException('The selected class is not assigned to this teacher.');
             }
 
             $subjectSlug = (string) $request->input('subject', 'letters-explorer');
@@ -232,6 +241,82 @@ class TeacherClassesController extends Controller
             return response()->json(array_merge(['status' => true], $payload), 200);
         } catch (\InvalidArgumentException $ex) {
             return $this->returnError('E403', $ex->getMessage(), 403);
+        } catch (\Exception $ex) {
+            return $this->returnError($ex->getCode() ?: 'E000', $ex->getMessage());
+        }
+    }
+
+    /**
+     * Class Details — Assignments tab (one card per assignment).
+     * F-041E.2 — sourced only from AssignmentService::listForClass.
+     */
+    public function assignments(ClassAssignmentsListRequest $request, int $classId)
+    {
+        try {
+            $user = auth()->user();
+
+            if ($user->type === 'admin') {
+                return $this->returnError('E403', __('This endpoint is for teachers only.'), 403);
+            }
+
+            $schoolIds = $this->SchoolsIDs();
+
+            $payload = $this->assignmentService->listForClass(
+                (int) $user->id,
+                $schoolIds,
+                $classId,
+                [
+                    'search'   => $request->input('search'),
+                    'status'   => $request->input('status', 'all'),
+                    'subject'  => $request->input('subject'),
+                    'teacher'  => $request->input('teacher'),
+                    'range'    => $request->input('range', 'week'),
+                    'sort'     => $request->input('sort', 'newest'),
+                    'page'     => $request->input('page', 1),
+                    'per_page' => $request->input('per_page', 15),
+                ]
+            );
+
+            return response()->json(array_merge(['status' => true], $payload), 200);
+        } catch (\InvalidArgumentException $ex) {
+            return $this->returnError('E403', $ex->getMessage(), 403);
+        } catch (\Exception $ex) {
+            return $this->returnError($ex->getCode() ?: 'E000', $ex->getMessage());
+        }
+    }
+
+    /**
+     * Class Details — Assignment Details (Screen #6).
+     * F-043 — sourced only from AssignmentService::getForClass.
+     */
+    public function assignmentShow(int $classId, int $assignmentId)
+    {
+        try {
+            $user = auth()->user();
+
+            if ($user->type === 'admin') {
+                return $this->returnError('E403', __('This endpoint is for teachers only.'), 403);
+            }
+
+            $schoolIds = $this->SchoolsIDs();
+
+            $payload = $this->assignmentService->getForClass(
+                (int) $user->id,
+                $schoolIds,
+                $classId,
+                $assignmentId
+            );
+
+            return response()->json(array_merge(['status' => true], $payload), 200);
+        } catch (\InvalidArgumentException $ex) {
+            $message = $ex->getMessage();
+            $status = $message === 'assignment_not_found' ? 404 : 403;
+            $code = $status === 404 ? 'E404' : 'E403';
+            $text = $message === 'assignment_not_found'
+                ? __('Assignment not found for this class.')
+                : $message;
+
+            return $this->returnError($code, $text, $status);
         } catch (\Exception $ex) {
             return $this->returnError($ex->getCode() ?: 'E000', $ex->getMessage());
         }
@@ -297,7 +382,7 @@ class TeacherClassesController extends Controller
 
             $validator = Validator::make($request->all(), [
                 'range'             => 'nullable|in:week,month,term',
-                'subject'           => 'nullable|string|max:100',
+                'subject'           => 'nullable|in:letters-explorer,math-explorer',
                 'assignments_page'  => 'nullable|integer|min:1',
                 'quizzes_page'      => 'nullable|integer|min:1',
                 'scope'             => 'nullable|in:class,all_classes',

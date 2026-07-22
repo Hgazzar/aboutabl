@@ -18,6 +18,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Http\Resources\LoginResource;
 use App\Traits\GeneralTrait;
+use App\Services\QuizRuntime\QuizPublishService;
 use Validator;
 use Auth;
 use Tymon\JWTAuth\Facades\JWTAuth;
@@ -32,14 +33,19 @@ class QuizesController extends Controller
 {
     use GeneralTrait ;
 
-    public function __construct()
+    /** @var QuizPublishService */
+    private $publishService;
+
+    public function __construct(QuizPublishService $publishService)
     {
         auth()->setDefaultDriver('admin-api');
         $this->middleware("can:view-quizes")->only("index","show");
+        $this->middleware('quizLibraryAdminOnly')->only("store","create","update","edit","assignQuestion","status","destroy");
         $this->middleware("can:add-quizes")->only("store","create");
         $this->middleware("can:edit-quizes")->only("update","edit","assignQuestion");
         $this->middleware("can:activation-quizes")->only("status");
-        $this->middleware("can:delete-quizes")->only("destroy"); 
+        $this->middleware("can:delete-quizes")->only("destroy");
+        $this->publishService = $publishService;
     }
 
    public function index(Request $request)
@@ -87,6 +93,14 @@ class QuizesController extends Controller
                 "instructions_ar"    => ["nullable","string","min:5,","max:1000"],
                 "code"               => "nullable",
                 "navigation_method"  => "nullable",
+                "shuffle_questions"  => "nullable|in:1,0",
+                "shuffle_answers"    => "nullable|in:1,0",
+                "review_after_submit" => "nullable|boolean",
+                "show_correct_answers" => "nullable|boolean",
+                "show_explanations"  => "nullable|boolean",
+                "allow_retry_after_pass" => "nullable|boolean",
+                "allow_retry_after_fail" => "nullable|boolean",
+                "retry_delay_minutes" => "nullable|integer|min:0",
                 "start_date"         => "nullable|date_format:Y-m-d|after_or_equal:".\carbon\carbon::parse(now())->format('Y-m-d'),
                 "due_date"           => "nullable|date_format:Y-m-d|after_or_equal:".$request->start_date,
                 "questions_per_page" => "nullable",
@@ -169,6 +183,19 @@ class QuizesController extends Controller
                       'lesson_id'        => $request->lesson_id,
                       'created_by'        => auth()->user()->id,
                       'navigation_method' => $request->navigation_method??'free',
+                      'shuffle_questions' => $request->shuffle_questions??0,
+                      'shuffle_answers'   => $request->shuffle_answers??0,
+                      'review_after_submit' => $request->boolean('review_after_submit'),
+                      'show_correct_answers' => $request->boolean('show_correct_answers'),
+                      'show_explanations' => $request->boolean('show_explanations'),
+                      'allow_retry_after_pass' => $request->boolean('allow_retry_after_pass'),
+                      'allow_retry_after_fail' => filter_var(
+                          $request->input('allow_retry_after_fail', true),
+                          FILTER_VALIDATE_BOOLEAN
+                      ),
+                      'retry_delay_minutes' => $request->filled('retry_delay_minutes')
+                          ? (int) $request->input('retry_delay_minutes')
+                          : null,
                       'questions_per_page'=>$request->questions_per_page??1,
                       'score_method'      =>$request->score_method??'points',
                       'score_to_pass'     =>$request->score_to_pass??1,
@@ -222,12 +249,14 @@ class QuizesController extends Controller
 
                 $this->addNotifyFromTeacher($dataNotify);
 
-          
+             $this->publishQuizRuntime((int) $quize->id);
+
              DB::commit();
 
            return $this->returnData('quize',$quize, __('api.Quize Added Successfully') ,200);
           
         }catch (\Exception $ex){
+            DB::rollBack();
             return $this->returnError($ex->getCode(), $ex->getMessage());
         }
     }
@@ -243,6 +272,14 @@ class QuizesController extends Controller
                 "instructions_ar"    => ["nullable","string","min:5,","max:1000"],
                 "code"               => "nullable",
                 "navigation_method"  => "nullable",
+                "shuffle_questions"  => "nullable|in:1,0",
+                "shuffle_answers"    => "nullable|in:1,0",
+                "review_after_submit" => "nullable|boolean",
+                "show_correct_answers" => "nullable|boolean",
+                "show_explanations"  => "nullable|boolean",
+                "allow_retry_after_pass" => "nullable|boolean",
+                "allow_retry_after_fail" => "nullable|boolean",
+                "retry_delay_minutes" => "nullable|integer|min:0",
                 "start_date"         => "nullable|date_format:Y-m-d|after_or_equal:".\carbon\carbon::parse(now())->format('Y-m-d'),
                 "due_date"           => "nullable|date_format:Y-m-d|after_or_equal:".$request->start_date,
                 "questions_per_page" => "nullable",
@@ -335,6 +372,19 @@ class QuizesController extends Controller
                       'lesson_id'        => $request->lesson_id,
                       'created_by'        => auth()->user()->id,
                       'navigation_method' => $request->navigation_method??'free',
+                      'shuffle_questions' => $request->shuffle_questions??0,
+                      'shuffle_answers'   => $request->shuffle_answers??0,
+                      'review_after_submit' => $request->boolean('review_after_submit'),
+                      'show_correct_answers' => $request->boolean('show_correct_answers'),
+                      'show_explanations' => $request->boolean('show_explanations'),
+                      'allow_retry_after_pass' => $request->boolean('allow_retry_after_pass'),
+                      'allow_retry_after_fail' => filter_var(
+                          $request->input('allow_retry_after_fail', true),
+                          FILTER_VALIDATE_BOOLEAN
+                      ),
+                      'retry_delay_minutes' => $request->filled('retry_delay_minutes')
+                          ? (int) $request->input('retry_delay_minutes')
+                          : null,
                       'questions_per_page'=>$request->questions_per_page??1,
                       'score_method'      =>$request->score_method??'points',
                       'score_to_pass'     =>$request->score_to_pass??1,
@@ -380,11 +430,14 @@ class QuizesController extends Controller
                   }
                }  
           
+             $this->publishQuizRuntime((int) $id);
+
              DB::commit();
 
            return $this->returnData('quize',$quize, 'Quize Updated Successfully' ,200);
           
         }catch (\Exception $ex){
+            DB::rollBack();
             return $this->returnError($ex->getCode(), $ex->getMessage());
         }
     }
@@ -395,7 +448,7 @@ class QuizesController extends Controller
        try {
 
                   $quize = Quizes::where('id',$id)
-                    ->select('id',app()->getLocale()=='ar'?'title_ar as title':'title_en as title','title_en','title_ar','start_date as startDate','start_date','due_date as DueDate','due_date','time_limit','type_time','do_when_time_end','score_method','score_to_pass','num_attempts','code','notify_student','notify_about_submission','notify_about_late_submission','questions_per_page','navigation_method','reminder_before_due_date');
+                    ->select('id',app()->getLocale()=='ar'?'title_ar as title':'title_en as title','title_en','title_ar','start_date as startDate','start_date','due_date as DueDate','due_date','time_limit','type_time','do_when_time_end','score_method','score_to_pass','num_attempts','code','notify_student','notify_about_submission','notify_about_late_submission','questions_per_page','navigation_method','shuffle_questions','shuffle_answers','review_after_submit','show_correct_answers','show_explanations','allow_retry_after_pass','allow_retry_after_fail','retry_delay_minutes','reminder_before_due_date');
                   $SkillsQuizes = SkillsQuizes::where('quize_id',$id)->pluck('skill_id')->toArray();
                   $skills       = skills::whereIN('id',$SkillsQuizes)->select('id','name')->get();
                   $questions    = QuizesQuestions::where('quize_id',$id)->select('question_id','score',DB::raw("CONCAT( '".$quize->first()->score_method."'  ) AS score_formate"))->get();
@@ -459,11 +512,14 @@ class QuizesController extends Controller
               }
            }  
           
+             $this->publishQuizRuntime((int) $id);
+
              DB::commit();
 
              return $this -> returnSuccessMessage(  __('api.Quize Updated Successfully') ,"200",200);
           
         }catch (\Exception $ex){
+            DB::rollBack();
             return $this->returnError($ex->getCode(), $ex->getMessage());
         }
     }
@@ -485,6 +541,19 @@ class QuizesController extends Controller
         }catch (\Exception $ex){
             return $this->returnError($ex->getCode(), $ex->getMessage());
         }
+    }
+
+
+    /**
+     * F-011 — Wire Definition save into Runtime Publish (exactly once).
+     * Uses existing QuizPublishService; unchanged content is skipped via content_hash.
+     */
+    private function publishQuizRuntime(int $quizId): void
+    {
+        $this->publishService->publish([
+            'quiz_id' => $quizId,
+            'published_by' => auth()->user()->id ?? null,
+        ]);
     }
 
 }

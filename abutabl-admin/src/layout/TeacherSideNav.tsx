@@ -17,9 +17,7 @@ import Cookies from "js-cookie";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
-// @ts-expect-error CRA svgr
 import { ReactComponent as ClassesIcon } from "../assets/classes-icon.svg";
-// @ts-expect-error CRA svgr
 import { ReactComponent as AboutablLogo } from "../assets/aboutabl-logo.svg";
 import { clearPermissions } from "../redux/reducers/permissionReducer";
 import { setLoginProcess, setUser } from "../redux/reducers/loginReducer";

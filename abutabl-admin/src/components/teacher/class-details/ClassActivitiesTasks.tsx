@@ -6,7 +6,7 @@ import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
 import { CircularProgress } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { getRequest } from "@/utils/fetchMethods";
-import { ClassDetailsTimeRange } from "@/types/classDetails";
+import { ClassDetailsTimeRange, ClassDetailsMetricTimeRange } from "@/types/classDetails";
 import {
   ACTIVITIES_TASKS_FILTERS,
   ActivitiesTasksFilter,
@@ -29,12 +29,16 @@ const TAB_I18N_KEY: Record<ActivitiesTasksFilter, string> = {
 const resolveEffectiveRange = (
   historyMode: boolean,
   headerTimeRange: ClassDetailsTimeRange
-): ClassDetailsTimeRange => {
+): ClassDetailsMetricTimeRange => {
   if (!historyMode) {
     return "week";
   }
 
-  return headerTimeRange === "week" ? "month" : headerTimeRange;
+  if (headerTimeRange === "all" || headerTimeRange === "week") {
+    return "month";
+  }
+
+  return headerTimeRange;
 };
 
 const formatDueDateLabel = (value: string, locale: string) => {

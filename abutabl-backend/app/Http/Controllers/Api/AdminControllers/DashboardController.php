@@ -57,7 +57,11 @@ class DashboardController extends Controller
                 ->selectRaw('COUNT(DISTINCT subject_id) as c')
                 ->value('c');
 
-            $assignIds = Assigns::whereIn('school_id', $schoolIds)->where('status', 1)->pluck('id');
+            $assignIdsQuery = Assigns::whereIn('school_id', $schoolIds)->where('status', 1);
+            if (auth()->user()->type !== 'admin') {
+                $assignIdsQuery->where('created_by', auth()->id());
+            }
+            $assignIds = $assignIdsQuery->pluck('id');
             $assignmentsOpen = $assignIds->count();
             if ($assignIds->isEmpty()) {
                 $assignmentsActive = 0;

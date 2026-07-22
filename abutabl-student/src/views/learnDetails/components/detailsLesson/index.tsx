@@ -28,15 +28,13 @@ import LogoImage from 'assets/images/svg/logo-aboutabl-dark 2.svg?react';
 
 import { useParams } from 'react-router-dom';
 import { SubjectDetails } from 'redux-toolkit/reducer/SubjectsReducer';
-import { lessonContent } from 'redux-toolkit/reducer/LessonReducer';
 import { todoList } from 'redux-toolkit/reducer/todoReducer';
-import { toStudentScormUrl } from 'utils/functions';
+import LessonContentViewer from './LessonContentViewer';
 
 const DetailsUnit = () => {
 	const dispatch = useDispatch();
 	const nagivate = useNavigate();
 	const subjectDetails = useSelector((state: any) => state.SubjectsReducer);
-	const lessonContentList = useSelector((state: any) => state.LessonReducer);
 	const { id, idUnit } = useParams();
 	const [item, setItem] = useState<any>(null);
 	const [contentArr, setContentArr] = useState<any>([]);
@@ -295,21 +293,8 @@ const DetailsUnit = () => {
 									{loading ? null : contentArr?.length ? 'Select content from the list' : 'No content available'}
 								</Text>
 							</Box>
-						) : item?.type == 'image' ? (
-							<img
-								src={toStudentScormUrl(item?.path)}
-								style={{ maxWidth: '100%', maxHeight: '90vh', marginLeft: 'auto', marginRight: 'auto' }}
-							/>
-						) : item?.type == 'word' ? (
-							<iframe
-								title="Word and excel Viewer"
-								allowFullScreen
-								style={{ width: '100%', height: '90vh' }}
-								scrolling="no"
-								src={'https://view.officeapps.live.com/op/embed.aspx?src=' + encodeURIComponent(toStudentScormUrl(item?.path))}
-							></iframe>
 						) : (
-							<iframe src={toStudentScormUrl(item?.path)} allowFullScreen style={{ width: '100%', height: '90vh' }} scrolling="no" title={item?.name} />
+							<LessonContentViewer item={item} />
 						)}
 					</Box>
 				</Flex>

@@ -33,7 +33,7 @@ export type ClassDetailsCompletionStatus = CompletionBreakdown;
 export type ClassDetailsCompletionStatusByScope = Record<CompletionScope, CompletionBreakdown>;
 
 export type ClassDetailsLearningProgress = {
-  source: "assignments";
+  source: "student_subject_progress" | "assignments";
   range: ClassDetailsTimeRange;
   activity: {
     completed: number;
@@ -49,7 +49,7 @@ export type ClassDetailsLearningProgress = {
 };
 
 export const EMPTY_CLASS_LEARNING_PROGRESS: ClassDetailsLearningProgress = {
-  source: "assignments",
+  source: "student_subject_progress",
   range: "week",
   activity: {
     completed: 0,

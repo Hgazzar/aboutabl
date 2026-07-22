@@ -180,13 +180,23 @@ class StudentProfileService
         );
 
         $teacherEvaluation = $this->rememberWidget(
-            $cacheBase.':evaluation',
+            $cacheBase.':evaluation:subjects:'.$this->subjectCacheToken(
+                $scope['subjects_by_class'][$classId] ?? []
+            ).':std:'.$subjectSlug,
             fn () => $this->evaluationProvider->build([
                 'teacher_id' => $teacherId,
+                'school_ids' => $schoolIds,
                 'class_id'   => $classId,
                 'student_id' => $studentId,
                 'range'      => $range,
+                'subject'    => $subjectSlug,
                 'student'    => $student,
+                'standards'  => $standards,
+                'subject_ids' => array_map(
+                    'intval',
+                    $scope['subjects_by_class'][$classId] ?? []
+                ),
+                'access_verified' => true,
             ])
         );
 
@@ -252,6 +262,19 @@ class StudentProfileService
     }
 
     /**
+     * Stable subject fingerprint for profile cache keys (F-036 binding).
+     *
+     * @param  array<int|string>  $subjectIds
+     */
+    private function subjectCacheToken(array $subjectIds): string
+    {
+        $normalized = array_values(array_unique(array_map('intval', $subjectIds)));
+        sort($normalized);
+
+        return $normalized === [] ? 'none' : implode('-', $normalized);
+    }
+
+    /**
      * @param  array<string, mixed>|null  $student
      * @return array<string, mixed>
      */
@@ -269,7 +292,7 @@ class StudentProfileService
 
         $completed = (int) ($student['completed'] ?? 0);
         $total = (int) ($student['total'] ?? 0);
-        $missing = (int) ($student['missing'] ?? max(0, $total - $completed));
+        $missing = (int) ($student['missing'] ?? $this->metrics->computeRemaining($completed, $total));
         $percent = (float) ($student['score_percent'] ?? 0);
 
         return [

@@ -6,6 +6,8 @@ use App\Models\AssignsStudents;
 use App\Services\StudentMetricsService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class StudentActivitiesProvider
 {
@@ -70,14 +72,17 @@ class StudentActivitiesProvider
             ->with(['assign:id,type,assigned_name,due_at,created_at'])
             ->get(['id', 'assign_id', 'student_id', 'opened_at', 'created_at']);
 
+        $assignIds = $rows->pluck('assign_id')->map(fn ($id) => (int) $id)->unique()->values()->all();
+        $scoreByAssign = $this->quizScorePercentByAssign($studentId, $assignIds);
+
         $scores = [];
 
         foreach ($rows as $row) {
-            $mapped = $this->mapRow($row);
-
-            if ($mapped !== null && $mapped['score'] !== null) {
-                $scores[] = (float) $mapped['score'];
+            $assignId = (int) $row->assign_id;
+            if (! array_key_exists($assignId, $scoreByAssign)) {
+                continue;
             }
+            $scores[] = (float) $scoreByAssign[$assignId];
         }
 
         if ($scores === []) {
@@ -87,7 +92,8 @@ class StudentActivitiesProvider
             return $group;
         }
 
-        $group['average_percent'] = round(array_sum($scores) / count($scores), 1);
+        // Average Score SSOT: Average(quiz_results.percent) via Metrics average helper only.
+        $group['average_percent'] = $this->metrics->computeAveragePercent($scores);
         $group['average_available'] = true;
 
         return $group;
@@ -117,10 +123,16 @@ class StudentActivitiesProvider
             ->forPage($page, self::PER_PAGE)
             ->get(['id', 'assign_id', 'student_id', 'opened_at', 'created_at']);
 
+        $scoreByAssign = [];
+        if ($group === 'quiz') {
+            $assignIds = $rows->pluck('assign_id')->map(fn ($id) => (int) $id)->unique()->values()->all();
+            $scoreByAssign = $this->quizScorePercentByAssign($studentId, $assignIds);
+        }
+
         $items = [];
 
         foreach ($rows as $row) {
-            $mapped = $this->mapRow($row);
+            $mapped = $this->mapRow($row, $scoreByAssign);
 
             if ($mapped !== null) {
                 $items[] = $mapped;
@@ -166,9 +178,10 @@ class StudentActivitiesProvider
     }
 
     /**
+     * @param  array<int, float>  $scoreByAssign  Quiz Score SSOT: quiz_results.percent keyed by assign_id
      * @return array<string, mixed>|null
      */
-    private function mapRow(AssignsStudents $row): ?array
+    private function mapRow(AssignsStudents $row, array $scoreByAssign = []): ?array
     {
         $assign = $row->assign;
 
@@ -178,17 +191,22 @@ class StudentActivitiesProvider
 
         $assignedAt = $row->created_at ? Carbon::parse($row->created_at) : null;
         $status = $this->resolveStatus($row);
+        $isQuiz = $assign->type === 'quizes';
+        $assignId = (int) $row->assign_id;
+        $quizScore = $isQuiz && array_key_exists($assignId, $scoreByAssign)
+            ? (float) $scoreByAssign[$assignId]
+            : null;
 
         return [
             'id'           => (int) $row->id,
-            'assign_id'    => (int) $row->assign_id,
+            'assign_id'    => $assignId,
             'title'        => (string) ($assign->assigned_name ?: $assign->type),
-            'type'         => $assign->type === 'quizes' ? 'quiz' : 'assignment',
+            'type'         => $isQuiz ? 'quiz' : 'assignment',
             'status'       => $status,
             'status_badge' => $this->statusBadge($status),
-            'score'        => null,
-            'max_score'    => null,
-            'score_label'  => null,
+            'score'        => $quizScore,
+            'max_score'    => $quizScore !== null ? 100.0 : null,
+            'score_label'  => $quizScore !== null ? round($quizScore, 1).'%' : null,
             'due_at'       => $assign->due_at
                 ? Carbon::parse($assign->due_at)->toIso8601String()
                 : null,
@@ -199,6 +217,68 @@ class StudentActivitiesProvider
                 ? Carbon::parse($row->opened_at)->toIso8601String()
                 : null,
         ];
+    }
+
+    /**
+     * Latest authoritative quiz_results.percent per assign for one student.
+     *
+     * @param  array<int, int>  $assignIds
+     * @return array<int, float>
+     */
+    private function quizScorePercentByAssign(int $studentId, array $assignIds): array
+    {
+        if (
+            $studentId <= 0
+            || $assignIds === []
+            || ! Schema::hasTable('quiz_attempts')
+            || ! Schema::hasTable('quiz_results')
+        ) {
+            return [];
+        }
+
+        $attempts = DB::table('quiz_attempts')
+            ->where('student_id', $studentId)
+            ->whereIn('assign_id', $assignIds)
+            ->get(['id', 'assign_id']);
+
+        if ($attempts->isEmpty()) {
+            return [];
+        }
+
+        $attemptIds = $attempts->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $assignByAttempt = [];
+        foreach ($attempts as $attempt) {
+            $assignByAttempt[(int) $attempt->id] = (int) $attempt->assign_id;
+        }
+
+        $resultsQuery = DB::table('quiz_results')
+            ->where('student_id', $studentId)
+            ->whereIn('attempt_id', $attemptIds)
+            ->whereNotNull('percent');
+
+        if (Schema::hasColumn('quiz_results', 'is_authoritative')) {
+            $resultsQuery->where(function ($inner) {
+                $inner->where('is_authoritative', 1)
+                    ->orWhereNull('is_authoritative');
+            });
+        }
+
+        if (Schema::hasColumn('quiz_results', 'finalized_at')) {
+            $resultsQuery->orderByDesc('finalized_at');
+        }
+        $resultsQuery->orderByDesc('id');
+
+        $out = [];
+        foreach ($resultsQuery->get(['attempt_id', 'percent']) as $result) {
+            $attemptId = (int) $result->attempt_id;
+            $assignId = $assignByAttempt[$attemptId] ?? 0;
+            if ($assignId <= 0 || isset($out[$assignId])) {
+                continue;
+            }
+            $out[$assignId] = round((float) $result->percent, 2);
+        }
+
+        return $out;
     }
 
     private function statusBadge(string $status): string
@@ -222,7 +302,7 @@ class StudentActivitiesProvider
 
         $dueAt = $row->assign?->due_at;
 
-        if ($dueAt !== null && Carbon::parse($dueAt)->lt(now())) {
+        if ($this->metrics->isOverdue(false, $dueAt !== null ? Carbon::parse($dueAt) : null)) {
             return 'late';
         }
 

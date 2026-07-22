@@ -39,9 +39,16 @@ class NotificationsController extends Controller
      public function update($id,Request $request)
      {
         try {
-              Notification::where('id',$id)->update([
+              $updated = Notification::where('id', $id)
+              	->where('to_user_type', 'student')
+              	->where('to_user_id', auth()->user()->id)
+              	->update([
               	'is_read' => 1
               ]);
+
+              if ($updated === 0) {
+                  return $this->returnError('E403', __('Forbidden.'), 403);
+              }
                
               return $this -> returnSuccessMessage( __('api.Notifications Updated Successfully') ,"200",200);
           

@@ -16,14 +16,27 @@ import { useGetNotificationsQuery } from "@/redux/reducers/notificationsApi";
 import axios from "axios";
 import { deleteRequest, postRequest } from "@/utils/fetchMethods";
 
+const MUI_BADGE_COLORS = [
+  "error",
+  "primary",
+  "secondary",
+  "success",
+  "warning",
+  "info",
+] as const;
+
+type MuiBadgeColor = (typeof MUI_BADGE_COLORS)[number];
+
 const NotificationDropdown = ({
   icon,
   badgeVariant = "standard",
   iconButtonSx,
+  badgeColor = "error",
 }: {
   icon?: React.ReactNode;
   badgeVariant?: "standard" | "dot";
   iconButtonSx?: object;
+  badgeColor?: MuiBadgeColor | string;
 }) => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
@@ -56,6 +69,11 @@ const NotificationDropdown = ({
     // console.log(res);
   };
 
+  const isPaletteBadgeColor = MUI_BADGE_COLORS.includes(badgeColor as MuiBadgeColor);
+  const resolvedBadgeColor: MuiBadgeColor = isPaletteBadgeColor
+    ? (badgeColor as MuiBadgeColor)
+    : "error";
+
   const bellButton = (
     <IconButton onClick={handleClick} sx={iconButtonSx}>
       <Badge
@@ -66,7 +84,7 @@ const NotificationDropdown = ({
               : 0
             : notReaded?.length ?? ""
         }
-        color="error"
+        color={resolvedBadgeColor}
         variant={badgeVariant}
         invisible={badgeVariant === "dot" && !notReaded?.length}
         sx={
@@ -78,6 +96,7 @@ const NotificationDropdown = ({
                   borderRadius: "50%",
                   top: 4,
                   right: 4,
+                  ...(!isPaletteBadgeColor ? { backgroundColor: badgeColor } : {}),
                 },
               }
             : undefined

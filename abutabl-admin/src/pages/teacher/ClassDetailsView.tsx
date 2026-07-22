@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { Box, CircularProgress, Typography } from "@mui/material";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -7,7 +7,6 @@ import ClassOverviewTab from "@/components/teacher/class-details/ClassOverviewTa
 import ClassStudentsTab from "@/components/teacher/class-details/ClassStudentsTab";
 import { getRequest } from "@/utils/fetchMethods";
 import {
-  CLASS_DETAILS_TABS,
   ClassDetailsTab,
   ClassDetailsTimeRange,
   isClassDetailsTab,
@@ -18,33 +17,10 @@ import {
   TeacherClassOverviewItem,
 } from "@/types/teacherClasses";
 
-const ClassDetailsTabPlaceholder = ({ tab }: { tab: ClassDetailsTab }) => {
-  const { t } = useTranslation();
-
-  if (tab === "overview" || tab === "students") {
-    return null;
-  }
-
-  return (
-    <Box
-      sx={{
-        m: { xs: 2, md: 3 },
-        p: 4,
-        bgcolor: "#FFFFFF",
-        borderRadius: "16px",
-        border: "1px dashed #D1D5DB",
-        minHeight: 280,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <Typography color="text.secondary" sx={{ textAlign: "center" }}>
-        {t(`TEACHER_CLASS_DETAILS.PLACEHOLDER_${tab.toUpperCase()}`)}
-      </Typography>
-    </Box>
-  );
-};
+/** Lazy-loaded to avoid HMR/circular init issues with the assignments tab module. */
+const ClassAssignmentsTab = lazy(
+  () => import("@/components/teacher/class-details/assignments/ClassAssignmentsTab")
+);
 
 /**
  * Unified teacher Classes screen — sidebar /teacher/classes and
@@ -145,7 +121,7 @@ const ClassDetailsView = () => {
 
       try {
         const response = (await getRequest(
-          { range: timeRange },
+          { range: timeRange === "all" ? "week" : timeRange },
           `/api/dashboard/teacher/classes/${activeClassId}/overview`
         )) as ClassDetailsOverviewResponse;
 
@@ -223,6 +199,10 @@ const ClassDetailsView = () => {
       return;
     }
 
+    if (tab !== "assignments" && timeRange === "all") {
+      setTimeRange("week");
+    }
+
     navigate(`/teacher/classes/${activeClassId}/${tab}`);
   };
 
@@ -298,11 +278,31 @@ const ClassDetailsView = () => {
           selectedStudentId={selectedStudentId}
           onSelectStudent={handleSelectStudent}
         />
-      ) : (
-        CLASS_DETAILS_TABS.includes(activeTab) && (
-          <ClassDetailsTabPlaceholder tab={activeTab} />
-        )
-      )}
+      ) : activeTab === "assignments" ? (
+        <Suspense
+          fallback={
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "center",
+                py: 10,
+                bgcolor: "#F7F9FA",
+              }}
+            >
+              <CircularProgress sx={{ color: "#23B8A2" }} />
+            </Box>
+          }
+        >
+          <ClassAssignmentsTab
+            classId={activeClass.class_id}
+            classes={classes.map((item) => ({
+              class_id: item.class_id,
+              label: item.class_name || item.name || String(item.class_id),
+            }))}
+            timeRange={timeRange}
+          />
+        </Suspense>
+      ) : null}
     </Box>
   );
 };

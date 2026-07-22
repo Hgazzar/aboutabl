@@ -25,8 +25,8 @@ class PerformanceHistoryService
     ): Collection {
         $query = PerformanceFact::query()
             ->where('class_id', $classId)
-            ->whereDate('metric_date', '>=', $from->toDateString())
-            ->whereDate('metric_date', '<=', $to->toDateString())
+            ->where('metric_date', '>=', $from->toDateString())
+            ->where('metric_date', '<=', $to->toDateString())
             ->orderBy('metric_date');
 
         if ($overallOnly) {
@@ -52,8 +52,8 @@ class PerformanceHistoryService
     ): Collection {
         $query = PerformanceFact::query()
             ->where('student_id', $studentId)
-            ->whereDate('metric_date', '>=', $from->toDateString())
-            ->whereDate('metric_date', '<=', $to->toDateString())
+            ->where('metric_date', '>=', $from->toDateString())
+            ->where('metric_date', '<=', $to->toDateString())
             ->orderBy('metric_date');
 
         if ($classId !== null) {
@@ -86,7 +86,7 @@ class PerformanceHistoryService
         }
 
         if ($onOrBefore !== null) {
-            $query->whereDate('metric_date', '<=', $onOrBefore->toDateString());
+            $query->where('metric_date', '<=', $onOrBefore->toDateString());
         }
 
         return $query->first();
@@ -108,8 +108,8 @@ class PerformanceHistoryService
 
         $query = PerformanceFact::query()
             ->whereIn('class_id', $classIds)
-            ->whereDate('metric_date', '>=', $from->toDateString())
-            ->whereDate('metric_date', '<=', $to->toDateString())
+            ->where('metric_date', '>=', $from->toDateString())
+            ->where('metric_date', '<=', $to->toDateString())
             ->orderBy('metric_date');
 
         if ($overallOnly) {

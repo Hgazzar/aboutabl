@@ -4,7 +4,7 @@ import {
   StudentProfileQueryParams,
   StudentProfileResponse,
 } from "@/types/studentProfile";
-import { ClassDetailsTimeRange } from "@/types/classDetails";
+import { ClassDetailsTimeRange, toMetricTimeRange } from "@/types/classDetails";
 
 export type StudentAssignmentsParams = {
   range?: ClassDetailsTimeRange;
@@ -21,7 +21,7 @@ export const studentAssignmentsApi = {
     params: StudentAssignmentsParams = {}
   ): Promise<StudentProfileActivityList> {
     const query: StudentProfileQueryParams = {
-      range: params.range ?? "week",
+      range: toMetricTimeRange(params.range),
       assignments_page: params.assignments_page,
     };
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useStudentProfile } from "@/hooks/useStudentProfile";
-import { ClassDetailsTimeRange } from "@/types/classDetails";
+import { ClassDetailsTimeRange, toMetricTimeRange } from "@/types/classDetails";
 import { StudentProfileRankingsScope } from "@/types/studentProfile";
 import StudentRankingsCard from "@/components/teacher/student-profile/rankings/StudentRankingsCard";
 import StudentRankingsSkeleton from "@/components/teacher/student-profile/rankings/StudentRankingsSkeleton";
@@ -41,7 +41,7 @@ export const StudentRankingsWidget = ({
     classId,
     studentId,
     params: {
-      range: timeRange,
+      range: toMetricTimeRange(timeRange),
       scope,
       search: search || undefined,
       limit: RANKINGS_LIMIT,

@@ -6,7 +6,6 @@ use App\Models\Assigns;
 use App\Models\AssignsStudents;
 use App\Models\Classes;
 use App\Models\Student;
-use App\Models\StudentSubjectProgress;
 use App\Models\TeachersGrades;
 use App\Services\PerformanceAnalytics\PerformanceFallback;
 use App\Services\PerformanceAnalytics\PerformanceTimeSeriesService;
@@ -16,7 +15,13 @@ use Illuminate\Support\Collection;
 
 class TeacherDashboardService
 {
-    private const NEED_ATTENTION_THRESHOLD = 70;
+    /** @var StudentMetricsService */
+    private $metrics;
+
+    public function __construct(StudentMetricsService $metrics)
+    {
+        $this->metrics = $metrics;
+    }
 
     /**
      * Build the Phase 1 teacher overview payload from real DB aggregates.
@@ -243,8 +248,8 @@ class TeacherDashboardService
             throw new \InvalidArgumentException('The selected class is not assigned to this teacher.');
         }
 
-        $range = $this->normalizeClassDetailsRange($range);
-        $rangeStart = $this->resolveRangeStart($range);
+        $range = $this->metrics->normalizeRange($range);
+        $rangeStart = $this->metrics->resolveRangeStart($range);
 
         $classesMeta = $this->loadClassesMeta(collect([$classId]));
         $classMeta = $classesMeta->get($classId);
@@ -290,9 +295,9 @@ class TeacherDashboardService
             $scope['assign_rows']
         );
 
-        $schoolPerformancePercent = $allClassCards === []
-            ? 0.0
-            : round(collect($allClassCards)->avg('performance_percent'), 1);
+        $schoolPerformancePercent = $this->metrics->computeAveragePercent(
+            collect($allClassCards)->pluck('performance_percent')->all()
+        );
 
         return [
             'class' => [
@@ -411,8 +416,14 @@ class TeacherDashboardService
             return $scope['need_attention_ids']->count();
         }
 
-        $progressByStudent = $this->loadProgressByStudent($scope['student_ids'], $scope['subject_ids']);
-        $overdueByStudent = $this->loadOverdueCountsByStudent($scope);
+        $progressByStudent = $this->metrics->loadProgressByStudent(
+            $scope['student_ids'],
+            $scope['subject_ids']
+        );
+        $overdueByStudent = $this->metrics->loadOverdueCountsByStudent(
+            $scope['student_ids']->values()->all(),
+            (int) $scope['teacher_id']
+        );
 
         return $this->resolveNeedAttentionStudentIds(
             $scope['students'],
@@ -454,8 +465,14 @@ class TeacherDashboardService
             return null;
         }
 
-        $progressByStudent = $this->loadProgressByStudent($scope['student_ids'], $scope['subject_ids']);
-        $overdueByStudent = $this->loadOverdueCountsByStudent($scope);
+        $progressByStudent = $this->metrics->loadProgressByStudent(
+            $scope['student_ids'],
+            $scope['subject_ids']
+        );
+        $overdueByStudent = $this->metrics->loadOverdueCountsByStudent(
+            $scope['student_ids']->values()->all(),
+            (int) $scope['teacher_id']
+        );
         $assignRows = $this->loadTeacherAssignStudentRows($scope);
         $needAttentionIds = $this->resolveNeedAttentionStudentIds(
             $scope['students'],
@@ -584,61 +601,6 @@ class TeacherDashboardService
     }
 
     /**
-     * @param  Collection<int, int|string>  $studentIds
-     * @param  Collection<int, int|string>  $subjectIds
-     * @return array<int, array<int, float>>
-     */
-    private function loadProgressByStudent(Collection $studentIds, Collection $subjectIds): array
-    {
-        if ($studentIds->isEmpty() || $subjectIds->isEmpty()) {
-            return [];
-        }
-
-        $rows = StudentSubjectProgress::query()
-            ->whereIn('student_id', $studentIds)
-            ->whereIn('subject_id', $subjectIds)
-            ->get(['student_id', 'subject_id', 'value']);
-
-        $map = [];
-        foreach ($rows as $row) {
-            $map[(int) $row->student_id][(int) $row->subject_id] = (float) $row->value;
-        }
-
-        return $map;
-    }
-
-    /**
-     * Overdue assignments per student:
-     * assigns_students.opened_at IS NULL AND assigns.due_at < now.
-     *
-     * @param  array<string, mixed>  $scope
-     * @return array<int, int>
-     */
-    private function loadOverdueCountsByStudent(array $scope): array
-    {
-        if ($scope['student_ids']->isEmpty()) {
-            return [];
-        }
-
-        $rows = AssignsStudents::query()
-            ->overdue()
-            ->whereIn('student_id', $scope['student_ids'])
-            ->whereHas('assign', function ($query) use ($scope) {
-                $query->createdByTeacher($scope['teacher_id']);
-            })
-            ->groupBy('student_id')
-            ->selectRaw('student_id, COUNT(DISTINCT assign_id) as overdue_count')
-            ->get();
-
-        $map = [];
-        foreach ($rows as $row) {
-            $map[(int) $row->student_id] = (int) $row->overdue_count;
-        }
-
-        return $map;
-    }
-
-    /**
      * Dominant overdue category per student (assignments vs quizzes).
      *
      * @param  array<string, mixed>  $scope
@@ -725,38 +687,20 @@ class TeacherDashboardService
         foreach ($students as $student) {
             $studentId = (int) $student->id;
             $classId = (int) $student->class_id;
-
-            if (($overdueByStudent[$studentId] ?? 0) > 0) {
-                $ids->push($studentId);
-                continue;
-            }
-
             $subjectIds = $subjectsByClass[$classId] ?? [];
-            $avg = $this->studentAverageProgress($studentId, $subjectIds, $progressByStudent);
+            $progress = $this->metrics->computeProgress(
+                $studentId,
+                $subjectIds,
+                $progressByStudent
+            );
+            $overdueCount = $this->metrics->computeOverdue($overdueByStudent[$studentId] ?? 0);
 
-            if ($avg < self::NEED_ATTENTION_THRESHOLD) {
+            if ($this->metrics->needsAttention((float) $progress['percent'], $overdueCount)) {
                 $ids->push($studentId);
             }
         }
 
         return $ids->unique()->values();
-    }
-
-    /**
-     * @param  int[]  $subjectIds
-     */
-    private function studentAverageProgress(int $studentId, array $subjectIds, array $progressByStudent): float
-    {
-        if ($subjectIds === []) {
-            return 0.0;
-        }
-
-        $values = [];
-        foreach ($subjectIds as $subjectId) {
-            $values[] = $progressByStudent[$studentId][$subjectId] ?? 0.0;
-        }
-
-        return round(array_sum($values) / count($values), 1);
     }
 
     /**
@@ -787,16 +731,20 @@ class TeacherDashboardService
 
             $studentAverages = [];
             foreach ($classStudents as $student) {
-                $studentAverages[(int) $student->id] = $this->studentAverageProgress(
+                $progress = $this->metrics->computeProgress(
                     (int) $student->id,
                     $subjectIds,
                     $progressByStudent
                 );
+                $studentAverages[(int) $student->id] = $this->metrics->computePerformance(
+                    0.0,
+                    (float) $progress['percent'],
+                    0,
+                    true
+                );
             }
 
-            $performance = $studentAverages !== []
-                ? round(array_sum($studentAverages) / count($studentAverages), 1)
-                : 0.0;
+            $performance = $this->metrics->computeAveragePercent(array_values($studentAverages));
 
             $topStudent = null;
             if ($studentAverages !== []) {
@@ -939,11 +887,19 @@ class TeacherDashboardService
 
         $completed = $rows->filter(fn ($row) => $row->opened_at !== null)->count();
         $notStarted = $total - $completed;
+        $completion = $this->metrics->computeCompletion([
+            'completed' => $completed,
+            'total'     => $total,
+        ]);
+        $notStartedCompletion = $this->metrics->computeCompletion([
+            'completed' => $notStarted,
+            'total'     => $total,
+        ]);
 
         return [
-            'completed'   => round(($completed / $total) * 100, 1),
+            'completed'   => $completion['percent'],
             'in_progress' => 0.0,
-            'not_started' => round(($notStarted / $total) * 100, 1),
+            'not_started' => $notStartedCompletion['percent'],
             'total'       => $total,
         ];
     }
@@ -959,7 +915,10 @@ class TeacherDashboardService
 
         $completed = $assignRows->filter(fn ($row) => $row->opened_at !== null)->count();
 
-        return round(($completed / $assignRows->count()) * 100, 1);
+        return $this->metrics->computeCompletion([
+            'completed' => $completed,
+            'total'     => $assignRows->count(),
+        ])['percent'];
     }
 
     /**
@@ -994,13 +953,26 @@ class TeacherDashboardService
             }
 
             $subjectIds = $subjectsByClass[$classId] ?? [];
-            $performance = $this->studentAverageProgress($studentId, $subjectIds, $progressByStudent);
-            $overdueCount = $overdueByStudent[$studentId] ?? 0;
+            $progress = $this->metrics->computeProgress(
+                $studentId,
+                $subjectIds,
+                $progressByStudent
+            );
+            $performance = $this->metrics->computePerformance(
+                0.0,
+                (float) $progress['percent'],
+                0,
+                true
+            );
+            $overdueCount = $this->metrics->computeOverdue($overdueByStudent[$studentId] ?? 0);
 
             $alertType = $overdueCount > 0 ? 'overdue_assignments' : 'low_performance';
             $alertReason = $overdueCount > 0
                 ? sprintf('Overdue Assignments (%d)', $overdueCount)
-                : sprintf('Performance below %d%%', self::NEED_ATTENTION_THRESHOLD);
+                : sprintf(
+                    'Performance below %d%%',
+                    StudentMetricsService::NEED_ATTENTION_THRESHOLD
+                );
 
             $alerts[] = [
                 'student_id'          => $studentId,
@@ -1043,11 +1015,9 @@ class TeacherDashboardService
 
     private function performanceLabel(float $percent): string
     {
-        if ($percent >= self::NEED_ATTENTION_THRESHOLD) {
-            return 'average';
-        }
-
-        return 'below_average';
+        return $this->metrics->needsAttention($percent, 0)
+            ? 'below_average'
+            : 'average';
     }
 
     private function localizedName(Student $student): string
@@ -1097,7 +1067,7 @@ class TeacherDashboardService
             return 'needs_review';
         }
 
-        if ($performancePercent < self::NEED_ATTENTION_THRESHOLD) {
+        if ($this->metrics->needsAttention($performancePercent, 0)) {
             return 'at_risk';
         }
 
@@ -1114,9 +1084,9 @@ class TeacherDashboardService
         string $range,
         float $fallbackPerformancePercent
     ): array {
-        $range = $this->normalizeClassDetailsRange($range);
+        $range = $this->metrics->normalizeRange($range);
         $currentTo = now()->copy()->endOfDay();
-        $currentFrom = $this->resolveRangeStart($range)->copy()->startOfDay();
+        $currentFrom = $this->metrics->resolveRangeStart($range)->copy()->startOfDay();
         $spanDays = max(1, $currentFrom->diffInDays($currentTo));
         $previousTo = $currentFrom->copy()->subDay()->endOfDay();
         $previousFrom = $previousTo->copy()->subDays($spanDays)->startOfDay();
@@ -1136,24 +1106,6 @@ class TeacherDashboardService
             'direction'     => (string) $trend['direction'],
             'delta_percent' => (float) $trend['delta_percent'],
         ];
-    }
-
-    private function normalizeClassDetailsRange(string $range): string
-    {
-        return in_array($range, ['week', 'month', 'term'], true) ? $range : 'week';
-    }
-
-    private function resolveRangeStart(string $range): Carbon
-    {
-        if ($range === 'month') {
-            return now()->startOfMonth();
-        }
-
-        if ($range === 'term') {
-            return now()->copy()->subMonths(3)->startOfMonth();
-        }
-
-        return now()->startOfWeek();
     }
 
     /**
@@ -1267,27 +1219,33 @@ class TeacherDashboardService
             ->orderByDesc('created_at')
             ->get(['id', 'type', 'assigned_name', 'due_at', 'created_at']);
 
+        $submissionsByAssign = AssignsStudents::query()
+            ->whereIn('assign_id', $assignIds)
+            ->whereIn('student_id', $studentIdList)
+            ->where('status', 1)
+            ->get(['assign_id', 'opened_at'])
+            ->groupBy(fn ($row) => (int) $row->assign_id);
+
         $activities = [];
 
         foreach ($assigns as $assign) {
-            $submissions = AssignsStudents::query()
-                ->where('assign_id', $assign->id)
-                ->whereIn('student_id', $studentIdList)
-                ->where('status', 1)
-                ->get(['opened_at']);
+            $submissions = $submissionsByAssign->get((int) $assign->id, collect());
 
             $total = $submissions->count();
             $completed = $submissions->filter(fn ($row) => $row->opened_at !== null)->count();
-            $completionPercent = $total > 0 ? round(($completed / $total) * 100, 1) : 0.0;
+            $completionPercent = $this->metrics->computeCompletion([
+                'completed' => $completed,
+                'total'     => $total,
+            ])['percent'];
 
             $status = 'pending';
             if ($total > 0 && $completed === $total) {
                 $status = 'completed';
-            } elseif (
-                ! empty($assign->due_at)
-                && \Carbon\Carbon::parse($assign->due_at)->lt($today)
-                && $completed < $total
-            ) {
+            } elseif ($this->metrics->isOverdue(
+                $completed >= $total,
+                ! empty($assign->due_at) ? Carbon::parse($assign->due_at) : null,
+                $today
+            )) {
                 $status = 'overdue';
             }
 
@@ -1328,8 +1286,18 @@ class TeacherDashboardService
 
         foreach ($classStudents as $student) {
             $studentId = (int) $student->id;
-            $performance = $this->studentAverageProgress($studentId, $subjectIds, $progressByStudent);
-            $overdueCount = $overdueByStudent[$studentId] ?? 0;
+            $progress = $this->metrics->computeProgress(
+                $studentId,
+                $subjectIds,
+                $progressByStudent
+            );
+            $performance = $this->metrics->computePerformance(
+                0.0,
+                (float) $progress['percent'],
+                0,
+                true
+            );
+            $overdueCount = $this->metrics->computeOverdue($overdueByStudent[$studentId] ?? 0);
             $needsAttention = $needAttentionIds->contains($studentId);
 
             $rows[] = [

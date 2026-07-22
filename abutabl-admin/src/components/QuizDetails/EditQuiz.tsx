@@ -66,6 +66,8 @@ const EditQuiz = () => {
       status: true,
       unlimited_attempts: true,
       num_attempts: 1,
+      shuffle_questions: false,
+      shuffle_answers: false,
       notify_student: true,
       do_when_time_end: "",
       subject_id: "",
@@ -122,6 +124,8 @@ const EditQuiz = () => {
         quizInfo?.reminder_before_due_date === "1" ? true : false,
       questions_per_page: quizInfo?.questions_per_page,
       do_when_time_end: quizInfo?.do_when_time_end,
+      shuffle_questions: quizInfo?.shuffle_questions === "1" ? true : false,
+      shuffle_answers: quizInfo?.shuffle_answers === "1" ? true : false,
       notify_about_late_submission: true,
       subject_id: param.subjectId,
     });
@@ -187,6 +191,12 @@ const EditQuiz = () => {
                     ),
                     num_attempts: convertBooleanToNumeric(
                       formik.values.num_attempts
+                    ),
+                    shuffle_questions: convertBooleanToNumeric(
+                      formik.values.shuffle_questions
+                    ),
+                    shuffle_answers: convertBooleanToNumeric(
+                      formik.values.shuffle_answers
                     ),
                     notify_student: convertBooleanToNumeric(
                       formik.values.notify_student

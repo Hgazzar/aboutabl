@@ -28,8 +28,11 @@ use App\Models\WorkSheets;
 use App\Models\Notification;
 use App\Models\StudentSubjectProgress;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Assignment\MarkTodoOpenedRequest;
+use App\Services\Assignment\AssignmentService;
 use Illuminate\Http\Request;
 use App\Traits\GeneralTrait;
+use InvalidArgumentException;
 use App\Http\Resources\GameStudentResource;
 use Validator;
 use Auth;
@@ -38,13 +41,18 @@ use DB ;
 use File ;
 use Illuminate\Support\Facades\Hash;
 use App\Http\Resources\questionResourceStudent;
+use App\Services\StudentMetricsService;
 
 class SubjectController extends Controller
 {
     use GeneralTrait ;
 
-    public function __construct()
+    /** @var StudentMetricsService */
+    private $metrics;
+
+    public function __construct(StudentMetricsService $metrics)
     {
+        $this->metrics = $metrics;
         auth()->setDefaultDriver('user-api');
     }
 
@@ -495,6 +503,8 @@ class SubjectController extends Controller
 
   public function quizesView($id,Request $request)
      {
+       // F-045B — Legacy Definition read. Student play MUST use /api/student/quiz-runtime/*.
+       // Kept for backward-compatible metadata only; do not use for grading or scoring.
        try {
 
                   $quize = Quizes::where('id',$id)
@@ -571,8 +581,13 @@ class SubjectController extends Controller
                 ->whereIn('subject_id', $subjectsId)
                 ->get();
             $subjectsWithProgress = $progressRows->count();
-            $avgProgress = $totalSubjects > 0 ? $progressRows->avg('value') : 0;
-            $overallProgress = min(100, max(0, (int) round((float) $avgProgress, 0)));
+            $overallProgress = $totalSubjects > 0
+                ? (int) $this->metrics->computeAveragePercent(
+                    $progressRows->pluck('value')->all(),
+                    0,
+                    true
+                )
+                : 0;
 
             $totalQuizes = $totalSubjects > 0
                 ? Quizes::whereIn('subject_id', $subjectsId)->count()
@@ -751,6 +766,9 @@ class SubjectController extends Controller
                        ->where('student_id', auth()->user()->id)
                        ->first();
                    $assignsTodayObjects[$i]['assign_id'] = (int) $assign->id;
+                   $assignsTodayObjects[$i]['assign_student_id'] = $assignStudentRow
+                       ? (int) $assignStudentRow->id
+                       : null;
                    $assignsTodayObjects[$i]['status'] = ($assignStudentRow && $assignStudentRow->opened_at)
                        ? ''
                        : 'New';
@@ -834,35 +852,22 @@ class SubjectController extends Controller
 
     /**
      * Mark a todo assign as opened for the current student (clears "New" on next list fetch).
+     * F-041D — thin adapter; write via AssignmentService → LifecycleService.
      */
-    public function markTodoOpened(Request $request)
+    public function markTodoOpened(MarkTodoOpenedRequest $request, AssignmentService $assignments)
     {
         try {
-            $validator = Validator::make($request->all(), [
-                'assign_id' => 'required|integer|exists:assigns,id',
-            ]);
-            if ($validator->fails()) {
-                $code = $this->returnCodeAccordingToInput($validator);
-                return $this->returnValidationError($code, $validator);
-            }
-
-            $row = AssignsStudents::where('assign_id', (int) $request->assign_id)
-                ->where('student_id', auth()->user()->id)
-                ->first();
-
-            if (! $row) {
-                return $this->returnError('E001', __('api.not_exists_item_for_this_data'), 404);
-            }
-
-            if (! $row->opened_at) {
-                $row->opened_at = now();
-                $row->save();
-            }
+            $assignments->markOpened(
+                (int) $request->input('assign_id'),
+                (int) auth()->user()->id
+            );
 
             return response()->json([
                 'status' => true,
                 'msg' => __('api.success'),
             ], 200);
+        } catch (InvalidArgumentException $ex) {
+            return $this->returnError('E001', __('api.not_exists_item_for_this_data'), 404);
         } catch (\Exception $ex) {
             return $this->returnError($ex->getCode(), $ex->getMessage());
         }

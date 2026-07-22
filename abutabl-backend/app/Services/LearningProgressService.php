@@ -2,12 +2,16 @@
 
 namespace App\Services;
 
-use App\Models\AssignsStudents;
+use App\Models\Student;
+use App\Models\TeachersGrades;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
 /**
  * Shared Learning Progress SSOT for Class Details (class scope) and Student Profile (student scope).
+ *
+ * F-044B.1 / F-044C — Official source is student_subject_progress only.
+ * Never derives Learning Progress from assigns_students.
  * Scope difference is only which student IDs are passed in.
  */
 class LearningProgressService
@@ -48,53 +52,90 @@ class LearningProgressService
         Carbon $rangeStart,
         string $range
     ): array {
+        unset($rangeStart); // SSP is current-state Progress; range kept in payload for contract only.
+
         if ($studentIds->isEmpty()) {
             return $this->empty($range);
         }
 
-        $studentIdList = $studentIds->values()->all();
+        $studentIdList = $studentIds
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
 
-        $assignScope = function ($query) use ($teacherId, $rangeStart) {
-            $query
-                ->createdByTeacher($teacherId)
-                ->where('created_at', '>=', $rangeStart);
-        };
+        if ($studentIdList === []) {
+            return $this->empty($range);
+        }
 
-        $submissions = AssignsStudents::query()
-            ->whereIn('student_id', $studentIdList)
-            ->where('status', 1)
-            ->whereHas('assign', $assignScope)
-            ->get(['id', 'opened_at']);
+        $students = Student::query()
+            ->whereIn('id', $studentIdList)
+            ->get(['id', 'class_id']);
 
-        $totalSubmissions = $submissions->count();
-        $completedSubmissions = $submissions
-            ->filter(fn (AssignsStudents $row) => $row->opened_at !== null)
-            ->count();
+        if ($students->isEmpty()) {
+            return $this->empty($range);
+        }
 
-        $missingSubmissions = AssignsStudents::query()
-            ->overdue()
-            ->whereIn('student_id', $studentIdList)
-            ->whereHas('assign', $assignScope)
-            ->count();
+        $classIds = $students->pluck('class_id')->unique()->filter()->values();
+        $subjectIds = TeachersGrades::query()
+            ->assignedToTeacher($teacherId)
+            ->whereIn('class_id', $classIds)
+            ->whereNotNull('subject_id')
+            ->pluck('subject_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->filter(fn ($id) => $id > 0)
+            ->values();
 
-        $activityPercent = $totalSubmissions > 0
-            ? round(($completedSubmissions / $totalSubmissions) * 100, 1)
-            : 0.0;
+        if ($subjectIds->isEmpty()) {
+            return $this->empty($range);
+        }
+
+        $subjectIdList = $subjectIds->all();
+        $progressByStudent = $this->metrics->loadProgressByStudent(
+            collect($studentIdList),
+            $subjectIds
+        );
+
+        $percents = [];
+        $cellsWithData = 0;
+        $cellsTotal = 0;
+
+        foreach ($students as $student) {
+            $studentId = (int) $student->id;
+            $progress = $this->metrics->computeProgress(
+                $studentId,
+                $subjectIdList,
+                $progressByStudent
+            );
+            $percents[] = (float) $progress['percent'];
+
+            foreach ($subjectIdList as $subjectId) {
+                $cellsTotal++;
+                if (array_key_exists($subjectId, $progressByStudent[$studentId] ?? [])) {
+                    $cellsWithData++;
+                }
+            }
+        }
+
+        $percent = $this->metrics->computeAveragePercent($percents);
+        $missing = max(0, $cellsTotal - $cellsWithData);
 
         return [
-            'source'        => 'assignments',
-            'range'         => $range,
+            'source'        => 'student_subject_progress',
+            'range'         => $this->metrics->normalizeRange($range),
             'activity'      => [
-                'completed' => $completedSubmissions,
-                'total'     => $totalSubmissions,
-                'percent'   => $activityPercent,
+                'completed' => $cellsWithData,
+                'total'     => $cellsTotal,
+                'percent'   => $percent,
             ],
             'submissions'   => [
-                'completed' => $completedSubmissions,
-                'missing'   => $missingSubmissions,
-                'total'     => $totalSubmissions,
+                'completed' => $cellsWithData,
+                'missing'   => $missing,
+                'total'     => $cellsTotal,
             ],
-            'score_percent' => $activityPercent,
+            'score_percent' => $percent,
         ];
     }
 
@@ -106,7 +147,7 @@ class LearningProgressService
         $range = $this->metrics->normalizeRange($range);
 
         return [
-            'source'        => 'assignments',
+            'source'        => 'student_subject_progress',
             'range'         => $range,
             'activity'      => [
                 'completed' => 0,

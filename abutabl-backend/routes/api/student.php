@@ -44,6 +44,8 @@ Route::group([ 'middleware' => ['api' , 'checkSecretApi' , 'changeLanguage','che
     Route::get('/subjectUnits/{id}','SubjectController@subjectUnits');
     Route::get('/subjectGames/{id}','SubjectController@subjectGames');
     Route::get('/lessons/show/{id}','SubjectController@lessonView');
+    // F-030 — Canonical lesson content completion (F-029a contract).
+    Route::post('/lesson-contents/{contentId}/complete','LessonContentCompletionController@complete');
     Route::get('/games/show/{id}','SubjectController@gamesView');
     Route::get('/quizes/show/{id}','SubjectController@quizesView');
 
@@ -85,6 +87,27 @@ Route::group([ 'middleware' => ['api' , 'checkSecretApi' , 'changeLanguage','che
         Route::get('/interactive-games/{id}/answer-list', 'InteractiveGamesStudentController@answerList');
     });
 
+});
+
+// F-009D Sprint 1 — Quiz Runtime (student). /api/student/quiz-runtime/*
+// Separate group so namespace is not nested under Api\StudentControllers.
+Route::group([
+    'middleware' => ['api', 'checkSecretApi', 'changeLanguage', 'checkStudentToken:user-api'],
+    'prefix' => 'quiz-runtime',
+    'namespace' => 'Api\Student\QuizRuntime',
+], function () {
+    // F-009D Sprint 1 — Start / Resume / Save / Submit
+    // Finalize is internal (Submit → Auto Grade → Finalize when ready).
+    Route::post('/attempts', 'StudentQuizRuntimeController@start');
+    Route::get('/attempts/active', 'StudentQuizRuntimeController@resume');
+    Route::put('/attempts/{attemptId}/answers', 'StudentQuizRuntimeController@save');
+    Route::patch('/attempts/{attemptId}/answers', 'StudentQuizRuntimeController@save');
+    Route::post('/attempts/{attemptId}/submit', 'StudentQuizRuntimeController@submit');
+    // F-009E Step 3 — Post-submission Review (frozen Version/Snapshot only).
+    Route::get('/attempts/{attemptId}/review', 'StudentQuizRuntimeController@review');
+    // F-009F — Student attempt latest / history (summary only).
+    Route::get('/attempts/latest', 'StudentQuizRuntimeController@latest');
+    Route::get('/attempts/history', 'StudentQuizRuntimeController@history');
 });
 
 

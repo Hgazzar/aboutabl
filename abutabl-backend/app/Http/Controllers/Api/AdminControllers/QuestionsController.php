@@ -28,6 +28,7 @@ class QuestionsController extends Controller
     {
         auth()->setDefaultDriver('admin-api');
         $this->middleware("can:view-questions")->only("index","show");
+        $this->middleware('quizLibraryAdminOnly')->only("store","create","fileImport","update","edit","fileImportUpdate","status","destroy","export");
         $this->middleware("can:add-questions")->only("store","create","fileImport");
         $this->middleware("can:edit-questions")->only("update","edit","fileImportUpdate");
         $this->middleware("can:activation-questions")->only("status");

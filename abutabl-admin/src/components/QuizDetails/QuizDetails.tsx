@@ -44,6 +44,8 @@ const QuizDetalis = () => {
       status: true,
       unlimited_attempts: true,
       num_attempts: 1,
+      shuffle_questions: false,
+      shuffle_answers: false,
       notify_student: true,
       notify_about_submission: true,
       notify_about_late_submission: true,
@@ -146,6 +148,12 @@ const QuizDetalis = () => {
                     ),
                     num_attempts: convertBooleanToNumeric(
                       formik.values.num_attempts
+                    ),
+                    shuffle_questions: convertBooleanToNumeric(
+                      formik.values.shuffle_questions
+                    ),
+                    shuffle_answers: convertBooleanToNumeric(
+                      formik.values.shuffle_answers
                     ),
                     notify_student: convertBooleanToNumeric(
                       formik.values.notify_student

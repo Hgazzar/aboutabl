@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import OpenInFullIcon from "@mui/icons-material/OpenInFull";
-import { IconButton } from "@mui/material";
+import { IconButton, Popover } from "@mui/material";
 import { useTranslation } from "react-i18next";
+import {
+  getVisibleAuditDetails,
+  StandardsAuditDetail,
+} from "@/types/classStandards";
 import {
   StudentProfileStandardItem,
   StudentProfileStandards,
@@ -16,6 +21,105 @@ export type StandardsCardProps = {
 
 const CHART_BAR_MAX_HEIGHT = 132;
 const CHART_BAR_WIDTH = 48;
+
+const formatLinkedAt = (value: string | null, locale: string) => {
+  if (!value) {
+    return "—";
+  }
+
+  try {
+    return new Intl.DateTimeFormat(locale, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
+};
+
+const AuditInfoButton = ({
+  details,
+}: {
+  details: StandardsAuditDetail[];
+}) => {
+  const { t, i18n } = useTranslation();
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+  const open = Boolean(anchorEl);
+  const visible = getVisibleAuditDetails(details);
+
+  if (visible.length === 0) {
+    return null;
+  }
+
+  const latest = visible[0];
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label={t("TEACHER_CLASS_DETAILS.STANDARDS_AUDIT_TITLE")}
+        onClick={(event) => setAnchorEl(event.currentTarget)}
+        className="ml-2 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[#00897B] transition-colors hover:bg-[#E0F2F1]"
+      >
+        <InfoOutlinedIcon sx={{ fontSize: 18 }} />
+      </button>
+
+      <Popover
+        open={open}
+        anchorEl={anchorEl}
+        onClose={() => setAnchorEl(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+        transformOrigin={{ vertical: "top", horizontal: "left" }}
+        PaperProps={{
+          sx: {
+            mt: 1,
+            p: 2,
+            maxWidth: 320,
+            borderRadius: "12px",
+            border: "1px solid #E5E7EB",
+            boxShadow: "0 8px 24px rgba(15, 23, 42, 0.12)",
+          },
+        }}
+      >
+        <p className="mb-2 text-sm font-semibold text-[#111827]">
+          {t("TEACHER_CLASS_DETAILS.STANDARDS_AUDIT_TITLE")}
+        </p>
+        <dl className="space-y-2 text-sm text-[#374151]">
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wide text-[#9CA3AF]">
+              {t("TEACHER_CLASS_DETAILS.STANDARDS_AUDIT_LINKED_AT")}
+            </dt>
+            <dd>{formatLinkedAt(latest.linked_at, i18n.language)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wide text-[#9CA3AF]">
+              {t("TEACHER_CLASS_DETAILS.STANDARDS_AUDIT_LINK_TYPE")}
+            </dt>
+            <dd>
+              {latest.link_type === "automatic"
+                ? t("TEACHER_CLASS_DETAILS.STANDARDS_AUDIT_AUTOMATIC")
+                : t("TEACHER_CLASS_DETAILS.STANDARDS_AUDIT_MANUAL")}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wide text-[#9CA3AF]">
+              {t("TEACHER_CLASS_DETAILS.STANDARDS_AUDIT_REASON")}
+            </dt>
+            <dd className="leading-relaxed">{latest.reason}</dd>
+          </div>
+          {latest.confidence_score !== null && (
+            <div>
+              <dt className="text-xs font-medium uppercase tracking-wide text-[#9CA3AF]">
+                {t("TEACHER_CLASS_DETAILS.STANDARDS_AUDIT_CONFIDENCE")}
+              </dt>
+              <dd>{Math.round(latest.confidence_score * 100)}%</dd>
+            </div>
+          )}
+        </dl>
+      </Popover>
+    </>
+  );
+};
 
 const StandardBar = ({
   item,
@@ -101,6 +205,7 @@ export const StandardsCard = ({ standards, onSubjectChange }: StandardsCardProps
   const selectedPercent = Number(
     selectedItem?.percent ?? selectedItem?.percentage ?? 0
   );
+  const visibleAuditDetails = getVisibleAuditDetails(selectedItem?.audit_details);
 
   return (
     <article className="flex h-full min-h-[360px] flex-col rounded-2xl bg-white p-6 shadow-[0_4px_6px_rgba(0,0,0,0.05)]">
@@ -143,8 +248,8 @@ export const StandardsCard = ({ standards, onSubjectChange }: StandardsCardProps
       ) : (
         <>
           {selectedItem ? (
-            <div className="mb-5 rounded-[10px] bg-[#FFF5EE] px-4 py-3">
-              <p className="text-[0.9375rem] leading-relaxed text-[#111827]">
+            <div className="mb-5 flex items-center rounded-[10px] bg-[#FFF5EE] px-4 py-3">
+              <p className="flex-1 text-[0.9375rem] leading-relaxed text-[#111827]">
                 <span className="font-bold text-[#00897B]">
                   {selectedItem.code} - {selectedPercent}%
                 </span>{" "}
@@ -152,6 +257,7 @@ export const StandardsCard = ({ standards, onSubjectChange }: StandardsCardProps
                   {selectedItem.definition || selectedItem.label}
                 </span>
               </p>
+              <AuditInfoButton details={visibleAuditDetails} />
             </div>
           ) : null}
 

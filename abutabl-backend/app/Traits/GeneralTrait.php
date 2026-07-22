@@ -245,12 +245,20 @@ trait GeneralTrait
     }
     public function SchoolsIDs()
     {
-           if( request()->has('user_id')  )
-           {
-              $schoolsIDs = SchoolsRoles::where('user_id',request('user_id'))
-                        ->pluck('school_id')->toArray();
+           // F-040B: request user_id may only be used by admins (impersonation / support).
+           // Non-admins must never resolve another user's school list (tenant-scope poison).
+           $authUser = auth()->user();
+           if (
+               $authUser
+               && $authUser->type === 'admin'
+               && request()->filled('user_id')
+           ) {
+              $targetUserId = (int) request('user_id');
+              $schoolsIDs = $targetUserId > 0
+                  ? SchoolsRoles::where('user_id', $targetUserId)->pluck('school_id')->toArray()
+                  : [];
            }
-           elseif(auth()->user()->type == "admin")
+           elseif($authUser && $authUser->type == "admin")
            {
             $schoolsIDs = Schools::orderBy('id')->pluck('id')->toArray();
            }

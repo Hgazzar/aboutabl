@@ -20,9 +20,15 @@ class ClassAlertsService
     /** @var TeacherDashboardService */
     private $dashboardService;
 
-    public function __construct(TeacherDashboardService $dashboardService)
-    {
+    /** @var StudentMetricsService */
+    private $metrics;
+
+    public function __construct(
+        TeacherDashboardService $dashboardService,
+        StudentMetricsService $metrics
+    ) {
         $this->dashboardService = $dashboardService;
+        $this->metrics = $metrics;
     }
 
     /**
@@ -52,7 +58,6 @@ class ClassAlertsService
         $dismissedKeys = $this->loadDismissedKeys($teacherId, $classId);
 
         $candidates = collect()
-            ->merge($this->buildMockPerformanceAlert()) // TEMP: UI smoke-test mock — remove after visual QA
             ->merge($this->buildPerformanceAlerts($teacherId, $studentIds, $classLabel, $classId))
             ->merge($this->buildDeadlineAlerts($teacherId, $studentIds, $classLabel))
             ->values();
@@ -138,30 +143,8 @@ class ClassAlertsService
     }
 
     /**
-     * TEMPORARY mock for yellow performance alert UI QA.
-     * Remove once the warning card design is approved.
-     *
-     * @return array<int, array<string, mixed>>
+     * TEMPORARY mock removed (F-044C) — Performance alerts use real signals only.
      */
-    private function buildMockPerformanceAlert(): array
-    {
-        return [[
-            'alert_key'     => 'performance_test_mock',
-            'type'          => 'performance',
-            'severity'  => 'warning',
-            'title'         => 'Students Need More Attention',
-            'message'       => 'Average Performance Dropped 5.2% This Week, Participation Low',
-            'relative_time' => '5 hours ago',
-            'created_at'    => now()->subHours(5)->toIso8601String(),
-            'payload'       => [
-                'delta_percent'           => -5.2,
-                'students_need_attention' => 4,
-                'window'                  => 'week',
-                'is_mock'                 => true,
-            ],
-            'dismissible'   => true,
-        ]];
-    }
 
     /**
      * @param  int[]  $studentIds
@@ -193,7 +176,7 @@ class ClassAlertsService
                 return [];
             }
 
-            $delta = round($currentScore - $previousScore, 1);
+            $delta = $this->metrics->computeDeltaPercent($currentScore, $previousScore);
         }
 
         if ($delta > -self::PERFORMANCE_DROP_THRESHOLD) {
@@ -370,7 +353,10 @@ class ClassAlertsService
 
         $completed = $rows->filter(fn ($row) => $row->opened_at !== null)->count();
 
-        return round(($completed / $rows->count()) * 100, 1);
+        return $this->metrics->computeCompletion([
+            'completed' => $completed,
+            'total'     => $rows->count(),
+        ])['percent'];
     }
 
     /**
@@ -402,9 +388,12 @@ class ClassAlertsService
         foreach ($byStudent as $rows) {
             $total = $rows->count();
             $completed = $rows->filter(fn ($row) => $row->opened_at !== null)->count();
-            $percent = $total > 0 ? ($completed / $total) * 100 : 0;
+            $percent = $this->metrics->computeCompletion([
+                'completed' => $completed,
+                'total'     => $total,
+            ], null)['percent'];
 
-            if ($percent < 70) {
+            if ($this->metrics->needsAttention((float) $percent, 0)) {
                 $count++;
             }
         }

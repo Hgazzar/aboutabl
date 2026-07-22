@@ -22,9 +22,7 @@ import {
   TeacherClassOverviewItem,
   TeacherClassPerformanceTrend,
 } from "@/types/teacherClasses";
-// @ts-expect-error CRA svgr
 import { ReactComponent as TrendArrowIcon } from "@/assets/arrow.svg";
-// @ts-expect-error CRA svgr
 import { ReactComponent as BirdIcon } from "@/assets/bird.svg";
 
 const HEALTH_STYLES: Record<

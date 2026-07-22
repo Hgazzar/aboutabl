@@ -194,15 +194,17 @@ class PerformanceSnapshotRecorder
             $students,
             $subjectIds,
             $teacherId,
-            $rangeStart
+            $rangeStart,
+            '',
+            '',
+            $progressByStudent
         );
 
         $payloads = [];
 
         foreach ($rankedRows as $row) {
             $studentId = (int) $row['student_id'];
-            $hasProgress = $this->metrics->studentHasProgressData($studentId, $subjectIds, $progressByStudent);
-            $progressAverage = $this->metrics->studentAverageProgress($studentId, $subjectIds, $progressByStudent);
+            $progress = $this->metrics->computeProgress($studentId, $subjectIds, $progressByStudent);
 
             $payloads[] = [
                 'school_id'           => $schoolId,
@@ -213,9 +215,9 @@ class PerformanceSnapshotRecorder
                 'performance_percent' => (float) ($row['performance']['percent'] ?? 0),
                 'score_percent'       => (float) ($row['score']['percent'] ?? 0),
                 'completion_percent'  => (float) ($row['score']['percent'] ?? 0),
-                'progress_average'    => $hasProgress ? $progressAverage : null,
+                'progress_average'    => $progress['has_data'] ? $progress['percent'] : null,
                 'overdue_count'       => (int) ($row['overdue_count'] ?? 0),
-                'has_progress_data'   => $hasProgress,
+                'has_progress_data'   => (bool) $progress['has_data'],
                 'source'              => $source,
                 'source_type'         => $sourceType,
                 'source_id'           => $sourceId,

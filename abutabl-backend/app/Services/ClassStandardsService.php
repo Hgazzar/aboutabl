@@ -22,6 +22,14 @@ class ClassStandardsService
         'math-explorer'    => 'MATH EXPLORER',
     ];
 
+    /** @var StudentMetricsService */
+    private $metrics;
+
+    public function __construct(StudentMetricsService $metrics)
+    {
+        $this->metrics = $metrics;
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -115,7 +123,10 @@ class ClassStandardsService
                 $total += $stats['total'];
             }
 
-            $percent = $total > 0 ? (int) round(($completed / $total) * 100) : 0;
+            $percent = (int) $this->metrics->computeCompletion([
+                'completed' => $completed,
+                'total'     => $total,
+            ], 0)['percent'];
             $statusMeta = $this->resolveStandardStatus($percent);
             $sources = $this->collectLinkSources($standard, $assignLinks);
             $auditDetails = $this->buildAuditDetails($standard);

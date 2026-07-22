@@ -9,9 +9,10 @@ use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
 /**
- * Single source of truth for student score / performance / rank formulas.
+ * Single source of truth for student score, performance, progress, completion,
+ * overdue, and ranking formulas.
  *
- * Score, performance, and rank MUST be computed here only.
+ * These metrics MUST be computed here only.
  * Performance Analytics (Recorder / History / TimeSeries / Comparison / Trend)
  * must call this service for live values — never re-implement these equations.
  *
@@ -26,10 +27,16 @@ class StudentMetricsService
     public const OVERDUE_PENALTY_PERCENT = 5;
 
     /**
+     * Compute assignment completion from aggregate submission counts.
+     *
+     * Input: completed and total assignment counts plus optional rounding precision.
+     * Output: percentage, normalized counts, and data availability.
+     * Availability: false when total is zero; percentage remains 0.0.
+     *
      * @param  array{completed: int, total: int}  $stats
      * @return array{percent: float, completed: int, total: int, has_data: bool}
      */
-    public function computeScore(array $stats): array
+    public function computeCompletion(array $stats, ?int $precision = 1): array
     {
         $total = (int) ($stats['total'] ?? 0);
         $completed = (int) ($stats['completed'] ?? 0);
@@ -43,14 +50,42 @@ class StudentMetricsService
             ];
         }
 
+        $percent = ($completed / $total) * 100;
+
         return [
-            'percent'   => round(($completed / $total) * 100, 1),
+            'percent'   => $precision === null ? $percent : round($percent, $precision),
             'completed' => $completed,
             'total'     => $total,
             'has_data'  => true,
         ];
     }
 
+    /**
+     * Compute the existing score contract from assignment completion statistics.
+     *
+     * F-044C: This is Assignment Completion % only — NEVER Assessment/Quiz Score
+     * and NEVER Accuracy. Graded scores use quiz_results.percent.
+     *
+     * Input: completed and total assignment counts.
+     * Output: the unchanged score payload consumed by profile/dashboard callers.
+     * Availability: inherited from canonical completion; false when total is zero.
+     *
+     * @param  array{completed: int, total: int}  $stats
+     * @return array{percent: float, completed: int, total: int, has_data: bool}
+     */
+    public function computeScore(array $stats): array
+    {
+        return $this->computeCompletion($stats);
+    }
+
+    /**
+     * Compute performance from canonical score, progress, and overdue outputs.
+     *
+     * Input: score percent, progress percent, overdue count, and progress availability.
+     * Output: the existing performance percentage.
+     * Availability: progress wins when available; otherwise score is reduced by
+     * the existing overdue penalty. Callers retain score availability separately.
+     */
     public function computePerformance(
         float $scorePercent,
         float $progressAverage,
@@ -65,6 +100,12 @@ class StudentMetricsService
     }
 
     /**
+     * Resolve the existing display label and directional hint for performance.
+     *
+     * Input: performance percentage.
+     * Output: label and trend keys used by existing response contracts.
+     * Availability: callers invoke this only after computing a numeric percentage.
+     *
      * @return array{label: string, trend: string}
      */
     public function resolvePerformanceMeta(float $percent): array
@@ -84,6 +125,13 @@ class StudentMetricsService
         return ['label' => 'below_average', 'trend' => 'down'];
     }
 
+    /**
+     * Resolve the existing student status classification.
+     *
+     * Input: performance percentage, overdue count, and score availability.
+     * Output: one of no_data, good, average, or needs_attention.
+     * Availability: no score data always returns no_data.
+     */
     public function resolveStatus(float $performancePercent, int $overdueCount, bool $hasScoreData): string
     {
         if (! $hasScoreData) {
@@ -102,7 +150,11 @@ class StudentMetricsService
     }
 
     /**
-     * Dense rank by score then performance then name.
+     * Assign the existing competition rank by score then performance.
+     *
+     * Input: metric rows containing student_id, name, score, and performance.
+     * Output: the same rows with rank added; original item order is preserved.
+     * Availability: empty input returns empty output; tied metrics share rank.
      *
      * @param  array<int, array<string, mixed>>  $items
      * @return array<int, array<string, mixed>>
@@ -160,7 +212,7 @@ class StudentMetricsService
      * @param  int[]  $studentIds
      * @return array<int, array{completed: int, total: int}>
      */
-    public function loadSubmissionStatsByStudent(
+    private function loadSubmissionStatsByStudent(
         array $studentIds,
         int $teacherId,
         Carbon $rangeStart,
@@ -204,6 +256,12 @@ class StudentMetricsService
     }
 
     /**
+     * Load canonical overdue assignment counts for a teacher's students.
+     *
+     * Input: student IDs and teacher ID.
+     * Output: overdue counts keyed by student ID.
+     * Availability: empty student input or no overdue rows returns an empty map.
+     *
      * @param  int[]  $studentIds
      * @return array<int, int>
      */
@@ -226,13 +284,19 @@ class StudentMetricsService
         $map = [];
 
         foreach ($rows as $row) {
-            $map[(int) $row->student_id] = (int) $row->overdue_count;
+            $map[(int) $row->student_id] = $this->computeOverdue((int) $row->overdue_count);
         }
 
         return $map;
     }
 
     /**
+     * Load raw subject-progress values for canonical progress calculation.
+     *
+     * Input: student IDs and subject IDs.
+     * Output: a student/subject value map.
+     * Availability: empty dimensions or no stored rows return an empty map.
+     *
      * @param  Collection<int, int|string>  $studentIds
      * @param  Collection<int, int|string>  $subjectIds
      * @return array<int, array<int, float>>
@@ -258,46 +322,133 @@ class StudentMetricsService
     }
 
     /**
+     * Compute canonical progress and its availability in one pass.
+     *
+     * Input: student ID, assigned subject IDs, and preloaded progress values.
+     * Output: percentage and whether at least one assigned subject has data.
+     * Availability: false when no assigned subject has a stored row; missing
+     * assigned subjects continue to contribute zero to preserve behavior.
+     *
      * @param  int[]  $subjectIds
      * @param  array<int, array<int, float>>  $progressByStudent
+     * @return array{percent: float, has_data: bool}
      */
-    public function studentHasProgressData(
+    public function computeProgress(
         int $studentId,
         array $subjectIds,
         array $progressByStudent
-    ): bool {
-        foreach ($subjectIds as $subjectId) {
-            if (array_key_exists((int) $subjectId, $progressByStudent[$studentId] ?? [])) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * @param  int[]  $subjectIds
-     * @param  array<int, array<int, float>>  $progressByStudent
-     */
-    public function studentAverageProgress(
-        int $studentId,
-        array $subjectIds,
-        array $progressByStudent
-    ): float {
+    ): array {
         if ($subjectIds === []) {
-            return 0.0;
+            return ['percent' => 0.0, 'has_data' => false];
         }
 
         $values = [];
+        $hasData = false;
 
         foreach ($subjectIds as $subjectId) {
-            $values[] = $progressByStudent[$studentId][(int) $subjectId] ?? 0.0;
+            $subjectId = (int) $subjectId;
+
+            if (array_key_exists($subjectId, $progressByStudent[$studentId] ?? [])) {
+                $hasData = true;
+            }
+
+            $values[] = $progressByStudent[$studentId][$subjectId] ?? 0.0;
         }
 
-        return round(array_sum($values) / count($values), 1);
+        return [
+            'percent'  => round(array_sum($values) / count($values), 1),
+            'has_data' => $hasData,
+        ];
     }
 
-    public function localizedStudentName(Student $student): string
+    /**
+     * Normalize the canonical overdue count.
+     *
+     * Input: aggregate overdue assignment count.
+     * Output: the unchanged non-negative overdue count.
+     * Availability: counts are always available; absent aggregates are supplied as zero.
+     */
+    public function computeOverdue(int $count): int
+    {
+        return max(0, $count);
+    }
+
+    /**
+     * Compute the non-completed portion of a completion total.
+     *
+     * Input: completed and total counts.
+     * Output: non-negative remaining count.
+     * Availability: always available.
+     */
+    public function computeRemaining(int $completed, int $total): int
+    {
+        return max(0, $total - $completed);
+    }
+
+    /**
+     * Compute an arithmetic percentage average for aggregate metric consumers.
+     *
+     * Input: numeric percentages, precision, and optional 0..100 bounding.
+     * Output: rounded average percentage.
+     * Availability: empty input returns 0.0; callers retain availability separately.
+     *
+     * @param  array<int, int|float|string>  $values
+     */
+    public function computeAveragePercent(array $values, int $precision = 1, bool $bounded = false): float
+    {
+        if ($values === []) {
+            return 0.0;
+        }
+
+        $average = array_sum(array_map('floatval', $values)) / count($values);
+
+        if ($bounded) {
+            $average = min(100.0, max(0.0, $average));
+        }
+
+        return round($average, $precision);
+    }
+
+    /**
+     * Compute the signed difference between current and previous percentages.
+     *
+     * Input: current and previous percentages plus rounding precision.
+     * Output: signed percentage-point delta.
+     * Availability: always available.
+     */
+    public function computeDeltaPercent(float $current, float $previous, int $precision = 1): float
+    {
+        return round($current - $previous, $precision);
+    }
+
+    /**
+     * Apply the canonical attention threshold to a metric and overdue count.
+     *
+     * Input: metric percentage and overdue count.
+     * Output: whether the student requires attention.
+     * Availability: always available.
+     */
+    public function needsAttention(float $metricPercent, int $overdueCount): bool
+    {
+        return $metricPercent < self::NEED_ATTENTION_THRESHOLD
+            || $this->computeOverdue($overdueCount) > 0;
+    }
+
+    /**
+     * Determine whether an incomplete assignment is past its due time.
+     *
+     * Input: completion state, optional due time, and optional comparison time.
+     * Output: whether the assignment is overdue.
+     * Availability: missing due times are never overdue.
+     */
+    public function isOverdue(bool $completed, ?Carbon $dueAt, ?Carbon $asOf = null): bool
+    {
+        return ! $completed
+            && $dueAt !== null
+            && $dueAt->lt($asOf ?? now());
+    }
+
+    private function localizedStudentName(Student $student): string
     {
         if (app()->getLocale() === 'ar' && ! empty($student->name_ar)) {
             return (string) $student->name_ar;
@@ -306,7 +457,7 @@ class StudentMetricsService
         return (string) ($student->name ?? '');
     }
 
-    public function studentPhotoUrl(?string $photo): ?string
+    private function studentPhotoUrl(?string $photo): ?string
     {
         if (empty($photo)) {
             return null;
@@ -315,11 +466,25 @@ class StudentMetricsService
         return asset('/storage/'.ltrim($photo, '/'));
     }
 
+    /**
+     * Normalize a requested metric range.
+     *
+     * Input: requested range key.
+     * Output: week, month, or term.
+     * Availability: unsupported values fall back to week.
+     */
     public function normalizeRange(string $range): string
     {
         return in_array($range, ['week', 'month', 'term'], true) ? $range : 'week';
     }
 
+    /**
+     * Resolve the existing start boundary for a normalized metric range.
+     *
+     * Input: week, month, or term range key.
+     * Output: Carbon start boundary used by assignment metric queries.
+     * Availability: unsupported values use the week boundary.
+     */
     public function resolveRangeStart(string $range): Carbon
     {
         if ($range === 'month') {
@@ -336,8 +501,16 @@ class StudentMetricsService
     /**
      * Build ranked metric rows for all students in a class (shared by overview + profile).
      *
+     * Input: students, assigned subjects, teacher scope, range start, labels,
+     * and optionally preloaded progress values.
+     * Output: existing ranked student rows with score, performance, status,
+     * overdue count, and attention state.
+     * Availability: empty student collections return an empty array; per-metric
+     * availability follows the canonical methods above.
+     *
      * @param  Collection<int, Student>  $students
      * @param  int[]  $subjectIds
+     * @param  array<int, array<int, float>>|null  $progressByStudent
      * @return array<int, array<string, mixed>>
      */
     public function buildRankedStudentRows(
@@ -346,16 +519,22 @@ class StudentMetricsService
         int $teacherId,
         Carbon $rangeStart,
         string $classLabelFallback = '',
-        string $gradeLabel = ''
+        string $gradeLabel = '',
+        ?array $progressByStudent = null,
+        ?array $submissionStats = null,
+        ?array $overdueByStudent = null
     ): array {
         if ($students->isEmpty()) {
             return [];
         }
 
         $studentIds = $students->pluck('id')->map(fn ($id) => (int) $id)->all();
-        $progressByStudent = $this->loadProgressByStudent(collect($studentIds), collect($subjectIds));
-        $submissionStats = $this->loadSubmissionStatsByStudent($studentIds, $teacherId, $rangeStart);
-        $overdueByStudent = $this->loadOverdueCountsByStudent($studentIds, $teacherId);
+        $progressByStudent = $progressByStudent
+            ?? $this->loadProgressByStudent(collect($studentIds), collect($subjectIds));
+        $submissionStats = $submissionStats
+            ?? $this->loadSubmissionStatsByStudent($studentIds, $teacherId, $rangeStart);
+        $overdueByStudent = $overdueByStudent
+            ?? $this->loadOverdueCountsByStudent($studentIds, $teacherId);
 
         $items = [];
 
@@ -363,14 +542,13 @@ class StudentMetricsService
             $studentId = (int) $student->id;
             $stats = $submissionStats[$studentId] ?? ['completed' => 0, 'total' => 0];
             $score = $this->computeScore($stats);
-            $overdueCount = $overdueByStudent[$studentId] ?? 0;
-            $hasProgressData = $this->studentHasProgressData($studentId, $subjectIds, $progressByStudent);
-            $progressAverage = $this->studentAverageProgress($studentId, $subjectIds, $progressByStudent);
+            $overdueCount = $this->computeOverdue($overdueByStudent[$studentId] ?? 0);
+            $progress = $this->computeProgress($studentId, $subjectIds, $progressByStudent);
             $performancePercent = $this->computePerformance(
                 (float) $score['percent'],
-                $progressAverage,
+                (float) $progress['percent'],
                 $overdueCount,
-                $hasProgressData
+                (bool) $progress['has_data']
             );
             $performanceMeta = $this->resolvePerformanceMeta($performancePercent);
 
@@ -393,7 +571,7 @@ class StudentMetricsService
                     (bool) $score['has_data']
                 ),
                 'overdue_count'   => $overdueCount,
-                'needs_attention' => $performancePercent < self::NEED_ATTENTION_THRESHOLD || $overdueCount > 0,
+                'needs_attention' => $this->needsAttention($performancePercent, $overdueCount),
             ];
         }
 
@@ -404,6 +582,11 @@ class StudentMetricsService
      * Rank students across a teacher's classes (not school-wide).
      * Per-class inputs via buildRankedStudentRows, then one assignRanks across the union.
      * Does not re-implement score / performance / rank formulas.
+     *
+     * Input: teacher-scoped students, subjects grouped by class, teacher ID,
+     * and range start.
+     * Output: existing ranked rows across the teacher's classes.
+     * Availability: empty student collections return an empty array.
      *
      * @param  Collection<int, Student>  $students
      * @param  array<int|string, int[]>  $subjectsByClass
@@ -419,6 +602,26 @@ class StudentMetricsService
             return [];
         }
 
+        $allStudentIds = $students->pluck('id')->map(fn ($id) => (int) $id)->values();
+        $allSubjectIds = collect($subjectsByClass)
+            ->flatten()
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        // One SSP / submissions / overdue pass for the whole teacher scope (F-040A).
+        $progressByStudent = $this->loadProgressByStudent($allStudentIds, $allSubjectIds);
+        $submissionStats = $this->loadSubmissionStatsByStudent(
+            $allStudentIds->all(),
+            $teacherId,
+            $rangeStart
+        );
+        $overdueByStudent = $this->loadOverdueCountsByStudent(
+            $allStudentIds->all(),
+            $teacherId
+        );
+
         $merged = [];
 
         foreach ($students->groupBy(fn (Student $student) => (int) $student->class_id) as $classId => $classStudents) {
@@ -429,7 +632,10 @@ class StudentMetricsService
                 $teacherId,
                 $rangeStart,
                 '',
-                ''
+                '',
+                $progressByStudent,
+                $submissionStats,
+                $overdueByStudent
             );
 
             foreach ($rows as $row) {

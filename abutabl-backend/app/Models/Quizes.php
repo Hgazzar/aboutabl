@@ -10,6 +10,15 @@ class Quizes extends Model
     use HasFactory;
 
     protected $guarded = [];
+
+    protected $casts = [
+        'review_after_submit' => 'boolean',
+        'show_correct_answers' => 'boolean',
+        'show_explanations' => 'boolean',
+        'allow_retry_after_pass' => 'boolean',
+        'allow_retry_after_fail' => 'boolean',
+    ];
+
     // protected $fillable =[
     //         'title_en',
     //         'title_ar',

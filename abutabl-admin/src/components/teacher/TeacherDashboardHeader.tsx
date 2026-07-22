@@ -19,15 +19,10 @@ import { AccountPopover } from "@/layout/AccountPopover";
 import NotificationDropdown from "@/layout/NotificationDropdown";
 import { usePopover } from "@/hooks/usePopover";
 import { useTeacherLayout } from "@/layout/TeacherLayoutContext";
-// @ts-expect-error CRA svgr
 import { ReactComponent as TrendArrowIcon } from "@/assets/arrow.svg";
-// @ts-expect-error CRA svgr
 import { ReactComponent as StatIconGreen } from "@/assets/btn.svg";
-// @ts-expect-error CRA svgr
 import { ReactComponent as StatIconBlue } from "@/assets/btn (1).svg";
-// @ts-expect-error static asset
 import containerBanner from "@/assets/container.svg";
-// @ts-expect-error CRA svgr
 import { ReactComponent as NoteIcon } from "@/assets/note.svg";
 
 export type TeacherDashboardStats = {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useStudentProfile } from "@/hooks/useStudentProfile";
-import { ClassDetailsTimeRange } from "@/types/classDetails";
+import { ClassDetailsTimeRange, toMetricTimeRange } from "@/types/classDetails";
 import {
   EMPTY_PAGINATION,
   StudentProfileResponse,
@@ -10,19 +10,19 @@ import { EMPTY_CLASS_LEARNING_PROGRESS } from "@/types/classDetailsOverview";
 import StudentSelectorToolbar from "@/components/teacher/student-profile/StudentSelectorToolbar";
 import StudentSummaryBanner from "@/components/teacher/student-profile/StudentSummaryBanner";
 import SummaryCards from "@/components/teacher/student-profile/SummaryCards";
-import LearningProgress from "@/components/teacher/student-profile/LearningProgress";
 import StudentActivitiesGrid from "@/components/teacher/student-profile/StudentActivitiesGrid";
 import StudentAssignmentsWidget from "@/components/teacher/student-profile/assignments/StudentAssignmentsWidget";
 import StudentQuizzesWidget from "@/components/teacher/student-profile/quizzes/StudentQuizzesWidget";
 import StudentStandardsInsightsGrid from "@/components/teacher/student-profile/StudentStandardsInsightsGrid";
 import StandardsCard from "@/components/teacher/student-profile/StandardsCard";
-import SmartInsightPlaceholder from "@/components/teacher/student-profile/SmartInsightPlaceholder";
-import TeacherEvaluationPlaceholder from "@/components/teacher/student-profile/TeacherEvaluationPlaceholder";
+import SmartInsightCard from "@/components/teacher/student-profile/SmartInsightCard";
+import TeacherEvaluationCard from "@/components/teacher/student-profile/TeacherEvaluationCard";
 import StudentRankingsWidget from "@/components/teacher/student-profile/rankings/StudentRankingsWidget";
 import StudentProfileSkeleton from "@/components/teacher/student-profile/StudentProfileSkeleton";
 import ClassesPerformanceWidget from "@/components/teacher/class-details/classes-performance/ClassesPerformanceWidget";
 import CompletionStatusWidget from "@/components/teacher/class-details/completion-status/CompletionStatusWidget";
 import ClassChartsGrid from "@/components/teacher/class-details/ClassChartsGrid";
+import LearningProgressCard from "@/components/teacher/shared/LearningProgressCard";
 import { getRequest } from "@/utils/fetchMethods";
 import { ClassStudentsOverviewResponse } from "@/types/classStudentsOverview";
 
@@ -48,6 +48,8 @@ const emptyProfile = (classId: number): StudentProfileResponse => ({
     rank: 0,
     performance_percent: 0,
     score_percent: 0,
+    accuracy_percent: 0,
+    accuracy_available: false,
     status: "no_data",
     performance_label: "",
     trend: "stable",
@@ -92,6 +94,7 @@ const emptyProfile = (classId: number): StudentProfileResponse => ({
       available: false,
       text: null,
       generated_at: null,
+      insights: [],
     },
   },
   rankings: {
@@ -149,14 +152,20 @@ export const ClassStudentsTab = ({
     };
   }, [classId, onSelectStudent, selectedStudentId, timeRange]);
 
-  const { data, isLoading, isError, error } = useStudentProfile({
+  const { data, isError, error, refetch, isFetching } = useStudentProfile({
     classId,
     studentId: selectedStudentId,
-    params: { range: timeRange, subject: subjectSlug },
+    params: { range: toMetricTimeRange(timeRange), subject: subjectSlug },
     enabled: selectedStudentId != null,
   });
 
-  const profile = data ?? emptyProfile(classId);
+  // selectedStudentId is source of truth — never paint keepPreviousData from another student.
+  const isProfileForSelectedStudent =
+    selectedStudentId != null &&
+    data != null &&
+    Number(data.student?.student_id) === Number(selectedStudentId);
+
+  const profile = isProfileForSelectedStudent ? data : emptyProfile(classId);
 
   const classmates = useMemo(
     () =>
@@ -178,11 +187,7 @@ export const ClassStudentsTab = ({
     );
   }
 
-  if (isLoading && !data) {
-    return <StudentProfileSkeleton />;
-  }
-
-  if (isError) {
+  if (isError && !isProfileForSelectedStudent) {
     return (
       <div className="px-6 py-8 md:px-8">
         <div className="rounded-2xl border border-[#FECACA] bg-[#FEF2F2] p-6 text-sm text-[#B91C1C]">
@@ -190,6 +195,10 @@ export const ClassStudentsTab = ({
         </div>
       </div>
     );
+  }
+
+  if (!isProfileForSelectedStudent) {
+    return <StudentProfileSkeleton />;
   }
 
   return (
@@ -221,8 +230,6 @@ export const ClassStudentsTab = ({
         }
       />
 
-      <LearningProgress learningProgress={profile.learning_progress} />
-
       <StudentActivitiesGrid
         left={
           <StudentAssignmentsWidget
@@ -240,6 +247,7 @@ export const ClassStudentsTab = ({
         }
       />
 
+      {/* Standards | Learning Progress — Smart Insight is full-width below (once only). */}
       <StudentStandardsInsightsGrid
         left={
           <StandardsCard
@@ -247,10 +255,31 @@ export const ClassStudentsTab = ({
             onSubjectChange={setSubjectSlug}
           />
         }
-        right={<SmartInsightPlaceholder />}
+        right={
+          <LearningProgressCard
+            data={profile.learning_progress}
+            fillHeight
+          />
+        }
       />
 
-      <TeacherEvaluationPlaceholder />
+      <section className="w-full" data-testid="student-smart-insight">
+        <SmartInsightCard
+          key={`smart-insight-${selectedStudentId}`}
+          smartInsight={profile.teacher_evaluation.smart_insight}
+          isLoading={isFetching}
+          isError={isError}
+          errorMessage={error?.message}
+        />
+      </section>
+
+      <TeacherEvaluationCard
+        key={`teacher-eval-${selectedStudentId}`}
+        classId={classId}
+        studentId={selectedStudentId}
+        evaluation={profile.teacher_evaluation}
+        onMutated={() => refetch()}
+      />
 
       <StudentRankingsWidget
         classId={classId}

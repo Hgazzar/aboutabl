@@ -88,7 +88,7 @@ export const SummaryCards = ({ student, analytics, completion }: SummaryCardsPro
       />
       <Card
         label={t("TEACHER_STUDENT_PROFILE.CARD_ACCURACY")}
-        value={`${Number(student.score_percent || 0).toFixed(0)}%`}
+        value={`${Number(student.accuracy_percent ?? 0).toFixed(0)}%`}
         icon={
           <IconBox bg="#E6F8F5" color="#24B8A2">
             <CheckRoundedIcon sx={{ fontSize: 22 }} />
