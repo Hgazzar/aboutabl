@@ -782,6 +782,8 @@ class InsightMetricsReader
         }
         $confidence = round(min(1.0, $confidence), 2);
 
+        $streaks = $this->computeDayStreaks($sortedDays, $now);
+
         return [
             'has_learning_behaviour_data' => true,
             'engagement_score' => $engagementScore,
@@ -797,6 +799,8 @@ class InsightMetricsReader
             'return_after_inactivity' => $returnAfterInactivity,
             'activity_distribution' => $weekdayCounts,
             'behaviour_confidence' => $confidence,
+            'current_streak' => $streaks['current'],
+            'longest_streak' => $streaks['longest'],
             // Internal reuse for last-activity (stripped before context merge).
             '_latest_activity_at' => $timestamps !== []
                 ? $timestamps[count($timestamps) - 1]
@@ -1662,5 +1666,76 @@ class InsightMetricsReader
         }
 
         return $this->columnExistsCache[$key];
+    }
+
+    /**
+     * Read-only learning behaviour for student dashboard (no teacher scope).
+     *
+     * @return array<string, mixed>
+     */
+    public function learningBehaviourForStudent(int $studentId, ?Carbon $now = null): array
+    {
+        if ($studentId <= 0) {
+            return [
+                'has_learning_behaviour_data' => false,
+                'current_streak' => 0,
+                'longest_streak' => 0,
+            ];
+        }
+
+        $now = $now ?? now();
+        $stats = $this->resolveLearningBehaviourStats(
+            ['student_id' => $studentId],
+            config('smart_insight', []),
+            $now
+        );
+        unset($stats['_latest_activity_at']);
+
+        if (! ($stats['has_learning_behaviour_data'] ?? false)) {
+            $stats['current_streak'] = 0;
+            $stats['longest_streak'] = 0;
+        }
+
+        return $stats;
+    }
+
+    /**
+     * @param  string[]  $sortedDayStrings  Y-m-d ascending
+     * @return array{current: int, longest: int}
+     */
+    private function computeDayStreaks(array $sortedDayStrings, Carbon $now): array
+    {
+        if ($sortedDayStrings === []) {
+            return ['current' => 0, 'longest' => 0];
+        }
+
+        $longest = 1;
+        $run = 1;
+
+        for ($i = 1, $count = count($sortedDayStrings); $i < $count; $i++) {
+            $prev = Carbon::parse($sortedDayStrings[$i - 1])->startOfDay();
+            $curr = Carbon::parse($sortedDayStrings[$i])->startOfDay();
+
+            if ($prev->diffInDays($curr) === 1) {
+                $run++;
+                $longest = max($longest, $run);
+            } else {
+                $run = 1;
+            }
+        }
+
+        $daySet = array_flip($sortedDayStrings);
+        $current = 0;
+        $cursor = $now->copy()->startOfDay();
+
+        while (isset($daySet[$cursor->toDateString()])) {
+            $current++;
+            $cursor->subDay();
+        }
+
+        return [
+            'current' => $current,
+            'longest' => $longest,
+        ];
     }
 }

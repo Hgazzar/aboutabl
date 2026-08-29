@@ -121,6 +121,37 @@ class PerformanceComparisonService
     }
 
     /**
+     * Last 7 days vs prior 7 days for one student.
+     *
+     * @return array<string, mixed>
+     */
+    public function weekOverWeekForStudent(int $studentId, ?int $classId = null, ?Carbon $anchor = null): array
+    {
+        $anchor = ($anchor ?? now())->copy()->startOfDay();
+        $currentTo = $anchor->copy();
+        $currentFrom = $anchor->copy()->subDays(6);
+        $previousTo = $currentFrom->copy()->subDay();
+        $previousFrom = $previousTo->copy()->subDays(6);
+
+        return array_merge(
+            $this->compareStudentPeriods(
+                $studentId,
+                $currentFrom,
+                $currentTo,
+                $previousFrom,
+                $previousTo,
+                $classId
+            ),
+            [
+                'current_from'  => $currentFrom->toDateString(),
+                'current_to'    => $currentTo->toDateString(),
+                'previous_from' => $previousFrom->toDateString(),
+                'previous_to'   => $previousTo->toDateString(),
+            ]
+        );
+    }
+
+    /**
      * @param  \Illuminate\Support\Collection<int, \App\Models\PerformanceFact>  $current
      * @param  \Illuminate\Support\Collection<int, \App\Models\PerformanceFact>  $previous
      * @return array{

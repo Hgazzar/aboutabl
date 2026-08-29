@@ -55,6 +55,7 @@ Route::group([ 'middleware' => ['api' , 'checkSecretApi' , 'changeLanguage','che
 
     ///Profile
     Route::get('/profile','Auth\AuthApiController@getProfile');
+    Route::get('/dashboard','StudentDashboardController@index');
     Route::get('/progress','SubjectController@getProgressOverview');
     Route::post('/changePassword','Auth\AuthApiController@updatePassword');
     Route::post('/editProfile','Auth\AuthApiController@editProfile');
