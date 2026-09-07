@@ -13,6 +13,7 @@ protected $guarded = [];
 
     protected $casts = [
         'due_at' => 'datetime',
+        'possible_xp' => 'integer',
     ];
     // protected $fillable =[
     //             'type',
@@ -38,6 +39,11 @@ protected $guarded = [];
     public function submissions()
     {
         return $this->hasMany(AssignsStudents::class, 'assign_id', 'id');
+    }
+
+    public function rubric()
+    {
+        return $this->hasOne(AssignmentRubric::class, 'assign_id');
     }
 
     public function scopeCreatedByTeacher($query, int $teacherId)
@@ -77,5 +83,15 @@ protected $guarded = [];
     public function assignStandards()
     {
         return $this->hasMany(AssignStandard::class, 'assign_id');
+    }
+
+    public function activities()
+    {
+        return $this->hasMany(AssignActivity::class, 'assign_id')->orderBy('sort_order');
+    }
+
+    public function isLearningActivitiesAssign(): bool
+    {
+        return $this->type === \App\Support\Assignment\LearningActivityMap::ASSIGN_TYPE;
     }
 }

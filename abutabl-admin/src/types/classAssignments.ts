@@ -105,23 +105,29 @@ export type AssignmentDetailsStatistics = {
 export type AssignmentStudentCompletionStatus =
   | "submitted"
   | "late"
-  | "missing";
+  | "missing"
+  | "graded";
 
 /** Per-student row from AssignmentService::getForClass (assigns_students). */
 export type AssignmentDetailsStudentRow = {
   student_id: number;
+  assign_student_id?: number;
   name: string;
   photo_url?: string | null;
   status: AssignmentStudentCompletionStatus;
+  /** Parent lifecycle SSOT for learning_activities. */
+  submission_status?: "active" | "submitted" | "graded" | string;
+  submitted_at?: string | null;
+  graded_at?: string | null;
   opened_at: string | null;
-  /** Quiz-only; always null for non-quiz assignments. */
+  /** Quiz / Multi-Activity aggregate; null when no scored activities. */
   score_percent: number | null;
-  /** Screen #9 — single assign task counts (always total=1). */
+  /** Screen #9 — activity count (1 for legacy; N for learning_activities). */
   tasks_total?: number;
   tasks_completed?: number;
-  /** Task completion for this assign (0 or 100). */
+  /** Task completion for this assign (legacy 0/100; Multi-Activity completed/total). */
   completion_percent?: number | null;
-  /** Assign-scoped quiz accuracy for Screen #9 (same assign as score_percent). Not global Student Profile accuracy. */
+  /** Assign-scoped accuracy (legacy quiz_results; Multi-Activity avg game/quiz/worksheet scores). */
   accuracy_percent?: number | null;
   /**
    * F-046E — Preformatted quiz attempt duration from Assignment Details API

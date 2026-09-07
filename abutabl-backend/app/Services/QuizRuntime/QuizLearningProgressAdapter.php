@@ -41,6 +41,22 @@ class QuizLearningProgressAdapter
         }
 
         $this->markQuizAssignmentCompleted($attempt);
+
+        if ($attempt->assign_activity_id) {
+            try {
+                app(\App\Services\Assignment\AssignActivitySubmissionService::class)
+                    ->syncFromQuizResult(
+                        (int) $attempt->assign_activity_id,
+                        (int) $attempt->student_id,
+                        (float) ($result->percent ?? 0),
+                        $result->raw_score !== null ? (float) $result->raw_score : null,
+                        $result->max_score !== null ? (float) $result->max_score : null,
+                        (int) $attempt->id
+                    );
+            } catch (\Throwable $e) {
+                // Do not fail Runtime finalize if activity sync fails.
+            }
+        }
     }
 
     /**
@@ -61,8 +77,12 @@ class QuizLearningProgressAdapter
             return;
         }
 
-        // Only quiz assigns feed quiz completion into Learning Progress.
-        if ((string) $assign->type !== 'quizes') {
+        // Quiz module assigns OR multi-activity learning assigns with a quiz activity.
+        $isQuizAssign = (string) $assign->type === 'quizes';
+        $isLearningAssign = (string) $assign->type === \App\Support\Assignment\LearningActivityMap::ASSIGN_TYPE
+            && $attempt->assign_activity_id;
+
+        if (! $isQuizAssign && ! $isLearningAssign) {
             return;
         }
 

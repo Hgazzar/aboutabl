@@ -182,6 +182,7 @@ class StudentXpServiceTest extends TestCase
         ]);
 
         $this->assertSame(40, $service->weeklyXpEarned($studentId));
+        $this->assertSame(60, $service->previousWeeklyXpEarned($studentId));
 
         StudentXpEvent::query()
             ->where('student_id', $studentId)

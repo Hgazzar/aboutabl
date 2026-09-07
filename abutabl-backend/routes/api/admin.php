@@ -231,9 +231,21 @@ Route::group([ 'middleware' => ['api' , 'checkSecretApi' , 'changeLanguage','che
 
     ///// Assigns
     Route::get('/assigns/get_module_data','AssignsController@get_module_data');
+    Route::get('/assigns/learning_activities/books','AssignsController@learningActivityBooks');
+    Route::get('/assigns/learning_activities/sections','AssignsController@learningActivitySections');
+    Route::get('/assigns/learning_activities/activities','AssignsController@learningActivityItems');
     Route::post('/assigns/store','AssignsController@store');
     Route::get('/assigns/list','AssignsController@index');
     Route::delete('/assigns/delete/{id}','AssignsController@destroy');
+    Route::get('/assigns/{assignId}/rubric','AssignsController@showRubric');
+    Route::put('/assigns/{assignId}/rubric','AssignsController@upsertRubric');
+    Route::delete('/assigns/{assignId}/rubric','AssignsController@destroyRubric');
+    Route::put('/assigns/{assignId}/possible_xp','AssignsController@updatePossibleXp');
+    Route::get('/assigns/{assignId}/learning_activities/review','AssignActivityTeacherController@review');
+    Route::post('/assigns/learning_activities/{assignActivityId}/manual_grade','AssignActivityTeacherController@manualGrade');
+    Route::post('/assigns/{assignId}/students/{studentId}/finalize_parent','AssignActivityTeacherController@finalizeParent');
+    Route::put('/assigns/{assignId}/students/{studentId}/grade','AssignActivityTeacherController@upsertGrade');
+    Route::get('/assigns/{assignId}/students/{studentId}/grade','AssignActivityTeacherController@showGrade');
 
 
        ///// file_maanger

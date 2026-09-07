@@ -18,6 +18,7 @@ import {
   AssignmentStudentCompletionStatus,
 } from "@/types/classAssignments";
 import AssignmentRuntimeReviewSection from "@/components/teacher/class-details/assignments/AssignmentRuntimeReviewSection";
+import LearningActivitiesReviewSection from "@/components/teacher/class-details/assignments/LearningActivitiesReviewSection";
 import TeacherEvaluationCard from "@/components/teacher/student-profile/TeacherEvaluationCard";
 import { useStudentProfile } from "@/hooks/useStudentProfile";
 import { StudentProfileTeacherEvaluation } from "@/types/studentProfile";
@@ -73,6 +74,12 @@ const STATUS_BADGE: Record<
     bg: "#FFFFFF",
     text: "#DC2626",
     border: "#FECACA",
+  },
+  graded: {
+    labelKey: "ASSIGNMENTS_S9_TAG_GRADED",
+    bg: "#FFFFFF",
+    text: "#1D4ED8",
+    border: "#BFDBFE",
   },
 };
 
@@ -151,7 +158,7 @@ export const StudentAssignmentDetailsScreen = ({
       })
     : t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S9_GRADE_FALLBACK");
 
-  const statusBadge = STATUS_BADGE[student?.status ?? "missing"];
+  const statusBadge = STATUS_BADGE[student?.status ?? "missing"] ?? STATUS_BADGE.missing;
   const overallScoreText =
     formatScorePercent(student?.score_percent) ?? EMPTY_PERCENT;
   // Assignment Accuracy (this assign only) — not global accuracy from Student Profile SSOT.
@@ -170,6 +177,16 @@ export const StudentAssignmentDetailsScreen = ({
       total: student?.tasks_total ?? 1,
     }
   );
+
+  const isLearningActivities =
+    assignment.module === "learning_activities" ||
+    assignment.module_type === "learning_activities";
+
+  const isLegacyQuiz =
+    !isLearningActivities &&
+    (assignment.assignment_type === "quiz" ||
+      assignment.module === "quizes" ||
+      assignment.module_type === "quizes");
 
   const goPrev = () => {
     if (students.length === 0 || index <= 0) {
@@ -359,7 +376,9 @@ export const StudentAssignmentDetailsScreen = ({
               {gradeLabel}
             </span>
             <span className="rounded-full border border-[#99F6E4] bg-[#E6F8F5] px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-[#0F766E]">
-              {t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S9_TAG_QUIZ_ASSIGNMENT")}
+              {isLearningActivities
+                ? t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S9_TAG_LEARNING_ACTIVITIES")
+                : t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S9_TAG_QUIZ_ASSIGNMENT")}
             </span>
           </div>
           <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px] text-[#9CA3AF]">
@@ -456,53 +475,61 @@ export const StudentAssignmentDetailsScreen = ({
         </div>
       </div>
 
-      {/* Quiz & Assignment */}
-      <div className="mb-4">
-        <h3 className="mb-2 text-[16px] font-extrabold text-[#111827]">
-          {t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S9_SECTION_QUIZ")}
-        </h3>
-        <div
-          className="flex flex-col gap-3 rounded-[16px] border border-[#EEF0F2] bg-white p-4 sm:flex-row sm:items-center"
-          style={{ boxShadow: CARD_SHADOW }}
-        >
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[12px] bg-[#E6F8F5] text-[#23B8A2]">
-            <MenuBookOutlinedIcon sx={{ fontSize: 26 }} />
-          </span>
-          <div className="min-w-0 flex-1 rounded-[12px] bg-[#E6F8F5] px-4 py-3">
-            <p className="truncate text-[13px] font-bold text-[#0F766E]">
-              {subjectName}
-            </p>
-            <p className="truncate text-[12px] font-extrabold uppercase tracking-wide text-[#115E59]">
-              {title}
-            </p>
-          </div>
-          <div className="flex shrink-0 flex-col items-center sm:pl-3">
-            <span className="inline-flex rounded-full bg-[#E6F8F5] px-2.5 py-1 text-[11px] font-bold uppercase text-[#0F766E]">
-              {t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S9_COMPLETE")}
-            </span>
-            <div className="mt-2 flex w-full justify-center">
-              <span className="text-[18px] font-bold leading-none text-[#111827]">
-                {overallScoreText}
+      {isLearningActivities ? (
+        <LearningActivitiesReviewSection
+          assignId={assignment.id}
+          studentId={student.student_id}
+          studentName={student.name}
+          studentPhotoUrl={student.photo_url}
+          assignmentTitle={title}
+        />
+      ) : (
+        <>
+          {/* Quiz & Assignment */}
+          <div className="mb-4">
+            <h3 className="mb-2 text-[16px] font-extrabold text-[#111827]">
+              {t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S9_SECTION_QUIZ")}
+            </h3>
+            <div
+              className="flex flex-col gap-3 rounded-[16px] border border-[#EEF0F2] bg-white p-4 sm:flex-row sm:items-center"
+              style={{ boxShadow: CARD_SHADOW }}
+            >
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[12px] bg-[#E6F8F5] text-[#23B8A2]">
+                <MenuBookOutlinedIcon sx={{ fontSize: 26 }} />
               </span>
+              <div className="min-w-0 flex-1 rounded-[12px] bg-[#E6F8F5] px-4 py-3">
+                <p className="truncate text-[13px] font-bold text-[#0F766E]">
+                  {subjectName}
+                </p>
+                <p className="truncate text-[12px] font-extrabold uppercase tracking-wide text-[#115E59]">
+                  {title}
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-col items-center sm:pl-3">
+                <span className="inline-flex rounded-full bg-[#E6F8F5] px-2.5 py-1 text-[11px] font-bold uppercase text-[#0F766E]">
+                  {t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S9_COMPLETE")}
+                </span>
+                <div className="mt-2 flex w-full justify-center">
+                  <span className="text-[18px] font-bold leading-none text-[#111827]">
+                    {overallScoreText}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      <AssignmentRuntimeReviewSection
-        assignId={assignment.id}
-        studentId={student.student_id}
-        isQuiz={
-          assignment.assignment_type === "quiz" ||
-          assignment.module === "quizes" ||
-          assignment.module_type === "quizes"
-        }
-        studentName={student.name}
-        studentPhotoUrl={student.photo_url}
-        assignmentTitle={title}
-        quizTitle={title}
-        duration={student.duration}
-      />
+          <AssignmentRuntimeReviewSection
+            assignId={assignment.id}
+            studentId={student.student_id}
+            isQuiz={isLegacyQuiz}
+            studentName={student.name}
+            studentPhotoUrl={student.photo_url}
+            assignmentTitle={title}
+            quizTitle={title}
+            duration={student.duration}
+          />
+        </>
+      )}
 
       {/* Same evaluation API + UI as Students tab */}
       <div className="mt-4">

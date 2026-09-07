@@ -3,11 +3,14 @@
 namespace App\Services\QuizRuntime;
 
 use App\Models\AssignsStudents;
+use App\Models\Quizes;
 use App\Models\QuizRuntime\QuizAttempt;
+use App\Models\Student;
 use App\Repositories\QuizRuntime\AttemptRepository;
 use App\Repositories\QuizRuntime\ResultRepository;
 use App\Repositories\QuizRuntime\SnapshotRepository;
 use App\Repositories\QuizRuntime\VersionRepository;
+use App\Services\Student\StudentCurriculumAccessService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -71,10 +74,24 @@ class QuizAttemptStartService
         $studentId = (int) ($input['student_id'] ?? 0);
         $schoolId = $this->nullableInt($input, 'school_id');
         $assignStudentId = $this->nullableInt($input, 'assign_student_id');
+        $assignActivityId = $this->nullableInt($input, 'assign_activity_id');
         $startIdempotencyKey = $input['start_idempotency_key'] ?? null;
         $clientInstanceId = $input['client_instance_id'] ?? null;
 
         $assignId = $this->resolveAssignId($studentId, $assignStudentId);
+        if ($assignActivityId !== null) {
+            $assignId = $this->resolveAssignIdFromActivity(
+                $studentId,
+                $assignActivityId,
+                $quizId,
+                $assignId
+            );
+        }
+
+        // Free curriculum start (no assignment overlay): require subject enrollment.
+        if ($assignStudentId === null && $assignActivityId === null) {
+            $this->assertCurriculumQuizAccess($studentId, $quizId);
+        }
 
         return DB::transaction(function () use (
             $quizId,
@@ -82,6 +99,7 @@ class QuizAttemptStartService
             $schoolId,
             $assignId,
             $assignStudentId,
+            $assignActivityId,
             $startIdempotencyKey,
             $clientInstanceId
         ) {
@@ -138,6 +156,7 @@ class QuizAttemptStartService
                 'school_id' => $schoolId,
                 'assign_id' => $assignId,
                 'assign_student_id' => $assignStudentId,
+                'assign_activity_id' => $assignActivityId,
                 'attempt_no' => $attemptNo,
                 'status' => QuizAttempt::STATUS_IN_PROGRESS,
                 'started_at' => $startedAt,
@@ -265,6 +284,29 @@ class QuizAttemptStartService
     }
 
     /**
+     * Free curriculum quiz start — enrollment required (assignments bypass via assign ownership).
+     */
+    private function assertCurriculumQuizAccess(int $studentId, int $quizId): void
+    {
+        $student = Student::query()->find($studentId);
+        if ($student === null) {
+            throw new RuntimeException('Student not found.', 403);
+        }
+
+        $quiz = Quizes::query()->find($quizId);
+        if ($quiz === null) {
+            throw new RuntimeException('Quiz not found.', 404);
+        }
+
+        $subjectId = (int) ($quiz->subject_id ?? 0);
+        if ($subjectId <= 0
+            || ! app(StudentCurriculumAccessService::class)->studentCanAccessSubject($student, $subjectId)
+        ) {
+            throw new RuntimeException('Student cannot access this subject.', 403);
+        }
+    }
+
+    /**
      * Resolve assign_id from owned assign_student_id, or null when not provided.
      *
      * @throws RuntimeException when assign_student_id is set but not owned by student
@@ -287,6 +329,42 @@ class QuizAttemptStartService
         return $assignStudent->assign_id !== null
             ? (int) $assignStudent->assign_id
             : null;
+    }
+
+    /**
+     * Resolve assign_id from owned assign_activity and verify quiz activity match.
+     */
+    private function resolveAssignIdFromActivity(
+        int $studentId,
+        int $assignActivityId,
+        int $quizId,
+        ?int $existingAssignId
+    ): int {
+        $activity = \App\Models\AssignActivity::query()->find($assignActivityId);
+        if ($activity === null) {
+            throw new RuntimeException('Assign activity not found.', 404);
+        }
+
+        if ($activity->activity_type !== \App\Support\Assignment\LearningActivityMap::TYPE_QUIZ
+            || (int) $activity->activity_id !== $quizId) {
+            throw new RuntimeException('Assign activity does not match this quiz.', 422);
+        }
+
+        $owns = AssignsStudents::query()
+            ->where('assign_id', $activity->assign_id)
+            ->where('student_id', $studentId)
+            ->exists();
+
+        if (! $owns) {
+            throw new RuntimeException('Assign activity not found for this user.', 403);
+        }
+
+        $assignId = (int) $activity->assign_id;
+        if ($existingAssignId !== null && $existingAssignId !== $assignId) {
+            throw new RuntimeException('Assign activity does not match assign student.', 422);
+        }
+
+        return $assignId;
     }
 
     /**

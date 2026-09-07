@@ -13,7 +13,15 @@ class AssignsStudents extends Model
 
     protected $casts = [
         'opened_at' => 'datetime',
+        'submitted_at' => 'datetime',
+        'graded_at' => 'datetime',
     ];
+
+    public const SUBMISSION_ACTIVE = 'active';
+
+    public const SUBMISSION_SUBMITTED = 'submitted';
+
+    public const SUBMISSION_GRADED = 'graded';
 
     public function assign()
     {
@@ -23,6 +31,24 @@ class AssignsStudents extends Model
     public function student()
     {
         return $this->belongsTo(Student::class, 'student_id');
+    }
+
+    public function grade()
+    {
+        return $this->hasOne(AssignmentGrade::class, 'assign_student_id');
+    }
+
+    public function hasParentSubmission(): bool
+    {
+        if (! \Illuminate\Support\Facades\Schema::hasColumn($this->getTable(), 'submission_status')
+            && ! \Illuminate\Support\Facades\Schema::hasColumn($this->getTable(), 'submitted_at')) {
+            return false;
+        }
+
+        $status = strtolower((string) ($this->submission_status ?? self::SUBMISSION_ACTIVE));
+
+        return in_array($status, [self::SUBMISSION_SUBMITTED, self::SUBMISSION_GRADED], true)
+            || $this->submitted_at !== null;
     }
 
     /**

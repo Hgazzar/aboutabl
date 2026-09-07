@@ -3,10 +3,12 @@
 namespace App\Http\Requests\Assignment;
 
 use App\Http\Requests\Assignment\Concerns\ReturnsGeneralTraitValidation;
+use App\Support\Assignment\LearningActivityMap;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 /**
- * F-041C — Store assign validation (same rules as legacy AssignsController@store).
+ * Supports legacy single-module store OR Learning Activities multi-select.
  */
 class StoreAssignRequest extends FormRequest
 {
@@ -19,6 +21,32 @@ class StoreAssignRequest extends FormRequest
 
     public function rules()
     {
+        $hasActivities = is_array($this->input('activities')) && count($this->input('activities')) > 0;
+
+        if ($hasActivities) {
+            return [
+                'school_id' => 'required|exists:schools,id',
+                'grade_id' => 'nullable|array|min:1',
+                'grade_id.*' => ['exists:grades,id'],
+                'class_id' => 'nullable|array|min:1',
+                'class_id.*' => ['exists:classes,id'],
+                'student_id' => 'nullable|array',
+                'student_id.*' => ['exists:students,id'],
+                'title' => 'nullable|string|max:255',
+                'subject_id' => 'nullable|integer|exists:subjects,id',
+                'due_at' => 'nullable|date',
+                'due_date' => 'nullable|date',
+                'teacher_id' => 'nullable|integer',
+                'possible_xp' => 'nullable|integer|min:0',
+                'activities' => 'required|array|min:1|max:'.LearningActivityMap::MAX_PER_ASSIGN,
+                'activities.*.activity_type' => [
+                    'required',
+                    Rule::in(LearningActivityMap::types()),
+                ],
+                'activities.*.activity_id' => 'required|integer|min:1',
+            ];
+        }
+
         return [
             'school_id' => 'required|exists:schools,id',
             'grade_id' => 'nullable|array|min:1',
@@ -32,12 +60,10 @@ class StoreAssignRequest extends FormRequest
             'due_at' => 'nullable|date',
             'due_date' => 'nullable|date',
             'teacher_id' => 'nullable|integer',
+            'possible_xp' => 'nullable|integer|min:0',
         ];
     }
 
-    /**
-     * Legacy store required a due date via due_at or due_date (same as controller check).
-     */
     public function withValidator($validator)
     {
         $validator->after(function ($validator) {

@@ -99,6 +99,7 @@ class AssignmentLifecycleService
                 'created_by' => $createdBy,
                 'subject_id' => $subjectId,
                 'due_at' => $dueAt,
+                'possible_xp' => $this->normalizePossibleXp($input['possible_xp'] ?? null),
             ]);
 
             // Preserve legacy delete filter exactly (uses request student_id array, not loop $student).
@@ -217,5 +218,155 @@ class AssignmentLifecycleService
         }
 
         return $row;
+    }
+
+    /**
+     * Create multi-activity assignment (Learning Activities).
+     * Parent assigns.type = learning_activities; children in assign_activities.
+     *
+     * @param  array<string, mixed>  $input
+     * @param  array<int, int>  $studentIds
+     * @param  array<int, array<string, mixed>>  $resolvedActivities
+     * @return array{assign: Assigns, student_ids: array<int, int>}
+     */
+    public function createLearningActivities(
+        array $input,
+        array $studentIds,
+        array $resolvedActivities,
+        int $authUserId
+    ): array {
+        if ($resolvedActivities === []) {
+            throw new InvalidArgumentException('activities_required');
+        }
+
+        $schoolId = (int) $input['school_id'];
+        $dueAtInput = $input['due_at'] ?? $input['due_date'] ?? null;
+
+        if (empty($dueAtInput)) {
+            throw new InvalidArgumentException('due_at_required');
+        }
+
+        $dueAt = Carbon::parse($dueAtInput);
+        $subjectId = (int) ($resolvedActivities[0]['subject_id'] ?? 0);
+        $title = trim((string) ($input['title'] ?? $input['assigned_name'] ?? ''));
+
+        if ($title === '') {
+            $title = (string) ($resolvedActivities[0]['title_snapshot'] ?? 'Assignment');
+        }
+
+        $createdBy = $this->permissions->resolveCreatedBy(
+            isset($input['teacher_id']) ? (int) $input['teacher_id'] : null,
+            $authUserId
+        );
+
+        $type = \App\Support\Assignment\LearningActivityMap::ASSIGN_TYPE;
+        $typeId = 0;
+
+        DB::beginTransaction();
+
+        try {
+            $possibleXp = $this->normalizePossibleXp($input['possible_xp'] ?? null);
+
+            $assign = Assigns::create([
+                'type' => $type,
+                'type_id' => $typeId,
+                'assigned_name' => $title,
+                'assigned_path' => url('/todo'),
+                'school_id' => $schoolId,
+                'status' => 1,
+                'created_by' => $createdBy,
+                'subject_id' => $subjectId > 0 ? $subjectId : null,
+                'due_at' => $dueAt,
+                'possible_xp' => $possibleXp,
+            ]);
+
+            foreach ($resolvedActivities as $activity) {
+                \App\Models\AssignActivity::create([
+                    'assign_id' => $assign->id,
+                    'activity_type' => $activity['activity_type'],
+                    'activity_id' => $activity['activity_id'],
+                    'source_table' => $activity['source_table'],
+                    'grading_mode' => $activity['grading_mode'],
+                    'title_snapshot' => $activity['title_snapshot'],
+                    'sort_order' => $activity['sort_order'],
+                ]);
+            }
+
+            $legacyStudentIdFilter = $input['student_id'] ?? null;
+
+            foreach ($studentIds as $student) {
+                AssignsStudents::where([
+                    ['type', $type],
+                    ['type_id', $typeId],
+                    ['student_id', $legacyStudentIdFilter],
+                ])->delete();
+
+                AssignsStudents::create([
+                    'assign_id' => $assign->id,
+                    'type' => $type,
+                    'type_id' => $typeId,
+                    'student_id' => $student,
+                    'school_id' => $schoolId,
+                    'status' => 1,
+                    'created_by' => $createdBy,
+                ]);
+
+                Notification::create([
+                    'title' => $title,
+                    'description' => 'New Assign For '.$title,
+                    'from_user_type' => 'teacher',
+                    'from_user_id' => $authUserId,
+                    'to_user_type' => 'student',
+                    'to_user_id' => $student,
+                    'url' => '/todo',
+                    'type' => $type,
+                    'type_id' => $typeId,
+                ]);
+            }
+
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            throw $e;
+        }
+
+        $this->snapshotTrigger->captureStudents(
+            $studentIds,
+            PerformanceSnapshotSource::ASSIGN_CREATED,
+            (int) $createdBy,
+            $schoolId,
+            Assigns::class,
+            (int) $assign->id
+        );
+
+        return [
+            'assign' => $assign->fresh(['activities']),
+            'student_ids' => $studentIds,
+        ];
+    }
+
+    /**
+     * @param  mixed  $value
+     */
+    private function normalizePossibleXp($value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (! is_numeric($value)) {
+            throw new InvalidArgumentException('possible_xp_invalid');
+        }
+
+        if ((float) $value != (int) $value) {
+            throw new InvalidArgumentException('possible_xp_invalid');
+        }
+
+        $int = (int) $value;
+        if ($int < 0) {
+            throw new InvalidArgumentException('possible_xp_negative');
+        }
+
+        return $int;
     }
 }

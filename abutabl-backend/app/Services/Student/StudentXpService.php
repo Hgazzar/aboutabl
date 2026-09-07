@@ -166,6 +166,29 @@ class StudentXpService
         }
     }
 
+    public function awardAssignmentXp(int $studentId, int $assignStudentId, int $amount, $earnedAt = null): void
+    {
+        if (! Schema::hasTable('student_xp_events') || ! Schema::hasTable('student_xp_balances')) {
+            return;
+        }
+
+        $sourceType = (string) config('assignment_grade.xp_source_type', 'assignment');
+        $when = $earnedAt instanceof Carbon
+            ? $earnedAt
+            : Carbon::parse($earnedAt ?? now());
+
+        DB::transaction(function () use ($studentId, $assignStudentId, $amount, $sourceType, $when) {
+            $this->upsertEvent(
+                $studentId,
+                $sourceType,
+                $assignStudentId,
+                max(0, $amount),
+                $when
+            );
+            $this->refreshBalance($studentId);
+        });
+    }
+
     private function upsertEvent(
         int $studentId,
         string $sourceType,
@@ -295,6 +318,21 @@ class StudentXpService
             ->sum('amount');
     }
 
+    public function previousWeeklyXpEarned(int $studentId): int
+    {
+        if (! Schema::hasTable('student_xp_events')) {
+            return 0;
+        }
+
+        $weekStart = Carbon::now()->startOfWeek();
+
+        return (int) StudentXpEvent::query()
+            ->where('student_id', $studentId)
+            ->where('earned_at', '>=', $weekStart->copy()->subWeek())
+            ->where('earned_at', '<', $weekStart)
+            ->sum('amount');
+    }
+
     /**
      * Dashboard My Progress widget — real XP gamification payload.
      *
@@ -317,6 +355,7 @@ class StudentXpService
 
             return array_merge($core, [
                 'weekly_xp'                  => $this->weeklyXpEarned($studentId),
+                'previous_weekly_xp'         => $this->previousWeeklyXpEarned($studentId),
                 'level_badge_label'          => $this->resolveLevelBadgeLabel($level),
                 'levels_away_from_achiever'  => max(0, $achieverLevel - $level),
                 'achiever_level'             => $achieverLevel,
@@ -350,6 +389,7 @@ class StudentXpService
 
         return array_merge($this->emptyPayload(), [
             'weekly_xp'                 => 0,
+            'previous_weekly_xp'        => 0,
             'level_badge_label'         => 'explorer',
             'levels_away_from_achiever' => max(0, $achieverLevel - 1),
             'achiever_level'            => $achieverLevel,

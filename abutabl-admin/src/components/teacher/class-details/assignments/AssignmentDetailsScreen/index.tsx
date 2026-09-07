@@ -62,6 +62,12 @@ const STATUS_BADGE: Record<
     border: "#FECACA",
     labelKey: "ASSIGNMENTS_S8_STATUS_MISSING",
   },
+  graded: {
+    bg: "#EFF6FF",
+    color: "#1D4ED8",
+    border: "#BFDBFE",
+    labelKey: "ASSIGNMENTS_S8_STATUS_GRADED",
+  },
 };
 
 const formatDate = (value: string | null, locale: string): string => {
@@ -486,7 +492,7 @@ export const AssignmentDetailsScreen = ({
               ) : (
                 sortedStudents.map((row) => {
                   const checked = selectedIds.includes(row.student_id);
-                  const badge = STATUS_BADGE[row.status];
+                  const badge = STATUS_BADGE[row.status] ?? STATUS_BADGE.missing;
                   const showReassign = row.status === "missing";
                   const openedLabel = formatDate(row.opened_at, i18n.language);
 

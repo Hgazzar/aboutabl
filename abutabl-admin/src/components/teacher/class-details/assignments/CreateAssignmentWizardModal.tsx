@@ -15,12 +15,11 @@ import Modal from "@mui/material/Modal";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
 import {
-  AssignModuleOption,
-  AssignModuleType,
-  fetchAssignModuleOptions,
-  storeAssignment,
+  LearningActivitySelection,
+  storeLearningActivitiesAssignment,
 } from "@/api/classAssignmentsApi";
 import AssignmentMaterialsPanel from "@/components/teacher/class-details/assignments/AssignmentMaterialsPanel";
+import LearningActivitiesPicker from "@/components/teacher/class-details/assignments/LearningActivitiesPicker";
 import { WizardSelect } from "@/components/teacher/class-details/assignments/WizardSelect";
 import { RootState } from "@/redux/store";
 import { getRequest } from "@/utils/fetchMethods";
@@ -67,16 +66,6 @@ const MODAL_STYLE = {
   p: 3,
 };
 
-const MODULE_TYPES: AssignModuleType[] = [
-  "subjects",
-  "units",
-  "lessons",
-  "lessons_contents",
-  "quizes",
-  "games",
-];
-
-/** UI-only assignment categories (not sent to store API). */
 const ASSIGNMENT_TYPES = ["homework", "quiz", "practice", "worksheet"] as const;
 
 type AssignmentUiType = (typeof ASSIGNMENT_TYPES)[number];
@@ -137,16 +126,15 @@ export const CreateAssignmentWizardModal = ({
 
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
-  const [loadingModules, setLoadingModules] = useState(false);
   const [loadingStudents, setLoadingStudents] = useState(false);
 
   const [selectedClassId, setSelectedClassId] = useState(classId);
   const [title, setTitle] = useState("");
   const [assignmentType, setAssignmentType] =
     useState<AssignmentUiType>("homework");
-  const [moduleType, setModuleType] = useState<AssignModuleType | "">("");
-  const [moduleId, setModuleId] = useState<number | "">("");
-  const [modules, setModules] = useState<AssignModuleOption[]>([]);
+  const [selectedActivities, setSelectedActivities] = useState<
+    LearningActivitySelection[]
+  >([]);
   const [dueDate, setDueDate] = useState("");
 
   /** true → entire class payload (class_id[]); false → student_id[] */
@@ -162,11 +150,6 @@ export const CreateAssignmentWizardModal = ({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const voiceChunksRef = useRef<Blob[]>([]);
-
-  const selectedModule = useMemo(
-    () => modules.find((item) => item.id === moduleId) ?? null,
-    [moduleId, modules]
-  );
 
   const classOptions = useMemo(
     () =>
@@ -254,9 +237,7 @@ export const CreateAssignmentWizardModal = ({
     setSelectedClassId(classId);
     setTitle("");
     setAssignmentType("homework");
-    setModuleType("");
-    setModuleId("");
-    setModules([]);
+    setSelectedActivities([]);
     setDueDate("");
     setSelectAllStudents(true);
     setSelectedStudentIds([]);
@@ -328,87 +309,8 @@ export const CreateAssignmentWizardModal = ({
     };
   }, [selectedClassId, open]);
 
-  useEffect(() => {
-    if (!open || !moduleType || schoolId <= 0) {
-      setModules([]);
-      setModuleId("");
-      return;
-    }
-
-    let cancelled = false;
-
-    const loadModules = async () => {
-      setLoadingModules(true);
-      try {
-        const rows = await fetchAssignModuleOptions(schoolId, moduleType);
-        if (!cancelled) {
-          setModules(rows);
-          setModuleId("");
-        }
-      } catch (err: unknown) {
-        if (!cancelled) {
-          setModules([]);
-          setModuleId("");
-          const message =
-            err && typeof err === "object" && "message" in err
-              ? String((err as { message?: string }).message)
-              : t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_WIZARD_MODULE_LOAD_ERROR");
-          notify(message, "error");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoadingModules(false);
-        }
-      }
-    };
-
-    loadModules();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [moduleType, open, schoolId, t]);
-
-  /**
-   * Assignment Type is a UI label; Backend `assigns.type` comes only from Module Type.
-   * Keep them in sync so selecting "Quiz" cannot leave Module Type as Unit/Lesson.
-   */
   const handleAssignmentTypeChange = (value: string) => {
-    const next = value as AssignmentUiType;
-    setAssignmentType(next);
-    if (next === "quiz") {
-      setModuleType("quizes");
-      setModuleId("");
-      return;
-    }
-    if (moduleType === "quizes") {
-      setModuleType("");
-      setModuleId("");
-    }
-  };
-
-  const handleModuleTypeChange = (value: string) => {
-    const next = (value || "") as AssignModuleType | "";
-    setModuleType(next);
-    setModuleId("");
-    if (next === "quizes") {
-      setAssignmentType("quiz");
-      return;
-    }
-    if (next && assignmentType === "quiz") {
-      setAssignmentType("homework");
-    }
-  };
-
-  const handleModuleChange = (value: string) => {
-    const nextId = value ? Number(value) : "";
-    setModuleId(nextId);
-    const module = modules.find((item) => item.id === nextId);
-    if (!module) {
-      return;
-    }
-    // Never overwrite an existing title — autofill only when the field is empty.
-    setTitle((current) => (current.trim() ? current : module.name));
+    setAssignmentType(value as AssignmentUiType);
   };
 
   const handleToggleAllStudents = (checked: boolean) => {
@@ -626,16 +528,11 @@ export const CreateAssignmentWizardModal = ({
       return false;
     }
 
-    if (!moduleType) {
+    if (selectedActivities.length === 0) {
       notify(
-        t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_WIZARD_MODULE_TYPE_REQUIRED"),
+        t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_LA_REQUIRED"),
         "error"
       );
-      return false;
-    }
-
-    if (!moduleId) {
-      notify(t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_WIZARD_MODULE_REQUIRED"), "error");
       return false;
     }
 
@@ -684,7 +581,7 @@ export const CreateAssignmentWizardModal = ({
       setStep(0);
       return;
     }
-    if (!moduleType || !moduleId) {
+    if (selectedActivities.length === 0) {
       return;
     }
 
@@ -693,16 +590,20 @@ export const CreateAssignmentWizardModal = ({
     try {
       const payload = {
         school_id: schoolId,
-        type: moduleType,
-        type_id: Number(moduleId),
+        title: title.trim(),
+        subject_id: selectedActivities[0]?.subject_id,
         due_at: dueDate,
         teacher_id: teacherId > 0 ? teacherId : undefined,
+        activities: selectedActivities.map((item) => ({
+          activity_type: item.activity_type,
+          activity_id: item.activity_id,
+        })),
         ...(selectAllStudents
           ? { class_id: [selectedClassId] }
           : { student_id: selectedStudentIds }),
       };
 
-      const response = await storeAssignment(payload);
+      const response = await storeLearningActivitiesAssignment(payload);
 
       if (!response?.status) {
         throw new Error(
@@ -1008,47 +909,18 @@ export const CreateAssignmentWizardModal = ({
                   onChange={handleAssignmentTypeChange}
                 />
               </div>
-
-              <div className="block">
-                <span className="mb-1.5 block text-sm font-semibold text-[#374151]">
-                  {t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_WIZARD_FIELD_MODULE_TYPE")}
-                  <span className="text-[#DC2626]"> *</span>
-                </span>
-                <WizardSelect
-                  value={moduleType}
-                  options={MODULE_TYPES.map((type) => ({
-                    value: type,
-                    label: t(
-                      `TEACHER_CLASS_DETAILS.ASSIGNMENTS_WIZARD_MODULE_${type.toUpperCase()}`
-                    ),
-                  }))}
-                  placeholder={t(
-                    "TEACHER_CLASS_DETAILS.ASSIGNMENTS_WIZARD_SELECT_MODULE_TYPE"
-                  )}
-                  disabled={submitting || assignmentType === "quiz"}
-                  onChange={handleModuleTypeChange}
-                />
-              </div>
             </div>
 
             <div className="block">
               <span className="mb-1.5 block text-sm font-semibold text-[#374151]">
-                {t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_WIZARD_FIELD_MODULE")}
+                {t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_LA_BROWSER_TITLE")}
                 <span className="text-[#DC2626]"> *</span>
               </span>
-              <WizardSelect
-                value={moduleId === "" ? "" : String(moduleId)}
-                options={modules.map((module) => ({
-                  value: String(module.id),
-                  label: module.name,
-                }))}
-                placeholder={
-                  loadingModules
-                    ? t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_WIZARD_LOADING_MODULES")
-                    : t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_WIZARD_SELECT_MODULE")
-                }
-                disabled={submitting || !moduleType || loadingModules}
-                onChange={handleModuleChange}
+              <LearningActivitiesPicker
+                schoolId={schoolId}
+                selected={selectedActivities}
+                onChange={setSelectedActivities}
+                disabled={submitting}
               />
             </div>
 
@@ -1112,23 +984,22 @@ export const CreateAssignmentWizardModal = ({
               </h4>
               <ReviewRow
                 label={t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_WIZARD_REVIEW_TITLE")}
-                value={title.trim() || selectedModule?.name || "—"}
+                value={title.trim() || "—"}
               />
               <ReviewRow
-                label={t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_WIZARD_REVIEW_MODULE")}
-                value={selectedModule?.name || "—"}
-              />
-              <ReviewRow
-                label={t(
-                  "TEACHER_CLASS_DETAILS.ASSIGNMENTS_WIZARD_FIELD_MODULE_TYPE"
-                )}
+                label={t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_LA_BROWSER_TITLE")}
                 value={
-                  moduleType
-                    ? t(
-                        `TEACHER_CLASS_DETAILS.ASSIGNMENTS_WIZARD_MODULE_${moduleType.toUpperCase()}`
-                      )
+                  selectedActivities.length > 0
+                    ? selectedActivities.map((item) => item.title).join(", ")
                     : "—"
                 }
+              />
+              <ReviewRow
+                label={t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_LA_SELECTED_COUNT", {
+                  count: selectedActivities.length,
+                  max: 10,
+                })}
+                value={`${selectedActivities.length}`}
               />
               <ReviewRow
                 label={t(

@@ -82,7 +82,9 @@ class AssignmentGetForClassTest extends TestCase
             $this->assertArrayHasKey($key, $stats);
         }
 
-        if ($assignment['assignment_type'] !== 'quiz') {
+        if ($assignment['assignment_type'] !== 'quiz'
+            && ($assignment['module'] ?? '') !== 'learning_activities'
+        ) {
             $this->assertNull($stats['average_score']);
         }
 
@@ -93,12 +95,26 @@ class AssignmentGetForClassTest extends TestCase
             ] as $key) {
                 $this->assertArrayHasKey($key, $row);
             }
-            $this->assertContains($row['status'], ['submitted', 'late', 'missing']);
-            if ($assignment['assignment_type'] !== 'quiz') {
+            $this->assertContains($row['status'], ['submitted', 'late', 'missing', 'graded']);
+            if ($assignment['assignment_type'] !== 'quiz'
+                && ($assignment['module'] ?? '') !== 'learning_activities'
+            ) {
                 $this->assertNull($row['score_percent']);
                 $this->assertNull($row['accuracy_percent']);
             }
-            $this->assertSame(1, $row['tasks_total']);
+            if (($assignment['module'] ?? '') === 'learning_activities') {
+                $this->assertArrayHasKey('submission_status', $row);
+                $this->assertArrayHasKey('submitted_at', $row);
+                $this->assertArrayHasKey('graded_at', $row);
+                $this->assertGreaterThanOrEqual(0, (int) $row['tasks_total']);
+                $this->assertGreaterThanOrEqual(0, (int) $row['tasks_completed']);
+                $this->assertLessThanOrEqual(
+                    (int) $row['tasks_total'],
+                    (int) $row['tasks_completed']
+                );
+            } else {
+                $this->assertSame(1, $row['tasks_total']);
+            }
         }
 
         $this->assertSame([], $payload['materials']['files']);

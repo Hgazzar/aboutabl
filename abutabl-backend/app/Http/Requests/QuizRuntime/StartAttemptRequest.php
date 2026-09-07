@@ -21,6 +21,7 @@ class StartAttemptRequest extends FormRequest
         return [
             'quiz_id' => 'required|integer',
             'assign_student_id' => 'nullable|integer',
+            'assign_activity_id' => 'nullable|integer',
             'client_instance_id' => 'nullable|string',
         ];
     }

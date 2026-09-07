@@ -6,8 +6,7 @@ use App\Models\Lessons;
 use App\Models\LessonsContents;
 use App\Models\Student;
 use App\Models\StudentLessonContentCompletion;
-use App\Models\subjectsSchools;
-use Illuminate\Support\Facades\DB;
+use App\Services\Student\StudentCurriculumAccessService;
 use InvalidArgumentException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -32,9 +31,15 @@ class LessonContentCompletionRuntimeService
     /** @var LessonCompletionService */
     private $lessonCompletion;
 
-    public function __construct(LessonCompletionService $lessonCompletion)
-    {
+    /** @var StudentCurriculumAccessService */
+    private $curriculumAccess;
+
+    public function __construct(
+        LessonCompletionService $lessonCompletion,
+        StudentCurriculumAccessService $curriculumAccess
+    ) {
         $this->lessonCompletion = $lessonCompletion;
+        $this->curriculumAccess = $curriculumAccess;
     }
 
     /**
@@ -66,7 +71,7 @@ class LessonContentCompletionRuntimeService
             throw new InvalidArgumentException('Lesson is not active.');
         }
 
-        if (! $this->studentCanAccessSubject($student, (int) $lesson->subject_id)) {
+        if (! $this->curriculumAccess->studentCanAccessSubject($student, (int) $lesson->subject_id)) {
             throw new AccessDeniedHttpException('Student cannot access this subject.');
         }
 
@@ -187,26 +192,6 @@ class LessonContentCompletionRuntimeService
         }
 
         throw new InvalidArgumentException('Unsupported lesson content type for completion.');
-    }
-
-    private function studentCanAccessSubject(Student $student, int $subjectId): bool
-    {
-        $subjectSchoolIds = subjectsSchools::query()
-            ->where('school_id', $student->school_id)
-            ->where('status', '1')
-            ->pluck('id')
-            ->all();
-
-        if ($subjectSchoolIds === []) {
-            return false;
-        }
-
-        return DB::table('subjects_grades')
-            ->whereIn('subjects_schools_id', $subjectSchoolIds)
-            ->where('grade_id', $student->grade_id)
-            ->where('subject_id', $subjectId)
-            ->where('status', '1')
-            ->exists();
     }
 
     private function isActiveStatus($status): bool

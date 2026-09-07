@@ -40,7 +40,8 @@ class StudentDashboardServiceTest extends TestCase
         $this->assertArrayHasKey('items', $payload['quests']);
         $this->assertArrayHasKey('limit', $payload['quests']);
         $this->assertIsArray($payload['quests']['items']);
-        $this->assertSame(1, $payload['quests']['limit']);
+        $this->assertSame(2, $payload['quests']['limit']);
+        $this->assertLessThanOrEqual(2, count($payload['quests']['items']));
 
         $this->assertArrayHasKey('recommended_activities', $payload);
         $this->assertArrayHasKey('items', $payload['recommended_activities']);
@@ -49,5 +50,36 @@ class StudentDashboardServiceTest extends TestCase
         $this->assertArrayHasKey('recent_activities', $payload);
         $this->assertArrayHasKey('items', $payload['recent_activities']);
         $this->assertArrayHasKey('has_more', $payload['recent_activities']);
+    }
+
+    public function test_rankings_items_include_weekly_xp_without_changing_rank_order(): void
+    {
+        /** @var StudentDashboardService $service */
+        $service = $this->app->make(StudentDashboardService::class);
+
+        $student = \App\Models\Student::query()->first();
+        if (! $student) {
+            $this->markTestSkipped('No student seed data.');
+        }
+
+        $payload = $service->build($student->id, 'week');
+        $rankings = $payload['rankings'] ?? [];
+
+        if (($rankings['available'] ?? false) !== true || empty($rankings['items'])) {
+            $this->markTestSkipped('No ranking data for seeded student.');
+        }
+
+        $previousRank = 0;
+        foreach ($rankings['items'] as $item) {
+            $this->assertArrayHasKey('weekly_xp', $item);
+            $this->assertIsInt($item['weekly_xp']);
+            $this->assertGreaterThanOrEqual(0, $item['weekly_xp']);
+            $this->assertArrayHasKey('rank', $item);
+            $this->assertArrayHasKey('score_percent', $item);
+            $this->assertGreaterThan($previousRank, (int) $item['rank']);
+            $previousRank = (int) $item['rank'];
+        }
+
+        $this->assertLessThanOrEqual(3, count($rankings['items']));
     }
 }

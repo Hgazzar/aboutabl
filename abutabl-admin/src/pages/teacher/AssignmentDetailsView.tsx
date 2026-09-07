@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import CircularProgress from "@mui/material/CircularProgress";
 import { fetchAssignmentDetails } from "@/api/classAssignmentsApi";
@@ -59,12 +59,10 @@ const normalizeStudentRow = (
       raw.completion_percent === null || raw.completion_percent === undefined
         ? null
         : Number(raw.completion_percent),
-    // Assignment Accuracy (this assign only) — not Student Profile global accuracy_percent.
     accuracy_percent:
       raw.accuracy_percent === null || raw.accuracy_percent === undefined
         ? null
         : Number(raw.accuracy_percent),
-    // F-046E — Assignment Details API duration label (or null → N/A).
     duration:
       raw.duration === null || raw.duration === undefined || raw.duration === ""
         ? null
@@ -74,11 +72,12 @@ const normalizeStudentRow = (
 
 /**
  * F-043R — Assignment Details (Screen #8 + #9).
- * Student rows SSOT: AssignmentService::getForClass → students[] (assigns_students).
+ * Screen #9 deep-link: ?review={studentId} (URL is source of truth).
  */
 const AssignmentDetailsView = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { classId: classIdParam, assignmentId: assignmentIdParam } = useParams<{
     classId: string;
     assignmentId: string;
@@ -94,7 +93,16 @@ const AssignmentDetailsView = () => {
   const [students, setStudents] = useState<AssignmentDetailsStudentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [reviewStudentId, setReviewStudentId] = useState<number | null>(null);
+
+  /** URL ?review= is the only source of truth for Screen #9 (avoids load-race clearing state). */
+  const reviewStudentId = useMemo(() => {
+    const raw = searchParams.get("review");
+    if (!raw) {
+      return null;
+    }
+    const id = Number(raw);
+    return Number.isFinite(id) && id > 0 ? id : null;
+  }, [searchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -138,7 +146,6 @@ const AssignmentDetailsView = () => {
     const load = async () => {
       setLoading(true);
       setError(null);
-      setReviewStudentId(null);
 
       try {
         const details = await fetchAssignmentDetails(classId, assignmentId);
@@ -161,12 +168,13 @@ const AssignmentDetailsView = () => {
             .map((row) => normalizeStudentRow(row))
             .filter((row): row is AssignmentDetailsStudentRow => row != null)
         );
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (!cancelled) {
-          setError(
-            err?.message ||
-              t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_DETAILS_LOAD_ERROR")
-          );
+          const message =
+            err instanceof Error
+              ? err.message
+              : t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_DETAILS_LOAD_ERROR");
+          setError(message);
           setPayload(null);
           setStudents([]);
         }
@@ -182,6 +190,44 @@ const AssignmentDetailsView = () => {
       cancelled = true;
     };
   }, [assignmentId, classId, t]);
+
+  const reviewStudents = useMemo(() => {
+    if (reviewStudentId == null) {
+      return students;
+    }
+    if (students.some((row) => row.student_id === reviewStudentId)) {
+      return students;
+    }
+    // Deep-link student missing from payload — keep Screen #9 open with a stub row.
+    return [
+      ...students,
+      {
+        student_id: reviewStudentId,
+        name: t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S9_RUNTIME_STUDENT_FALLBACK"),
+        photo_url: null,
+        status: "submitted" as AssignmentStudentCompletionStatus,
+        opened_at: null,
+        score_percent: null,
+        tasks_total: 1,
+        tasks_completed: 0,
+        completion_percent: null,
+        accuracy_percent: null,
+        duration: null,
+      },
+    ];
+  }, [reviewStudentId, students, t]);
+
+  const openReview = (studentId: number) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("review", String(studentId));
+    setSearchParams(next, { replace: true });
+  };
+
+  const closeReview = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("review");
+    setSearchParams(next, { replace: true });
+  };
 
   const activeClass = useMemo(
     () => classes.find((item) => item.class_id === classId) ?? null,
@@ -249,6 +295,8 @@ const AssignmentDetailsView = () => {
     );
   }
 
+  const showReviewWorkspace = reviewStudentId != null;
+
   return (
     <div className="min-h-full bg-[#F7F9FA]">
       <ClassDetailsHeader
@@ -265,15 +313,15 @@ const AssignmentDetailsView = () => {
         showClassPills={false}
       />
 
-      {reviewStudentId != null ? (
+      {showReviewWorkspace ? (
         <StudentAssignmentDetailsScreen
           assignment={payload.assignment}
-          students={students}
+          students={reviewStudents}
           studentId={reviewStudentId}
           classId={classId}
           classLabel={classLabel}
-          onBack={() => setReviewStudentId(null)}
-          onStudentChange={setReviewStudentId}
+          onBack={closeReview}
+          onStudentChange={openReview}
         />
       ) : (
         <AssignmentDetailsScreen
@@ -283,7 +331,7 @@ const AssignmentDetailsView = () => {
           students={students}
           classLabel={classLabel}
           onBack={goBackToAssignments}
-          onReview={setReviewStudentId}
+          onReview={openReview}
         />
       )}
     </div>

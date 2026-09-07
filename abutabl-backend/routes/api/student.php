@@ -67,6 +67,13 @@ Route::group([ 'middleware' => ['api' , 'checkSecretApi' , 'changeLanguage','che
     Route::get('/todaoList','SubjectController@TodoList');
     Route::post('/todo/markOpened','SubjectController@markTodoOpened');
 
+    // Multi-activity assignment detail + per-activity submit (student scope).
+    Route::get('/assigns/{assignId}/learning_activities','AssignActivityStudentController@show');
+    Route::post('/assigns/{assignId}/submit','AssignActivityStudentController@submitAssignment');
+    Route::get('/assign-activities/{assignActivityId}','AssignActivityStudentController@activityShow');
+    Route::post('/assign-activities/{assignActivityId}/submit','AssignActivityStudentController@submit');
+
+
 
        ////NOTIFICATION
     Route::get('/notifications/list','NotificationsController@index');

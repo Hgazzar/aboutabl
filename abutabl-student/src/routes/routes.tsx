@@ -22,6 +22,7 @@ const HackingGifts = lazy(() => import('views/games/Hacking/Gifts'));
 const GoldQuestGifts = lazy(() => import('views/games/GoldQuest/Gifts'));
 const FactsScreen = lazy(() => import('views/games/Facts'));
 const AnswerListScreen = lazy(() => import('views/games/AnswerList'));
+const TodoAssignActivities = lazy(() => import('views/todo/AssignActivities'));
 
 const Routes = () => {
 	const { ROUTES } = useRoutesConst();
@@ -99,6 +100,14 @@ const Routes = () => {
 										{
 											index: true,
 											element: ROUTES.todo.component,
+										},
+										{
+											path: 'assign/:assignId',
+											element: (
+												<Suspense fallback={<LoadingPartially />}>
+													<TodoAssignActivities />
+												</Suspense>
+											),
 										},
 									],
 								},

@@ -40,6 +40,8 @@ export type AssignmentRuntimeReviewSectionProps = {
   studentPhotoUrl?: string | null;
   assignmentTitle?: string;
   quizTitle?: string;
+  /** When set, lists attempts for this quiz only (Multi-Activity quiz activity). */
+  quizId?: number | null;
   /** F-046E — from Assignment Details API `students[].duration` (display only). */
   duration?: string | null;
   /** F-046F — notify parent when review can no longer accept Save Grade. */
@@ -128,6 +130,7 @@ export const AssignmentRuntimeReviewSection = ({
   studentPhotoUrl,
   assignmentTitle = "",
   quizTitle = "",
+  quizId = null,
   duration = null,
   onReviewLockChange,
 }: AssignmentRuntimeReviewSectionProps) => {
@@ -179,6 +182,7 @@ export const AssignmentRuntimeReviewSection = ({
       const listResponse = await fetchQuizRuntimeAttempts({
         assign_id: assignId,
         student_id: studentId,
+        ...(quizId != null && quizId > 0 ? { quiz_id: quizId } : {}),
       });
       const attempts = Array.isArray(listResponse.attempts)
         ? listResponse.attempts
@@ -236,7 +240,7 @@ export const AssignmentRuntimeReviewSection = ({
     } finally {
       setLoading(false);
     }
-  }, [assignId, isQuiz, studentId]);
+  }, [assignId, isQuiz, quizId, studentId]);
 
   useEffect(() => {
     loadRuntime();

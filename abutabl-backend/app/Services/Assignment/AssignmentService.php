@@ -5,11 +5,15 @@ namespace App\Services\Assignment;
 use App\Contracts\Assignment\AssignmentAnalyticsInterface;
 use App\Contracts\Assignment\AssignmentMaterialResolverInterface;
 use App\Contracts\Assignment\AssignmentTargetResolverInterface;
+use App\Models\AssignActivity;
+use App\Models\AssignActivitySubmission;
 use App\Models\Assigns;
 use App\Models\AssignsStudents;
 use App\Models\Student;
 use App\Services\StudentMetricsService;
 use App\Services\TeacherDashboardService;
+use App\Support\Assignment\LearningActivityMap;
+use App\Support\Assignment\MultiActivityMetrics;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -89,7 +93,9 @@ class AssignmentService
      * Class-scoped assignment cards for the teacher Assignments screen.
      *
      * One row per Assigns intersecting the class roster. Completion uses
-     * opened_at; overdue uses StudentMetricsService::isOverdue; percentage
+     * opened_at for legacy assigns; learning_activities uses
+     * assign_activity_submissions (fully completed activity set per student).
+     * Overdue uses StudentMetricsService::isOverdue; percentage
      * uses StudentMetricsService::computeCompletion.
      *
      * @param  array<int, int>  $schoolIds
@@ -199,6 +205,11 @@ class AssignmentService
         /** @var LengthAwarePaginator $paginator */
         $paginator = $query->paginate($perPage, ['assigns.*'], 'page', $page);
 
+        $this->overlayLearningActivitiesCompletedCounts(
+            collect($paginator->items()),
+            $studentIds
+        );
+
         $data = collect($paginator->items())
             ->map(fn (Assigns $assign) => $this->mapClassAssignmentCard($assign))
             ->values()
@@ -268,6 +279,7 @@ class AssignmentService
             ->with([
                 'Subject:id,name,name_ar',
                 'Teacher:id,name,name_ar',
+                'activities',
             ])
             ->withCount([
                 'assignStandards as standards_count',
@@ -289,17 +301,22 @@ class AssignmentService
             throw new \InvalidArgumentException('assignment_not_found');
         }
 
+        $isLearningActivities = (string) $assign->type === LearningActivityMap::ASSIGN_TYPE;
+        if ($isLearningActivities) {
+            $this->overlayLearningActivitiesCompletedCounts(collect([$assign]), $studentIds);
+        }
+
         $card = $this->mapClassAssignmentCard($assign);
         $isQuiz = $card['assignment_type'] === 'quiz';
         $students = $this->mapAssignmentStudentRows(
-            (int) $assign->id,
+            $assign,
             $studentIds,
             $card['due_at'] ?? null,
             $isQuiz
         );
 
         $averageScore = null;
-        if ($isQuiz) {
+        if ($isQuiz || $isLearningActivities) {
             $percents = array_values(array_filter(
                 array_map(
                     static fn (array $row) => $row['score_percent'],
@@ -355,14 +372,17 @@ class AssignmentService
     }
 
     /**
-     * Per-student completion rows for Screen #8 (Task model).
-     * Status from opened_at + due_at only. Score only when $isQuiz (quiz_results).
+     * Per-student completion rows for Screen #8 / #9.
+     *
+     * Legacy: status from opened_at + due_at; score only for type=quizes.
+     * Multi-Activity (type=learning_activities): tasks/scores from
+     * assign_activities + assign_activity_submissions (not type_id / opened_at-only).
      *
      * @param  array<int, int>  $classStudentIds
      * @return array<int, array<string, mixed>>
      */
     private function mapAssignmentStudentRows(
-        int $assignId,
+        Assigns $assign,
         array $classStudentIds,
         ?string $dueAtIso,
         bool $isQuiz
@@ -370,6 +390,9 @@ class AssignmentService
         if ($classStudentIds === []) {
             return [];
         }
+
+        $assignId = (int) $assign->id;
+        $isLearningActivities = (string) $assign->type === LearningActivityMap::ASSIGN_TYPE;
 
         $dueAt = null;
         if ($dueAtIso) {
@@ -388,11 +411,27 @@ class AssignmentService
             ->orderBy('student_id')
             ->get();
 
+        $activities = collect();
+        $submissionsByStudent = collect();
+        if ($isLearningActivities) {
+            $activities = $assign->relationLoaded('activities')
+                ? $assign->activities
+                : AssignActivity::query()
+                    ->where('assign_id', $assignId)
+                    ->orderBy('sort_order')
+                    ->get();
+
+            $submissionsByStudent = AssignActivitySubmission::query()
+                ->where('assign_id', $assignId)
+                ->whereIn('student_id', $classStudentIds)
+                ->get()
+                ->groupBy(static fn ($row) => (int) $row->student_id);
+        }
+
         $scoreByStudent = [];
         $durationByStudent = [];
-        if ($isQuiz) {
+        if ($isQuiz && ! $isLearningActivities) {
             $scoreByStudent = $this->quizScorePercentByStudent($assignId, $classStudentIds);
-            // F-046E — submitted_at - started_at from quiz_attempts (latest submitted).
             $durationByStudent = $this->quizAttemptDurationByStudent($assignId, $classStudentIds);
         }
 
@@ -400,10 +439,6 @@ class AssignmentService
         foreach ($rows as $row) {
             $studentId = (int) $row->student_id;
             $openedAt = $row->opened_at ? Carbon::parse($row->opened_at) : null;
-            $status = 'missing';
-            if ($openedAt !== null) {
-                $status = ($dueAt !== null && $openedAt->gt($dueAt)) ? 'late' : 'submitted';
-            }
 
             $student = $row->student;
             $name = '';
@@ -411,6 +446,56 @@ class AssignmentService
                 $name = (app()->getLocale() === 'ar' && ! empty($student->name_ar))
                     ? (string) $student->name_ar
                     : (string) ($student->name ?? '');
+            }
+
+            if ($isLearningActivities) {
+                $la = MultiActivityMetrics::forStudent(
+                    $activities,
+                    $submissionsByStudent->get($studentId, collect())
+                );
+
+                // Parent lifecycle SSOT (assigns_students) — not activity completion.
+                /** @var AssignmentParentSubmissionService $parentLifecycle */
+                $parentLifecycle = app(AssignmentParentSubmissionService::class);
+                $parentStatus = $parentLifecycle->resolveParentStatus($row);
+                $submittedAt = $row->submitted_at ? Carbon::parse($row->submitted_at) : null;
+                $gradedAt = $row->graded_at ? Carbon::parse($row->graded_at) : null;
+
+                $status = 'missing';
+                if ($parentStatus === AssignmentParentSubmissionService::STATUS_GRADED) {
+                    $status = 'graded';
+                } elseif ($parentStatus === AssignmentParentSubmissionService::STATUS_SUBMITTED) {
+                    $status = ($dueAt !== null && $submittedAt !== null && $submittedAt->gt($dueAt))
+                        ? 'late'
+                        : 'submitted';
+                }
+
+                $mapped[] = [
+                    'student_id'          => $studentId,
+                    'assign_student_id'   => (int) $row->id,
+                    'name'                => $name,
+                    'photo_url'           => $student && $student->photo
+                        ? (string) $student->photo
+                        : null,
+                    'status'              => $status,
+                    'submission_status'   => $parentStatus,
+                    'submitted_at'        => $submittedAt ? $submittedAt->toIso8601String() : null,
+                    'graded_at'           => $gradedAt ? $gradedAt->toIso8601String() : null,
+                    'opened_at'           => $openedAt ? $openedAt->toIso8601String() : null,
+                    'score_percent'       => $la['score_percent'],
+                    'tasks_total'         => $la['tasks_total'],
+                    'tasks_completed'     => $la['tasks_completed'],
+                    'completion_percent'  => $la['completion_percent'],
+                    'accuracy_percent'    => $la['accuracy_percent'],
+                    'duration'            => null,
+                ];
+
+                continue;
+            }
+
+            $status = 'missing';
+            if ($openedAt !== null) {
+                $status = ($dueAt !== null && $openedAt->gt($dueAt)) ? 'late' : 'submitted';
             }
 
             $scorePercent = $isQuiz
@@ -435,10 +520,7 @@ class AssignmentService
                 'tasks_total'         => $tasksTotal,
                 'tasks_completed'     => $tasksCompleted,
                 'completion_percent'  => $completion['has_data'] ? $completion['percent'] : null,
-                // Screen #9 Assignment Accuracy — this assign's quiz_results.percent only.
-                // Not Student Profile global accuracy (avg quiz_results across all assigns).
                 'accuracy_percent'    => $scorePercent,
-                // F-046E — preformatted duration; null → UI shows N/A (never ends_at).
                 'duration'            => $isQuiz
                     ? ($durationByStudent[$studentId] ?? null)
                     : null,
@@ -450,6 +532,60 @@ class AssignmentService
         });
 
         return $mapped;
+    }
+
+    /**
+     * For learning_activities assigns, replace opened_at-based completed_students
+     * with students who have parent-submitted (or graded) on assigns_students.
+     *
+     * @param  Collection<int, Assigns>  $assigns
+     * @param  array<int, int>  $studentIds
+     */
+    private function overlayLearningActivitiesCompletedCounts(
+        Collection $assigns,
+        array $studentIds
+    ): void {
+        $laAssigns = $assigns->filter(
+            static fn (Assigns $assign) => (string) $assign->type === LearningActivityMap::ASSIGN_TYPE
+        );
+
+        if ($laAssigns->isEmpty() || $studentIds === []) {
+            return;
+        }
+
+        $assignIds = $laAssigns->pluck('id')->map(static fn ($id) => (int) $id)->all();
+
+        if (! \Illuminate\Support\Facades\Schema::hasColumn('assigns_students', 'submission_status')
+            && ! \Illuminate\Support\Facades\Schema::hasColumn('assigns_students', 'submitted_at')) {
+            foreach ($laAssigns as $assign) {
+                $assign->completed_students = 0;
+            }
+
+            return;
+        }
+
+        $completedByAssign = AssignsStudents::query()
+            ->whereIn('assign_id', $assignIds)
+            ->whereIn('student_id', $studentIds)
+            ->where('status', 1)
+            ->where(function (Builder $query) {
+                if (\Illuminate\Support\Facades\Schema::hasColumn('assigns_students', 'submission_status')) {
+                    $query->whereIn('submission_status', [
+                        AssignmentParentSubmissionService::STATUS_SUBMITTED,
+                        AssignmentParentSubmissionService::STATUS_GRADED,
+                    ]);
+                }
+                if (\Illuminate\Support\Facades\Schema::hasColumn('assigns_students', 'submitted_at')) {
+                    $query->orWhereNotNull('submitted_at');
+                }
+            })
+            ->selectRaw('assign_id, COUNT(DISTINCT student_id) as completed_count')
+            ->groupBy('assign_id')
+            ->pluck('completed_count', 'assign_id');
+
+        foreach ($laAssigns as $assign) {
+            $assign->completed_students = (int) ($completedByAssign[(int) $assign->id] ?? 0);
+        }
     }
 
     /**
@@ -601,7 +737,27 @@ class AssignmentService
         }
 
         $studentIds = $this->targeting->resolveStudentIds($input);
-        $result = $this->lifecycle->create($input, $studentIds, $authUserId);
+        $rawActivities = $input['activities'] ?? null;
+
+        if (is_array($rawActivities) && count($rawActivities) > 0) {
+            $schoolId = (int) ($input['school_id'] ?? 0);
+            $subjectIds = $this->subjectIdsForSchool($schoolId);
+            $preferredSubjectId = isset($input['subject_id']) ? (int) $input['subject_id'] : null;
+            $resolved = $this->learningActivitiesBrowser()->resolveForStore(
+                $rawActivities,
+                $subjectIds,
+                $preferredSubjectId > 0 ? $preferredSubjectId : null
+            );
+
+            $result = $this->lifecycle->createLearningActivities(
+                $input,
+                $studentIds,
+                $resolved,
+                $authUserId
+            );
+        } else {
+            $result = $this->lifecycle->create($input, $studentIds, $authUserId);
+        }
 
         $this->analytics->record('assign.created', [
             'assign_id' => (int) $result['assign']->id,
@@ -609,6 +765,53 @@ class AssignmentService
         ]);
 
         return $result;
+    }
+
+    /**
+     * @param  array<int, int>  $subjectIds
+     * @return array<int, array<string, mixed>>
+     */
+    public function learningActivityBooks(array $subjectIds): array
+    {
+        return $this->learningActivitiesBrowser()->books($subjectIds);
+    }
+
+    /**
+     * @param  array<int, int>  $subjectIds
+     * @return array<int, array<string, mixed>>
+     */
+    public function learningActivitySections(int $subjectId, array $subjectIds): array
+    {
+        return $this->learningActivitiesBrowser()->sections($subjectId, $subjectIds);
+    }
+
+    /**
+     * @param  array<int, int>  $subjectIds
+     * @return array<int, array<string, mixed>>
+     */
+    public function learningActivityItems(int $subjectId, string $sectionKey, array $subjectIds): array
+    {
+        return $this->learningActivitiesBrowser()->activities($subjectId, $sectionKey, $subjectIds);
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private function subjectIdsForSchool(int $schoolId): array
+    {
+        return DB::table('subjects_schools')
+            ->where('school_id', $schoolId)
+            ->whereIn('status', [1, '1'])
+            ->pluck('subject_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function learningActivitiesBrowser(): LearningActivitiesBrowserService
+    {
+        return app(LearningActivitiesBrowserService::class);
     }
 
     /**

@@ -112,7 +112,8 @@ class StudentDashboardService
             $subjectIds,
             $assignments['tabs']['todo'] ?? []
         );
-        $recent = $this->recentActivities->buildDashboardPayload($studentId, 2);
+        $recentLimit = max(1, (int) config('student_dashboard.recent_activities_limit', 4));
+        $recent = $this->recentActivities->buildDashboardPayload($studentId, $recentLimit);
         $quests = $this->quests->buildDashboardPayload(
             $studentId,
             $student->school_id ? (int) $student->school_id : null,
@@ -197,29 +198,33 @@ class StudentDashboardService
      */
     private function buildStreakPayload(int $studentId): array
     {
+        $streak = $this->behaviourReader->streakPayloadForStudent($studentId);
         $behaviour = $this->behaviourReader->learningBehaviourForStudent($studentId);
 
-        if (! ($behaviour['has_learning_behaviour_data'] ?? false)) {
-            return [
+        $base = [
+            'current_streak' => (int) ($streak['current_streak'] ?? 0),
+            'longest_streak' => (int) ($streak['longest_streak'] ?? 0),
+            'today_completed' => (bool) ($streak['today_completed'] ?? false),
+            'weekly_days' => $streak['weekly_days'] ?? [],
+        ];
+
+        if (! ($streak['has_learning_behaviour_data'] ?? false)) {
+            return array_merge($base, [
                 'available' => false,
-                'current_streak' => 0,
-                'longest_streak' => 0,
                 'active_days' => 0,
                 'weekly_activity' => 0,
-            ];
+            ]);
         }
 
-        return [
+        return array_merge($base, [
             'available' => true,
-            'current_streak' => (int) ($behaviour['current_streak'] ?? 0),
-            'longest_streak' => (int) ($behaviour['longest_streak'] ?? 0),
             'active_days' => (int) ($behaviour['active_days'] ?? 0),
             'weekly_activity' => (int) ($behaviour['weekly_activity'] ?? 0),
             'engagement_score' => isset($behaviour['engagement_score'])
                 ? (float) $behaviour['engagement_score']
                 : null,
             'engagement_trend' => $behaviour['engagement_trend'] ?? null,
-        ];
+        ]);
     }
 
     /**
@@ -307,13 +312,16 @@ class StudentDashboardService
             ->sortBy('rank')
             ->take(3)
             ->map(function (array $row) use ($student) {
+                $studentId = (int) $row['student_id'];
+
                 return [
-                    'student_id'    => (int) $row['student_id'],
+                    'student_id'    => $studentId,
                     'name'          => (string) $row['name'],
                     'photo_url'     => $row['photo_url'],
                     'rank'          => (int) $row['rank'],
                     'score_percent' => (float) ($row['score']['percent'] ?? 0),
-                    'is_current'    => ((int) $row['student_id']) === (int) $student->id,
+                    'weekly_xp'     => max(0, $this->xp->weeklyXpEarned($studentId)),
+                    'is_current'    => $studentId === (int) $student->id,
                 ];
             })
             ->values()
@@ -372,10 +380,19 @@ class StudentDashboardService
             }
 
             $dueAt = $assign->due_at ? Carbon::parse($assign->due_at) : null;
-            $isCompleted = $row->opened_at !== null;
+
+            // learning_activities: Completed = parent Assignment submitted/graded.
+            // Legacy assigns: keep opened_at until they gain parent submission SSOT usage.
+            $isLearningActivities = (string) $assign->type === 'learning_activities';
+            if ($isLearningActivities) {
+                $isCompleted = $row->hasParentSubmission();
+            } else {
+                $isCompleted = $row->opened_at !== null;
+            }
+
             $isPastDue = ! $isCompleted && $dueAt !== null && $dueAt->lt($now);
 
-            if (! $isCompleted && $row->opened_at === null) {
+            if (! $isCompleted && $row->opened_at === null && ! $row->hasParentSubmission()) {
                 $newCount++;
             }
 
@@ -388,7 +405,7 @@ class StudentDashboardService
                 'subject_id'         => $assign->subject_id ? (int) $assign->subject_id : null,
                 'due_label'          => $this->dueLabel($dueAt, $now, $isPastDue),
                 'due_at'             => $dueAt ? $dueAt->toIso8601String() : null,
-                'is_new'             => ! $isCompleted && $row->opened_at === null,
+                'is_new'             => ! $isCompleted && $row->opened_at === null && ! $row->hasParentSubmission(),
             ];
 
             if ($isCompleted) {

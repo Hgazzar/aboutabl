@@ -54,11 +54,15 @@ export type QuizRuntimeSubmitResponse = {
 export const startQuizAttempt = async (payload: {
 	quiz_id: number;
 	assign_student_id?: number | null;
+	assign_activity_id?: number | null;
 }): Promise<QuizRuntimeStartResponse> => {
 	return postRequest('quiz-runtime/attempts', {
 		quiz_id: payload.quiz_id,
 		...(payload.assign_student_id != null
 			? { assign_student_id: payload.assign_student_id }
+			: {}),
+		...(payload.assign_activity_id != null
+			? { assign_activity_id: payload.assign_activity_id }
 			: {}),
 	}) as Promise<QuizRuntimeStartResponse>;
 };
