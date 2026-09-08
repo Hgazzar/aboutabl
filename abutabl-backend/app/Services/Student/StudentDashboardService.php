@@ -4,11 +4,11 @@ namespace App\Services\Student;
 
 use App\Models\Assigns;
 use App\Models\AssignsStudents;
-use App\Models\Notification;
 use App\Models\Student;
 use App\Models\TeachersGrades;
 use App\Models\subjectsSchools;
 use App\Services\LearningProgressService;
+use App\Services\Notification\NotificationInboxService;
 use App\Services\PerformanceAnalytics\PerformanceComparisonService;
 use App\Services\SmartInsight\InsightMetricsReader;
 use App\Services\StudentMetricsService;
@@ -47,6 +47,9 @@ class StudentDashboardService
     /** @var StudentQuestService */
     private $quests;
 
+    /** @var NotificationInboxService */
+    private $inbox;
+
     public function __construct(
         StudentMetricsService $metrics,
         StudentProgressOverviewService $progressOverview,
@@ -57,7 +60,8 @@ class StudentDashboardService
         PerformanceComparisonService $comparison,
         LearningProgressService $learningProgress,
         StudentXpService $xp,
-        StudentQuestService $quests
+        StudentQuestService $quests,
+        NotificationInboxService $inbox
     ) {
         $this->metrics = $metrics;
         $this->progressOverview = $progressOverview;
@@ -69,6 +73,7 @@ class StudentDashboardService
         $this->learningProgress = $learningProgress;
         $this->xp = $xp;
         $this->quests = $quests;
+        $this->inbox = $inbox;
     }
 
     /**
@@ -120,11 +125,7 @@ class StudentDashboardService
             $subjectIds
         );
 
-        $unread = Notification::query()
-            ->where('to_user_type', 'student')
-            ->where('to_user_id', $studentId)
-            ->whereIn('is_read', [0, '0'])
-            ->count();
+        $unread = $this->inbox->unreadCount($this->inbox->recipientForStudent($student));
 
         $photoUrl = $student->photo
             ? (str_starts_with((string) $student->photo, 'http')

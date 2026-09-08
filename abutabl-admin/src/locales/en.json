@@ -1,6 +1,18 @@
 {
   "DASHBOARD": "Dashboard",
 
+  "NOTIFICATIONS": {
+    "BELL_LABEL": "Notifications",
+    "TITLE": "Notifications",
+    "EMPTY": "No notifications",
+    "ERROR": "Could not load notifications.",
+    "MARK_ALL_READ": "Mark all as read",
+    "MARKING": "Updating…",
+    "CLEAR_ALL": "Clear all notifications",
+    "ITEM_LABEL": "notification",
+    "REFRESHING": "Updating…"
+  },
+
   "TEACHER_NAV": {
     "OVERVIEW": "Overview",
     "CLASSES": "Classes",

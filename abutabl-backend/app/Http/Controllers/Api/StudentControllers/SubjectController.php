@@ -433,7 +433,7 @@ class SubjectController extends Controller
                           'from_user_id'   => $data->id,
                           'to_user_type'   => "teacher",
                           'to_user_id'     => $teacher,
-                          'url'            => "subjects/scorm/".$lesson->subject_id."/".$lesson->id,
+                          'url'            => "/subjects/scorm/".$lesson->subject_id."/".$lesson->id,
                           'type'           => 'lesson',
                           'type_id'        => $lesson->id
                        ]);
@@ -472,7 +472,7 @@ class SubjectController extends Controller
                         'from_user_id'   => $data->id,
                         'to_user_type'   => "teacher",
                         'to_user_id'     => $teacher,
-                        'url'            => "subjects/GameView/".$game->id,
+                        'url'            => "/subjects/GameView/".$game->id,
                         'type'           => 'game',
                         'type_id'        => $game->id
                      ]);
@@ -537,7 +537,7 @@ class SubjectController extends Controller
                           'from_user_id'   => $data->id,
                           'to_user_type'   => "teacher",
                           'to_user_id'     => $teacher,
-                          'url'            => "subjects/quiz/".$quize->id,
+                          'url'            => "/subjects/quiz/".$quize->id,
                           'type'           => 'quize',
                           'type_id'        => $quize->id
                        ]);

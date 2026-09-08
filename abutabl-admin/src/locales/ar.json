@@ -1,6 +1,18 @@
 {
   "DASHBOARD": "لوحة التحكم",
 
+  "NOTIFICATIONS": {
+    "BELL_LABEL": "الإشعارات",
+    "TITLE": "الإشعارات",
+    "EMPTY": "لا توجد إشعارات",
+    "ERROR": "تعذر تحميل الإشعارات.",
+    "MARK_ALL_READ": "تعليم الكل كمقروء",
+    "MARKING": "جاري التحديث…",
+    "CLEAR_ALL": "مسح كل الإشعارات",
+    "ITEM_LABEL": "إشعار",
+    "REFRESHING": "جاري التحديث…"
+  },
+
   "TEACHER_NAV": {
     "OVERVIEW": "نظرة عامة",
     "CLASSES": "الفصول",

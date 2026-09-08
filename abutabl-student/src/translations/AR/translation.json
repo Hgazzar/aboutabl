@@ -362,5 +362,13 @@
 	"assign-detail-overdue": "متأخر — لم يُرسل بعد",
 	"assign-detail-overdue-banner": "هذا الواجب متأخر عن موعده. ما زال بإمكانك إكماله وإرساله.",
 	"assign-detail-submit-assignment": "إرسال",
-	"assign-detail-submit-needs-worksheet": "إرسال الواجب يتطلب نشاط ورقة عمل بانتظار الإرسال (لا يوجد بعد إرسال على مستوى الواجب)."
+	"assign-detail-submit-needs-worksheet": "إرسال الواجب يتطلب نشاط ورقة عمل بانتظار الإرسال (لا يوجد بعد إرسال على مستوى الواجب).",
+	"notifications-bell-label": "الإشعارات",
+	"notifications-title": "الإشعارات",
+	"notifications-empty": "لا توجد إشعارات",
+	"notifications-error": "تعذر تحميل الإشعارات.",
+	"notifications-mark-all-read": "تعليم الكل كمقروء",
+	"notifications-clear-all": "مسح كل الإشعارات",
+	"notifications-clear-confirm": "مسح كل الإشعارات؟ لا يمكن التراجع عن هذا الإجراء.",
+	"notifications-refreshing": "جاري التحديث…"
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Avatar,
   Badge,
@@ -9,12 +9,26 @@ import {
   Tooltip,
   Typography,
   Box,
+  CircularProgress,
+  Button,
+  Stack,
 } from "@mui/material";
-
 import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
-import { useGetNotificationsQuery } from "@/redux/reducers/notificationsApi";
-import axios from "axios";
-import { deleteRequest, postRequest } from "@/utils/fetchMethods";
+import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import {
+  useDeleteAllNotificationsMutation,
+  useGetNotificationsQuery,
+  useMarkAllNotificationsReadMutation,
+  useMarkNotificationReadMutation,
+} from "@/redux/reducers/notificationsApi";
+import {
+  countStaffUnreadNotifications,
+  isStaffNotificationUnread,
+  openStaffNotificationNavTarget,
+  type StaffNotificationItem,
+} from "@/utils/notificationNav";
+import DeleteConfirmationModal from "@/components/modals/DeleteConfirmationModal";
 
 const MUI_BADGE_COLORS = [
   "error",
@@ -27,6 +41,9 @@ const MUI_BADGE_COLORS = [
 
 type MuiBadgeColor = (typeof MUI_BADGE_COLORS)[number];
 
+const POLL_MS = 60_000;
+const LIST_LIMIT = 10;
+
 const NotificationDropdown = ({
   icon,
   badgeVariant = "standard",
@@ -38,8 +55,27 @@ const NotificationDropdown = ({
   iconButtonSx?: object;
   badgeColor?: MuiBadgeColor | string;
 }) => {
+  const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const open = Boolean(anchorEl);
+  const isRtl = i18n.language === "ar";
+
+  const { data, error, isLoading, isFetching } = useGetNotificationsQuery(
+    { limit: LIST_LIMIT },
+    { pollingInterval: POLL_MS }
+  );
+  const [markRead, markReadState] = useMarkNotificationReadMutation();
+  const [markAllRead, markAllState] = useMarkAllNotificationsReadMutation();
+  const [deleteAll, deleteAllState] = useDeleteAllNotificationsMutation();
+
+  const list = data?.notifications ?? [];
+  const unreadCount = useMemo(() => countStaffUnreadNotifications(list), [list]);
+  const mutating =
+    markReadState.isLoading || markAllState.isLoading || deleteAllState.isLoading;
+  const hasItems = list.length > 0;
+  const hasUnread = unreadCount > 0;
 
   const handleClick = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -48,45 +84,65 @@ const NotificationDropdown = ({
   const handleClose = () => {
     setAnchorEl(null);
   };
-  const { data, error, isLoading, refetch } = useGetNotificationsQuery<any>(
-    {
-      limit: 10,
-      //   is_read: false,
-    },
-    { pollingInterval: 60000 }
-  );
 
-  const notReaded = data?.notifications?.filter(
-    (item: any) => item?.is_read === "0"
-  );
+  const onItemClick = async (item: StaffNotificationItem) => {
+    if (mutating) return;
+    const id = Number(item.id);
+    if (!Number.isFinite(id) || id <= 0) return;
 
-  const readingNotify = async (id: number) => {
-    const res = await postRequest({}, `/api/notifications/update_read/${id}`);
-  };
-  const deleteNotify = async () => {
-    const res = await deleteRequest({}, `/api/notifications/delete_all`);
-    refetch();
-    // console.log(res);
+    try {
+      if (isStaffNotificationUnread(item)) {
+        await markRead(id).unwrap();
+      }
+    } catch {
+      // Do not block navigation on mark-read failure.
+    }
+
+    openStaffNotificationNavTarget(navigate, item.url);
+    handleClose();
   };
 
-  const isPaletteBadgeColor = MUI_BADGE_COLORS.includes(badgeColor as MuiBadgeColor);
+  const onMarkAllRead = async (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (mutating || !hasUnread) return;
+    try {
+      await markAllRead().unwrap();
+    } catch {
+      // Keep unread state on failure.
+    }
+  };
+
+  const onConfirmDeleteAll = async () => {
+    await deleteAll().unwrap();
+    handleClose();
+  };
+
+  const isPaletteBadgeColor = MUI_BADGE_COLORS.includes(
+    badgeColor as MuiBadgeColor
+  );
   const resolvedBadgeColor: MuiBadgeColor = isPaletteBadgeColor
     ? (badgeColor as MuiBadgeColor)
     : "error";
 
   const bellButton = (
-    <IconButton onClick={handleClick} sx={iconButtonSx}>
+    <IconButton
+      onClick={handleClick}
+      sx={iconButtonSx}
+      aria-label={t("NOTIFICATIONS.BELL_LABEL")}
+      disabled={mutating}
+    >
       <Badge
         badgeContent={
           badgeVariant === "dot"
-            ? notReaded?.length
+            ? unreadCount
               ? ""
               : 0
-            : notReaded?.length ?? ""
+            : unreadCount || undefined
         }
         color={resolvedBadgeColor}
         variant={badgeVariant}
-        invisible={badgeVariant === "dot" && !notReaded?.length}
+        invisible={badgeVariant === "dot" ? !unreadCount : !unreadCount}
         sx={
           badgeVariant === "dot"
             ? {
@@ -95,8 +151,10 @@ const NotificationDropdown = ({
                   height: 8,
                   borderRadius: "50%",
                   top: 4,
-                  right: 4,
-                  ...(!isPaletteBadgeColor ? { backgroundColor: badgeColor } : {}),
+                  ...(isRtl ? { left: 4, right: "auto" } : { right: 4 }),
+                  ...(!isPaletteBadgeColor
+                    ? { backgroundColor: badgeColor }
+                    : {}),
                 },
               }
             : undefined
@@ -111,34 +169,8 @@ const NotificationDropdown = ({
     </IconButton>
   );
 
-  if (isLoading) {
-    return (
-      <Tooltip title="">
-        <span>{bellButton}</span>
-      </Tooltip>
-    );
-  }
-
-  if (error) {
-    return (
-      <Tooltip title="">
-        <span>
-          <IconButton disabled sx={iconButtonSx}>
-            {icon ?? (
-              <SvgIcon fontSize="small">
-                <NotificationsNoneIcon />
-              </SvgIcon>
-            )}
-          </IconButton>
-        </span>
-      </Tooltip>
-    );
-  }
-
-  //   console.log(data);
-
   return (
-    <Tooltip title="">
+    <Tooltip title={t("NOTIFICATIONS.BELL_LABEL")}>
       <div>
         {bellButton}
         <Menu
@@ -147,59 +179,177 @@ const NotificationDropdown = ({
           onClose={handleClose}
           anchorOrigin={{
             vertical: "bottom",
-            horizontal: "right",
+            horizontal: isRtl ? "left" : "right",
           }}
           transformOrigin={{
             vertical: "top",
-            horizontal: "right",
+            horizontal: isRtl ? "left" : "right",
           }}
-          // PaperProps={{}}
+          PaperProps={{
+            sx: {
+              maxWidth: "min(360px, calc(100vw - 24px))",
+              overflowX: "hidden",
+            },
+          }}
         >
           <Box
-            sx={{ maxHeight: 400, overflowY: "auto", padding: "10px" }}
+            sx={{
+              maxHeight: 400,
+              overflowY: "auto",
+              overflowX: "hidden",
+              px: 1.5,
+              pt: 1.5,
+              pb: 1,
+              minWidth: 280,
+            }}
           >
-            {data?.notifications?.length > 0
-              ? data?.notifications?.map((item: any, index: number) => (
+            <Stack
+              direction="row"
+              alignItems="center"
+              justifyContent="space-between"
+              spacing={1}
+              sx={{ mb: 1, flexWrap: "wrap", gap: 0.5 }}
+            >
+              <Typography variant="subtitle2" fontWeight={700}>
+                {t("NOTIFICATIONS.TITLE")}
+              </Typography>
+              {hasUnread ? (
+                <Button
+                  size="small"
+                  onClick={onMarkAllRead}
+                  disabled={mutating}
+                >
+                  {markAllState.isLoading
+                    ? t("NOTIFICATIONS.MARKING")
+                    : t("NOTIFICATIONS.MARK_ALL_READ")}
+                </Button>
+              ) : null}
+            </Stack>
+
+            {isLoading && !data ? (
+              <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
+                <CircularProgress size={22} />
+              </Box>
+            ) : null}
+
+            {error ? (
+              <Typography variant="body2" color="error" sx={{ py: 1 }}>
+                {t("NOTIFICATIONS.ERROR")}
+              </Typography>
+            ) : null}
+
+            {!isLoading && !error && !hasItems ? (
+              <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
+                {t("NOTIFICATIONS.EMPTY")}
+              </Typography>
+            ) : null}
+
+            {!error &&
+              list.map((item) => {
+                const unread = isStaffNotificationUnread(item);
+                return (
                   <MenuItem
-                    key={index}
+                    key={String(item.id)}
+                    disabled={mutating}
                     onClick={() => {
-                      readingNotify(item?.id);
-                      window.open(item?.url, "_blank");
-                      handleClose();
+                      void onItemClick(item);
                     }}
-                    sx={{ background: item?.is_read === "0" ? "#eee" : "" }}
+                    sx={{
+                      background: unread ? "#eee" : undefined,
+                      alignItems: "flex-start",
+                      whiteSpace: "normal",
+                      mb: 0.5,
+                      borderRadius: 1,
+                      opacity: mutating ? 0.7 : 1,
+                    }}
                   >
-                    <Box sx={{ display: "flex", alignItems: "center" }}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        width: "100%",
+                        minWidth: 0,
+                      }}
+                    >
                       <Avatar
-                        alt={item?.title}
-                        src={item?.photo || "/assets/images/notification1.png"}
-                        sx={{ width: 40, height: 40, marginRight: 2 }}
+                        alt={item?.title ?? ""}
+                        src={
+                          item?.photo || "/assets/images/notification1.png"
+                        }
+                        sx={{
+                          width: 40,
+                          height: 40,
+                          flexShrink: 0,
+                          mr: isRtl ? 0 : 2,
+                          ml: isRtl ? 2 : 0,
+                        }}
                       />
-                      <Box>
-                        <Typography variant="body1">{item?.title}</Typography>
-                        <Typography variant="body2" color="textSecondary">
-                          {item?.description}
+                      <Box sx={{ minWidth: 0, flex: 1 }}>
+                        <Typography
+                          variant="body1"
+                          fontWeight={unread ? 700 : 500}
+                          sx={{
+                            wordBreak: "break-word",
+                            display: "-webkit-box",
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                          }}
+                        >
+                          {item?.title}
                         </Typography>
+                        {item?.description ? (
+                          <Typography
+                            variant="body2"
+                            color="textSecondary"
+                            sx={{
+                              wordBreak: "break-word",
+                              display: "-webkit-box",
+                              WebkitLineClamp: 3,
+                              WebkitBoxOrient: "vertical",
+                              overflow: "hidden",
+                            }}
+                          >
+                            {item.description}
+                          </Typography>
+                        ) : null}
                       </Box>
                     </Box>
                   </MenuItem>
-                ))
-              : "not found notifications now"}
+                );
+              })}
+
+            {isFetching && data && !mutating ? (
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                display="block"
+                textAlign="center"
+                sx={{ mt: 0.5 }}
+              >
+                {t("NOTIFICATIONS.REFRESHING")}
+              </Typography>
+            ) : null}
           </Box>
 
-          {data?.notifications?.length > 0 && (
+          {hasItems ? (
             <MenuItem
-              onClick={() => {
-                deleteNotify();
-                handleClose();
-              }}
+              disabled={mutating}
+              onClick={() => setConfirmOpen(true)}
             >
               <Typography variant="body2" color="primary">
-                Clear All Notifications
+                {t("NOTIFICATIONS.CLEAR_ALL")}
               </Typography>
             </MenuItem>
-          )}
+          ) : null}
         </Menu>
+
+        <DeleteConfirmationModal
+          open={confirmOpen}
+          onClose={() => setConfirmOpen(false)}
+          item={t("NOTIFICATIONS.ITEM_LABEL")}
+          onConfirm={onConfirmDeleteAll}
+        />
       </div>
     </Tooltip>
   );

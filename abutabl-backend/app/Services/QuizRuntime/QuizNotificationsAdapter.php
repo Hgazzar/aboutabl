@@ -3,11 +3,11 @@
 namespace App\Services\QuizRuntime;
 
 use App\Models\AssignsStudents;
-use App\Models\Notification;
 use App\Models\QuizRuntime\QuizAttempt;
 use App\Models\QuizRuntime\QuizResult;
 use App\Models\Student;
 use App\Models\TeachersGrades;
+use App\Services\Notification\NotificationInboxService;
 use Illuminate\Support\Carbon;
 use RuntimeException;
 
@@ -15,7 +15,7 @@ use RuntimeException;
  * F-009D Sprint 1 Step 10 — Notifications Adapter (Outbox Relay consumer).
  *
  * Handles QuizFinalized only. Invoked solely from QuizOutboxRelayService.
- * Creates in-app Notification rows via existing Notification::create shape.
+ * Creates in-app Notification rows via NotificationInboxService::createIfMissing.
  * Honors frozen notify flags from Version settings_frozen.
  * Idempotent by (type, type_id=attempt_id, to_user_type, to_user_id).
  *
@@ -29,6 +29,14 @@ class QuizNotificationsAdapter
     public const TYPE_TEACHER_LATE = 'quiz_runtime_late';
 
     public const TYPE_STUDENT_RESULT = 'quiz_runtime_result';
+
+    /** @var NotificationInboxService */
+    private $inbox;
+
+    public function __construct(NotificationInboxService $inbox)
+    {
+        $this->inbox = $inbox;
+    }
 
     /**
      * Create in-app notifications for a finalized authoritative Result.
@@ -60,7 +68,8 @@ class QuizNotificationsAdapter
         }
 
         $studentLabel = explode(' ', (string) $student->name)[0] ?: 'Student';
-        $url = 'subjects/quiz/' . (int) $attempt->quiz_id;
+        // NOTIF-001 Phase 5: teacher destination stays staff SPA quiz route.
+        $teacherUrl = '/subjects/quiz/' . (int) $attempt->quiz_id;
         $isLate = $this->isLateSubmission($attempt, $settings);
 
         if ($this->flagEnabled($settings['notify_about_submission'] ?? null)) {
@@ -71,7 +80,7 @@ class QuizNotificationsAdapter
                 self::TYPE_TEACHER_SUBMISSION,
                 $title,
                 'Student ' . $studentLabel . ' submitted ' . $title,
-                $url
+                $teacherUrl
             );
         }
 
@@ -83,11 +92,18 @@ class QuizNotificationsAdapter
                 self::TYPE_TEACHER_LATE,
                 $title,
                 'Student ' . $studentLabel . ' submitted late: ' . $title,
-                $url
+                $teacherUrl
             );
         }
 
         if ($this->flagEnabled($settings['notify_student'] ?? null)) {
+            $subjectId = isset($settings['subject_id']) ? (int) $settings['subject_id'] : 0;
+            if ($subjectId < 1) {
+                throw new RuntimeException(
+                    'Student quiz_runtime_result requires subject_id in Version settings_frozen.'
+                );
+            }
+
             $passed = (bool) $result->passed;
             $percent = round((float) $result->percent, 2);
             $outcome = $passed ? 'passed' : 'did not pass';
@@ -99,7 +115,7 @@ class QuizNotificationsAdapter
                 'from_user_id' => $this->resolveAssignTeacherId($attempt) ?? 0,
                 'to_user_type' => 'student',
                 'to_user_id' => (int) $student->id,
-                'url' => $url,
+                'url' => '/learn/' . $subjectId . '/quiz/' . (int) $attempt->quiz_id,
                 'type' => self::TYPE_STUDENT_RESULT,
                 'type_id' => (int) $attempt->id,
             ]);
@@ -134,24 +150,13 @@ class QuizNotificationsAdapter
     }
 
     /**
-     * Idempotent create: skip if same type/type_id/recipient already exists.
+     * Idempotent create via shared inbox helper.
      *
      * @param  array<string, mixed>  $attrs
      */
     private function createIfMissing(array $attrs): void
     {
-        $exists = Notification::query()
-            ->where('type', $attrs['type'])
-            ->where('type_id', $attrs['type_id'])
-            ->where('to_user_type', $attrs['to_user_type'])
-            ->where('to_user_id', $attrs['to_user_id'])
-            ->exists();
-
-        if ($exists) {
-            return;
-        }
-
-        Notification::create($attrs);
+        $this->inbox->createIfMissing($attrs);
     }
 
     /**

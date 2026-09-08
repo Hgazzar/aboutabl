@@ -265,6 +265,7 @@ Route::group([ 'middleware' => ['api' , 'checkSecretApi' , 'changeLanguage','che
        ////NOTIFICATION
     Route::get('/notifications/list','NotificationsController@index');
     Route::post('/notifications/update_read/{id}','NotificationsController@update');
+    Route::post('/notifications/mark_all_read','NotificationsController@mark_all_read');
     Route::delete('/notifications/delete_all','NotificationsController@delete_all');
     
     //Subject Activity

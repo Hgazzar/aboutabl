@@ -123,6 +123,7 @@ class AssignmentLifecycleService
                 ]);
 
                 // Existing notification path — do not abstract in foundation (F-041B refinement).
+                // NOTIF-001 Phase 5: deep-link to assign detail; type/type_id remain module identity.
                 Notification::create([
                     'title' => $module->name,
                     'description' => 'New Assign For '.$module->name,
@@ -130,7 +131,7 @@ class AssignmentLifecycleService
                     'from_user_id' => $authUserId,
                     'to_user_type' => 'student',
                     'to_user_id' => $student,
-                    'url' => '/todo',
+                    'url' => '/todo/assign/'.(int) $assign->id,
                     'type' => $type,
                     'type_id' => $typeId,
                 ]);
@@ -311,6 +312,7 @@ class AssignmentLifecycleService
                     'created_by' => $createdBy,
                 ]);
 
+                // NOTIF-001 Phase 5: deep-link to assign detail; type/type_id remain module identity.
                 Notification::create([
                     'title' => $title,
                     'description' => 'New Assign For '.$title,
@@ -318,7 +320,7 @@ class AssignmentLifecycleService
                     'from_user_id' => $authUserId,
                     'to_user_type' => 'student',
                     'to_user_id' => $student,
-                    'url' => '/todo',
+                    'url' => '/todo/assign/'.(int) $assign->id,
                     'type' => $type,
                     'type_id' => $typeId,
                 ]);

@@ -80,14 +80,16 @@ class AuthApiController extends Controller
             {
                 $des = explode(' ', $data->name)[0];
                 $des = " Student ".$des." logged in ";
+                // from_user_id FK references users.id only — student actors must stay null
+                // until the polymorphic FK hardening ships (deferred). type/url unchanged (M8).
                 Notification::create([
                   'title'          => "Login",
                   'description'    => $des,
                   'from_user_type' => "student",
-                  'from_user_id'   => $data->id,
+                  'from_user_id'   => null,
                   'to_user_type'   => "teacher",
                   'to_user_id'     => $teacher,
-                  'url'            => "user/student/view/".$data->id,
+                  'url'            => "/user/student/view/".$data->id,
                ]);
             }
             

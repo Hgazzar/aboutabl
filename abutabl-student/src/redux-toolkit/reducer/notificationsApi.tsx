@@ -1,10 +1,16 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import Cookies from 'js-cookie';
+import type { StudentNotificationItem } from 'lib/notificationUtils';
 
 interface NotificationsParams {
 	limit: number;
 	is_read?: number;
 }
+
+export type NotificationsListResponse = {
+	status?: boolean;
+	notifications?: StudentNotificationItem[];
+};
 
 const baseUrl = import.meta.env.VITE_BASE_URL ?? 'https://aboutabl.com/api/student';
 const apiSecret = import.meta.env.VITE_API_SECRET ?? 'OASzRok654E0AJ20KH';
@@ -24,14 +30,40 @@ export const notificationsApi = createApi({
 			return headers;
 		},
 	}),
-
-	endpoints: (builder: any) => ({
-		getNotifications: builder.query({
-			query: ({ limit, is_read }: NotificationsParams) =>
-				`notifications/list?limit=${limit}${is_read ? '&is_read=' + is_read : ''}`,
-			//   pollingInterval: 60000,
+	tagTypes: ['Notifications'],
+	endpoints: (builder) => ({
+		getNotifications: builder.query<NotificationsListResponse, NotificationsParams>({
+			query: ({ limit, is_read }) =>
+				`notifications/list?limit=${limit}${is_read != null ? `&is_read=${is_read}` : ''}`,
+			providesTags: ['Notifications'],
+		}),
+		markNotificationRead: builder.mutation<{ status?: boolean }, number>({
+			query: (id) => ({
+				url: `notifications/update_read/${id}`,
+				method: 'POST',
+			}),
+			invalidatesTags: ['Notifications'],
+		}),
+		markAllNotificationsRead: builder.mutation<{ status?: boolean }, void>({
+			query: () => ({
+				url: 'notifications/mark_all_read',
+				method: 'POST',
+			}),
+			invalidatesTags: ['Notifications'],
+		}),
+		deleteAllNotifications: builder.mutation<{ status?: boolean }, void>({
+			query: () => ({
+				url: 'notifications/delete_all',
+				method: 'DELETE',
+			}),
+			invalidatesTags: ['Notifications'],
 		}),
 	}),
 });
 
-export const { useGetNotificationsQuery } = notificationsApi;
+export const {
+	useGetNotificationsQuery,
+	useMarkNotificationReadMutation,
+	useMarkAllNotificationsReadMutation,
+	useDeleteAllNotificationsMutation,
+} = notificationsApi;

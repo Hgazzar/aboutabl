@@ -362,5 +362,13 @@
 	"assign-detail-overdue": "Past due — not submitted yet",
 	"assign-detail-overdue-banner": "This assignment is past due. You can still finish and submit your work.",
 	"assign-detail-submit-assignment": "SUBMIT",
-	"assign-detail-submit-needs-worksheet": "Assignment-level submit requires a worksheet activity awaiting submission (no parent submit SSOT yet)."
+	"assign-detail-submit-needs-worksheet": "Assignment-level submit requires a worksheet activity awaiting submission (no parent submit SSOT yet).",
+	"notifications-bell-label": "Notifications",
+	"notifications-title": "Notifications",
+	"notifications-empty": "No notifications",
+	"notifications-error": "Could not load notifications.",
+	"notifications-mark-all-read": "Mark all as read",
+	"notifications-clear-all": "Clear all notifications",
+	"notifications-clear-confirm": "Clear all notifications? This cannot be undone.",
+	"notifications-refreshing": "Updating…"
 }
