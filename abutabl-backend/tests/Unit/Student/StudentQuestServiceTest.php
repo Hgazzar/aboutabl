@@ -18,7 +18,7 @@ class StudentQuestServiceTest extends TestCase
 
         $this->assertFalse($result['available']);
         $this->assertSame([], $result['items']);
-        $this->assertSame(1, $result['limit']);
+        $this->assertSame(2, $result['limit']);
     }
 
     public function test_build_cta_path_format(): void
@@ -83,9 +83,24 @@ class StudentQuestServiceTest extends TestCase
         $this->assertArrayHasKey('available', $payload);
         $this->assertArrayHasKey('items', $payload);
         $this->assertArrayHasKey('limit', $payload);
-        $this->assertSame(1, $payload['limit']);
+        $this->assertSame(2, $payload['limit']);
+
+        $questTypes = array_column($payload['items'], 'quest_type');
+        if ($payload['available'] && $questTypes !== []) {
+            $this->assertContains(StudentQuest::TYPE_WEEKLY_XP, $questTypes);
+        }
 
         foreach ($payload['items'] as $item) {
+            if ($item['quest_type'] === StudentQuest::TYPE_WEEKLY_XP) {
+                $this->assertSame(50, $item['progress_target']);
+                $this->assertSame('/learn', $item['cta_path']);
+                $this->assertNull($item['reward_label']);
+                $this->assertSame('xp', $item['reward_type']);
+                $this->assertLessThanOrEqual($item['progress_target'], $item['progress_current']);
+
+                continue;
+            }
+
             $this->assertContains((int) $item['subject_id'], $subjectIds);
             $this->assertSame(StudentQuest::TYPE_UNIT_LESSONS, $item['quest_type']);
             $this->assertSame(StudentQuest::STATUS_ACTIVE, $item['status']);

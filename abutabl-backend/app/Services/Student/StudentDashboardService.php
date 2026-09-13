@@ -7,11 +7,13 @@ use App\Models\AssignsStudents;
 use App\Models\Student;
 use App\Models\TeachersGrades;
 use App\Models\subjectsSchools;
+use App\Services\Assignment\AssignmentParentSubmissionService;
 use App\Services\LearningProgressService;
 use App\Services\Notification\NotificationInboxService;
 use App\Services\PerformanceAnalytics\PerformanceComparisonService;
 use App\Services\SmartInsight\InsightMetricsReader;
 use App\Services\StudentMetricsService;
+use App\Support\Assignment\StudentAssignmentTabClassifier;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -50,6 +52,9 @@ class StudentDashboardService
     /** @var NotificationInboxService */
     private $inbox;
 
+    /** @var AssignmentParentSubmissionService */
+    private $parentSubmissions;
+
     public function __construct(
         StudentMetricsService $metrics,
         StudentProgressOverviewService $progressOverview,
@@ -61,7 +66,8 @@ class StudentDashboardService
         LearningProgressService $learningProgress,
         StudentXpService $xp,
         StudentQuestService $quests,
-        NotificationInboxService $inbox
+        NotificationInboxService $inbox,
+        AssignmentParentSubmissionService $parentSubmissions
     ) {
         $this->metrics = $metrics;
         $this->progressOverview = $progressOverview;
@@ -74,6 +80,7 @@ class StudentDashboardService
         $this->xp = $xp;
         $this->quests = $quests;
         $this->inbox = $inbox;
+        $this->parentSubmissions = $parentSubmissions;
     }
 
     /**
@@ -362,6 +369,7 @@ class StudentDashboardService
         $assigns = Assigns::query()
             ->whereIn('id', $assignIds)
             ->where('status', '1')
+            ->with('activities')
             ->orderByDesc('created_at')
             ->get()
             ->keyBy('id');
@@ -382,18 +390,18 @@ class StudentDashboardService
 
             $dueAt = $assign->due_at ? Carbon::parse($assign->due_at) : null;
 
-            // learning_activities: Completed = parent Assignment submitted/graded.
-            // Legacy assigns: keep opened_at until they gain parent submission SSOT usage.
-            $isLearningActivities = (string) $assign->type === 'learning_activities';
-            if ($isLearningActivities) {
-                $isCompleted = $row->hasParentSubmission();
-            } else {
-                $isCompleted = $row->opened_at !== null;
-            }
+            $parentStatus = $this->parentSubmissions->resolveParentStatus($row);
+            // COMPLETE = graded only; submitted/waiting stays in TO DO; PAST DUE = expired & unsubmitted.
+            $tab = StudentAssignmentTabClassifier::classify($parentStatus, $dueAt, $now);
+            $isPastDue = $tab === StudentAssignmentTabClassifier::TAB_PAST_DUE;
+            $isCompletedTab = $tab === StudentAssignmentTabClassifier::TAB_COMPLETED;
 
-            $isPastDue = ! $isCompleted && $dueAt !== null && $dueAt->lt($now);
+            // Same SSOT as Assignment Detail — late Submit allowed when active + fully_complete.
+            $canSubmit = $parentStatus === AssignmentParentSubmissionService::STATUS_ACTIVE
+                && $this->parentSubmissions->canSubmitAssignment($assign, $studentId);
+            $redoAllowed = $this->parentSubmissions->canRedoAssignment($assign, $row);
 
-            if (! $isCompleted && $row->opened_at === null && ! $row->hasParentSubmission()) {
+            if (! $isCompletedTab && $row->opened_at === null && ! $row->hasParentSubmission()) {
                 $newCount++;
             }
 
@@ -406,12 +414,15 @@ class StudentDashboardService
                 'subject_id'         => $assign->subject_id ? (int) $assign->subject_id : null,
                 'due_label'          => $this->dueLabel($dueAt, $now, $isPastDue),
                 'due_at'             => $dueAt ? $dueAt->toIso8601String() : null,
-                'is_new'             => ! $isCompleted && $row->opened_at === null && ! $row->hasParentSubmission(),
+                'is_new'             => ! $isCompletedTab && $row->opened_at === null && ! $row->hasParentSubmission(),
+                'submission_status'  => $parentStatus,
+                'can_submit'         => $canSubmit,
+                'redo_allowed'       => $redoAllowed,
             ];
 
-            if ($isCompleted) {
+            if ($tab === StudentAssignmentTabClassifier::TAB_COMPLETED) {
                 $tabs['completed'][] = $item;
-            } elseif ($isPastDue) {
+            } elseif ($tab === StudentAssignmentTabClassifier::TAB_PAST_DUE) {
                 $tabs['past_due'][] = $item;
             } else {
                 $tabs['todo'][] = $item;

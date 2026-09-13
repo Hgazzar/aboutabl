@@ -1,11 +1,11 @@
 import axios from 'axios';
 import axiosInstance from '../guards/axiosInstane';
+import { resolveStudentApiBaseUrl } from 'lib/studentApiBaseUrl';
 
-const baseURL = import.meta.env.VITE_BASE_URL ?? 'https://aboutabl.com/api/student';
 const apiSecret = import.meta.env.VITE_API_SECRET ?? 'OASzRok654E0AJ20KH';
 
 const buildUrl = (endpoint: string): string => {
-	const base = baseURL.replace(/\/+$/, '');
+	const base = resolveStudentApiBaseUrl();
 	const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
 	return `${base}${path}`;
 };
@@ -13,15 +13,28 @@ const buildUrl = (endpoint: string): string => {
 export const getRequest = async (
 	url: string,
 	params?: { [key: string]: any },
-	contentType?: string
+	contentType?: string,
+	signal?: AbortSignal
 ) => {
 	const response = await axiosInstance({
 		method: 'get',
 		url,
 		headers: { 'Content-Type': contentType || 'application/json' },
 		params,
+		signal,
 	});
 	return response.data;
+};
+
+/** Authenticated binary download (assignment my-work / materials file streams). */
+export const getBlobRequest = async (url: string, signal?: AbortSignal): Promise<Blob> => {
+	const response = await axiosInstance({
+		method: 'get',
+		url,
+		responseType: 'blob',
+		signal,
+	});
+	return response.data as Blob;
 };
 
 export const loginRequest = async (url: string, body?: any) => {

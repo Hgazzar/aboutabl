@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import avatar from 'assets/images/png/avatar.png';
 import badge from 'assets/images/png/badge.png';
+import { resolveStudentAvatarSrc } from 'lib/studentAvatar';
 import { theme } from 'global-styles';
 import { useIntl } from 'react-intl';
 import { getRequest } from 'lib/requests';
@@ -37,7 +37,7 @@ function ProfileImg() {
 	const displayName = profile?.name ?? userInfo?.name ?? '';
 	// Prefer login code (user_info.code) so real student code e.g. 428943 is never lost
 	const displayCode = userInfo?.code ?? profile?.code ?? '';
-	const photoSrc = profile?.photo || avatar;
+	const photoSrc = resolveStudentAvatarSrc({ photoUrl: profile?.photo });
 
 	return (
 		<div className="p-8 flex gap-6 flex-col justify-start items-center">

@@ -17,3 +17,16 @@ export function figmaProfileAssetUrl(fileName: string): string {
 export function figmaMyProgressAssetUrl(fileName: string): string {
 	return new URL(`../assets/images/figma/my-progress/${fileName}`, import.meta.url).href;
 }
+
+export function figmaAuthAssetUrl(fileName: string): string {
+	return new URL(`../assets/images/figma/auth/${fileName}`, import.meta.url).href;
+}
+
+export function figmaLandingAssetUrl(fileName: string): string {
+	return new URL(`../assets/images/figma/landing/${fileName}`, import.meta.url).href;
+}
+
+/** Canonical ABOUTABL wordmark used across student chrome (navbar, landing, etc.). */
+export function studentBrandLogoUrl(): string {
+	return figmaNavbarAssetUrl('logo.png');
+}

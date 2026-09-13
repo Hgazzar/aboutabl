@@ -12,6 +12,8 @@ class StudentQuest extends Model
 
     public const TYPE_UNIT_LESSONS = 'unit_lessons';
 
+    public const TYPE_WEEKLY_XP = 'weekly_xp';
+
     protected $table = 'student_quests';
 
     protected $guarded = [];

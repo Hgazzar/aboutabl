@@ -89,6 +89,133 @@ class AssignmentParentSubmissionService
     }
 
     /**
+     * Student Assignment-level REDO: submitted → active (before deadline only).
+     * Distinct from Activity-level REDO.
+     */
+    public function redoForStudent(int $assignId, int $studentId): AssignsStudents
+    {
+        return DB::transaction(function () use ($assignId, $studentId) {
+            $assign = Assigns::query()->where('id', $assignId)->lockForUpdate()->first();
+            if (! $assign) {
+                throw new InvalidArgumentException('assignment_not_found');
+            }
+
+            /** @var AssignsStudents|null $assignStudent */
+            $assignStudent = AssignsStudents::query()
+                ->where('assign_id', $assignId)
+                ->where('student_id', $studentId)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $assignStudent) {
+                throw new InvalidArgumentException('assign_student_not_found');
+            }
+
+            if (! $this->canRedoAssignment($assign, $assignStudent)) {
+                $status = $this->resolveParentStatus($assignStudent);
+                if ($status === self::STATUS_GRADED) {
+                    throw new InvalidArgumentException('assignment_graded_locked');
+                }
+                if ($status !== self::STATUS_SUBMITTED) {
+                    throw new InvalidArgumentException('assignment_redo_not_allowed');
+                }
+                if ($this->isPastDeadline($assign)) {
+                    throw new InvalidArgumentException('assignment_deadline_passed');
+                }
+                throw new InvalidArgumentException('assignment_redo_not_allowed');
+            }
+
+            $assignStudent->submission_status = self::STATUS_ACTIVE;
+            if ($this->hasSubmittedAtColumn()) {
+                $assignStudent->submitted_at = null;
+            }
+            $assignStudent->save();
+
+            // Discard unfinalized teacher draft so re-submit is reviewed fresh.
+            // Never touch finalized grades (already blocked above).
+            $this->discardUnfinalizedGradeDraft((int) $assign->id, (int) $assignStudent->id);
+
+            return $assignStudent->fresh();
+        });
+    }
+
+    /**
+     * Assignment REDO availability (authoritative).
+     * submitted + not past due_at + not graded.
+     */
+    public function canRedoAssignment(Assigns $assign, ?AssignsStudents $assignStudent): bool
+    {
+        if (! $assignStudent) {
+            return false;
+        }
+
+        if ($this->resolveParentStatus($assignStudent) !== self::STATUS_SUBMITTED) {
+            return false;
+        }
+
+        if ($this->isPastDeadline($assign)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Parent gates shared by Activity REDO (assignment still editable).
+     */
+    public function canActivityRedoParentGates(Assigns $assign, ?AssignsStudents $assignStudent): bool
+    {
+        if (! $assignStudent) {
+            return false;
+        }
+
+        if ($this->resolveParentStatus($assignStudent) !== self::STATUS_ACTIVE) {
+            return false;
+        }
+
+        if ($this->isPastDeadline($assign)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * True when due_at exists and is strictly in the past.
+     * No due_at ⇒ not past deadline (REDO still allowed by deadline rule).
+     */
+    public function isPastDeadline(Assigns $assign): bool
+    {
+        if (! $assign->due_at) {
+            return false;
+        }
+
+        return $assign->due_at->getTimestamp() < time();
+    }
+
+    private function discardUnfinalizedGradeDraft(int $assignId, int $assignStudentId): void
+    {
+        if (! Schema::hasTable('assignment_grades')) {
+            return;
+        }
+
+        $grades = \App\Models\AssignmentGrade::query()
+            ->where('assign_id', $assignId)
+            ->where('assign_student_id', $assignStudentId)
+            ->where('status', \App\Models\AssignmentGrade::STATUS_DRAFT)
+            ->get();
+
+        foreach ($grades as $grade) {
+            if (Schema::hasTable('assignment_grade_criteria')) {
+                \App\Models\AssignmentGradeCriterion::query()
+                    ->where('assignment_grade_id', $grade->id)
+                    ->delete();
+            }
+            $grade->delete();
+        }
+    }
+
+    /**
      * Truthful readiness: all assign_activities counted complete by MultiActivityMetrics.
      */
     public function canSubmitAssignment(Assigns $assign, int $studentId): bool

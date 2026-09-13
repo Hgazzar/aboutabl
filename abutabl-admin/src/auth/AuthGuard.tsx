@@ -1,9 +1,22 @@
+import { useEffect } from "react";
 import Cookies from "js-cookie";
-import { Navigate, Outlet } from "react-router-dom";
+import { Outlet } from "react-router-dom";
+import { redirectToStudentLogin } from "../utils/studentAppUrl";
 
 const AuthGuard = () => {
-  var auth = Cookies.get("token_");
+  const auth = Cookies.get("token_");
 
-  return auth ? <Outlet /> : <Navigate to="/" />;
+  useEffect(() => {
+    if (!auth) {
+      redirectToStudentLogin();
+    }
+  }, [auth]);
+
+  if (!auth) {
+    return null;
+  }
+
+  return <Outlet />;
 };
+
 export default AuthGuard;

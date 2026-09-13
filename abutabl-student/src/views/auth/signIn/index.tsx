@@ -1,113 +1,152 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Button, Checkbox, Flex } from '@mantine/core';
 import { useIntl } from 'react-intl';
 import { Controller, FormProvider, SubmitHandler, useForm } from 'react-hook-form';
-import { FORM_REGEX_VALIDATORS } from 'app-constants/form-validations';
 import Input from 'components/input';
 import InputPassword from 'components/inputPassword';
-import { LoginWrapper } from '../styles';
-import { useRecoilState } from 'recoil';
-import langIcon from 'assets/images/svg/translate-green.svg';
-import LogoImage from 'assets/images/svg/logo-aboutabl-dark 2.svg?react';
+import { LoginFormGrid, LoginFormColumn, LoginIllustration, LoginWrapper } from '../styles';
 import Cookies from 'js-cookie';
-import { COOKIES_KEYS } from 'app-constants/constants';
-import { langState } from 'store';
 import { Link, useNavigate } from 'react-router-dom';
-import { useDispatch, useSelector } from 'react-redux';
-import { loginUser } from 'redux-toolkit/reducer/LoginReducer';
+import { useDispatch } from 'react-redux';
+import { loginUser, persistStudentSession } from 'redux-toolkit/reducer/LoginReducer';
 import { Ilogin } from '../types/login.type';
 import LoadingPartially from 'components/loading-partially';
+import { toast } from 'react-toastify';
+import {
+	attemptStaffOrSsoLogin,
+	redirectStaffToAdminApp,
+} from 'lib/staffLoginAttempt';
+
+const BIRD_BOOK_ASSET = new URL('../../../assets/images/figma/auth/bird-book-2.png', import.meta.url).href;
 
 function Login() {
 	const { formatMessage } = useIntl();
 	const navigate = useNavigate();
-
 	const [loading, setLoading] = useState(false);
 	const methods = useForm<Ilogin>({ defaultValues: { remember: false } });
 	const { handleSubmit, control } = methods;
 	const dispatch = useDispatch();
-	const onSubmit = async (data: Ilogin) => {
+
+	const clearLocalSession = () => {
+		Cookies.remove('token_');
+		Cookies.remove('username');
+		Cookies.remove('abotable_id');
+		Cookies.remove('expiration');
+		localStorage.removeItem('user_info');
+	};
+
+	const onSubmit: SubmitHandler<Ilogin> = async (data) => {
+		if (loading) return;
 		setLoading(true);
-		const result = await dispatch(loginUser(data));
-		// console.log(result, 'result');
-		setLoading(false);
-		if (Cookies.get('token_')) {
-			navigate('/learn');
+		clearLocalSession();
+
+		let redirectingToAdmin = false;
+
+		try {
+			const studentResult = await dispatch(loginUser(data));
+			const studentOutcome = studentResult?.payload as
+				| { ok: boolean; reason?: string; message?: string }
+				| undefined;
+
+			if (studentOutcome?.ok && Cookies.get('token_')) {
+				navigate(studentOutcome.needsAvatarSelection ? '/onboarding/avatar' : '/learn');
+				return;
+			}
+
+			if (studentOutcome?.reason === 'inactive') {
+				return;
+			}
+
+			const staff = await attemptStaffOrSsoLogin({
+				identifier: String(data.code ?? ''),
+				password: data.password,
+				remember: data.remember,
+			});
+
+			if (staff.kind === 'student') {
+				persistStudentSession(
+					{
+						...staff.user,
+						api_token: staff.token,
+						id: (staff.user.id as string | number) ?? '',
+					},
+					data.remember
+				);
+				toast.success('Login Successfully');
+				const needsAvatar = staff.user.needs_avatar_selection === true;
+				navigate(needsAvatar ? '/onboarding/avatar' : '/learn');
+				return;
+			}
+
+			if (staff.kind === 'staff') {
+				toast.success('Login Successfully');
+				redirectingToAdmin = true;
+				redirectStaffToAdminApp({
+					token: staff.token,
+					remember: data.remember,
+					username: staff.username,
+					userId: staff.userId,
+					type: staff.type,
+				});
+				return;
+			}
+
+			toast.error(
+				studentOutcome?.message ||
+					staff.message ||
+					'Login failed. Check your connection and try again.'
+			);
+		} catch (error: unknown) {
+			const message =
+				error && typeof error === 'object' && 'message' in error
+					? String((error as { message?: string }).message)
+					: 'Login failed. Check your connection and try again.';
+			toast.error(message);
+		} finally {
+			if (!redirectingToAdmin) {
+				setLoading(false);
+			}
 		}
 	};
-
-	const getLangSelected = Cookies.get(COOKIES_KEYS.LanguageAdded);
-	const [lang, setLang] = useRecoilState(langState);
-
-	const switchLang = () => {
-		if (lang === 'ar') {
-			setLang('en');
-			Cookies.set(COOKIES_KEYS.LanguageAdded, 'en');
-		}
-		if (lang === 'en') {
-			setLang('ar');
-			Cookies.set(COOKIES_KEYS.LanguageAdded, 'ar');
-		}
-	};
-
-	useEffect(() => {
-		if (!getLangSelected) return;
-		setLang(getLangSelected as 'ar' | 'en');
-	}, [getLangSelected, setLang]);
 
 	return (
-		<>
-			<div className="flex flex-col md:flex-row gap-3 justify-between items-center w-full">
-				<LogoImage width={100} />
-				<button
-					onClick={switchLang}
-					className="flex justify-center items-center gap-2 text-sm text-LightSeaGreen font-medium"
-				>
-					<img src={langIcon} alt="translate" />
-					{formatMessage({ id: 'Switch-to' })}
-				</button>
-			</div>
-			<LoginWrapper>
-				<div className={`w-full`}>
+		<LoginFormGrid>
+			<LoginFormColumn>
+				<LoginWrapper>
 					<FormProvider {...methods}>
 						<form onSubmit={handleSubmit(onSubmit)}>
-							<Flex direction={'column'} gap={8} className="wellcome_wrapper">
+							<Flex direction="column" gap={8} className="wellcome_wrapper">
 								<h1>{formatMessage({ id: 'Welcome-back' })}</h1>
 								<h3>{formatMessage({ id: 'Login-and-learn' })}</h3>
-								<Link to="/welcome" className="text-sm text-LightSeaGreen font-medium">
-									← Back to home
-								</Link>
 							</Flex>
 							<Input
+								className="login-field"
 								name="code"
 								label={formatMessage({ id: 'StudentCode' })}
 								placeholder={formatMessage({ id: 'StudentCode' })}
+								labelVisibility={false}
 								registerOptions={{
 									required: {
 										value: true,
 										message: 'requiredField',
 									},
-									// pattern: {
-									// 	value: FORM_REGEX_VALIDATORS.numbersOnly,
-									// 	message: formatMessage({ id: 'numberOnly' }),
-									// },
 								}}
-								defaultValue="428943"
 							/>
 							<InputPassword
+								className="login-field"
 								name="password"
 								label={formatMessage({ id: 'Password' })}
 								placeholder={formatMessage({ id: 'Password' })}
+								labelVisibility={false}
 								registerOptions={{
 									required: {
 										value: true,
 										message: 'requiredField',
 									},
 								}}
-								defaultValue="4Jz0jrrg"
 							/>
 
-							<div className="text-sm flex justify-between items-center">
+							<div className="remember-row">
 								<Controller
 									name="remember"
 									control={control}
@@ -116,34 +155,29 @@ function Login() {
 											label={formatMessage({ id: 'Remember-me' })}
 											checked={field.value ?? false}
 											onChange={field.onChange}
+											classNames={{
+												root: 'remember-checkbox',
+												input: 'remember-checkbox-input',
+												label: 'remember-label',
+											}}
 										/>
 									)}
 								/>
-								<Link to="/login/verifyEmail" className="text-LightSeaGreen font-medium">
+								<Link to="/login/verifyEmail" className="forget-link">
 									{formatMessage({ id: 'Forget-password' })}
 								</Link>
 							</div>
-							<Button
-								type="submit"
-								className="bg-LightSeaGreen hover:bg-LightSeaGreen rounded-2xl shadow-custom-sm-green"
-								px={32}
-								py={16}
-								size="xl"
-							>
-								{loading ? (
-									<div>
-										<LoadingPartially />
-									</div>
-								) : (
-									<span className="text-Lotion font-medium">{formatMessage({ id: 'Login' })}</span>
-								)}
-								{ }
+							<Button type="submit" className="login-submit" disabled={loading}>
+								{loading ? <LoadingPartially /> : formatMessage({ id: 'Login' })}
 							</Button>
 						</form>
 					</FormProvider>
-				</div>
-			</LoginWrapper>
-		</>
+				</LoginWrapper>
+			</LoginFormColumn>
+			<LoginIllustration>
+				<img src={BIRD_BOOK_ASSET} alt="" width={363} height={372} />
+			</LoginIllustration>
+		</LoginFormGrid>
 	);
 }
 

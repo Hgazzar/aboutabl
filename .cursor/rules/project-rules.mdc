@@ -1,0 +1,162 @@
+---
+description: Aboutabl monorepo rules — read docs before coding, impact analysis required
+alwaysApply: true
+---
+
+# Aboutabl Project Rules
+
+> Permanent operating principles for AI agents and developers working in this monorepo.  
+> These rules are **mandatory** — not suggestions.
+
+---
+
+## Before Writing Any Code
+
+1. **Read `MASTER_CONTEXT.md`** at the repository root.
+2. **Read relevant `/docs` files** for the domain you are changing:
+   - `docs/project-overview.md` — orientation and stacks
+   - `docs/database-structure.md` — models and tables
+   - `docs/api-reference.md` — endpoints and auth contract
+   - `docs/user-flows.md` — behavioral flows
+   - `docs/module-map.md` — features, permissions, legacy state
+3. **Search the codebase** for existing models, routes, controllers, and components before creating new ones.
+
+---
+
+## Strict Operating Principles
+
+### 1. Never duplicate existing APIs or models
+
+- The backend has **56 Eloquent models** and **~210 API routes** — extend before creating.
+- Check `routes/api/admin.php` and `routes/api/student.php` before adding endpoints.
+- Check `app/Models/` before creating new model files.
+- If similar functionality exists, **reuse or extend** the existing controller method.
+
+### 2. Reuse existing frontend components and patterns
+
+| App | Primary UI | Secondary | Layout |
+|-----|-----------|-----------|--------|
+| `abutabl-admin` | **MUI 5** | Tailwind CSS | `src/layout/DashboardLayout` |
+| `abutabl-student` | **Mantine 6** | MUI 5, Tailwind CSS | `src/layout/` |
+
+- **Admin:** Use `src/utils/fetchMethods.tsx` for all HTTP. Add Redux thunks to existing reducers.
+- **Student:** Use `src/lib/requests.ts` + `src/guards/axiosInstane.tsx`. Add to existing Redux slices.
+- Do not introduce new UI libraries, state managers, or HTTP clients without explicit approval.
+- Copy patterns from neighboring files in the same feature domain.
+
+### 3. Follow established naming conventions and monorepo structure
+
+**Monorepo layout — do not reorganize:**
+```
+abutabl-backend/    # Laravel API only
+abutabl-admin/        # Admin SPA only
+abutabl-student/      # Student SPA only
+old-game/             # Read-only legacy — do not modify
+docs/                 # Canonical documentation
+```
+
+**Naming:**
+- API paths: snake_case (`/api/subject/list`, `/api/file_maanger/list`)
+- Models: PascalCase, match existing files in `app/Models/`
+- Admin pages: `src/pages/{domain}/`
+- Student views: `src/views/{domain}/`
+- Permission keys: `{action}-{resource}` (e.g. `view-subjects`)
+
+**Do not:**
+- Create a root `package.json` workspace unless explicitly requested
+- Move apps out of their directories
+- Rename legacy typo paths (`scrom`, `file_maanger`, `quizes`) without coordinated migration
+- Modify `old-game/` for new features
+
+### 4. Always perform Impact Analysis before structural changes
+
+Before any change affecting DB schema, API contracts, auth, permissions, or cross-app communication:
+
+1. Document affected apps, files, and tables
+2. Identify breaking change risks (see checklist below)
+3. Present an implementation plan (DB → API → UI)
+4. **Wait for explicit green light before writing code**
+
+**Impact Analysis checklist:**
+- [ ] Auth: `Authorizations` header, JWT guard (admin-api vs user-api), apiSecret
+- [ ] Database: existing model? migration needed? school scoping?
+- [ ] API: route file, controller, middleware, Spatie permission
+- [ ] Admin UI: page, Redux slice, MUI component, PermissionGuard module
+- [ ] Student UI: view, Redux slice, Mantine component, ProtectedRoute
+- [ ] Real-time: WebSocket channels/events affected?
+- [ ] i18n: EN + AR translation keys added?
+- [ ] CORS: new origin needed?
+- [ ] Two games systems: SCORM vs interactive — which one?
+
+---
+
+## Non-Negotiable Technical Rules
+
+### Authentication
+- Header MUST be `Authorizations: Bearer <token>` — not `Authorization`
+- Every API request MUST include `apiSecret` header
+- Admin API: `/api/*` with `admin-api` guard → `User` model
+- Student API: `/api/student/*` with `user-api` guard → `Student` model
+
+### Two games systems — never conflate
+| | SCORM games | Live interactive games |
+|---|------------|----------------------|
+| Table | `games` | `interactive_games` |
+| Admin API | `/api/games/*` | `/api/interactive-games/*` |
+| Student API | `/api/student/games/*` | `/api/student/interactive-games/*` |
+
+### API response format
+Use `GeneralTrait` pattern: `{ status, errNum, msg, data_key }`
+
+### School scoping
+Tenant-aware queries MUST use `GeneralTrait::SchoolsIDs()` — do not return cross-school data.
+
+---
+
+## Development Workflow (Required)
+
+```
+1. READ    → MASTER_CONTEXT.md + relevant /docs
+2. ANALYZE → Impact Analysis (affected files, risks)
+3. PLAN    → Implementation plan (DB, API, Admin UI, Student UI)
+4. APPROVE → Wait for explicit green light
+5. CODE    → Minimal diff, match conventions, reuse existing code
+6. VERIFY  → Test affected flows; check lints on edited files
+```
+
+**Do NOT skip steps 1–4. Do NOT write code at step 5 without approval.**
+
+---
+
+## What NOT to Do
+
+- Do not create duplicate endpoints, models, or components
+- Do not "fix" `Authorizations` → `Authorization` without full-stack coordination
+- Do not add features to `old-game/`
+- Do not merge SCORM and interactive game code paths
+- Do not introduce new dependencies without justification
+- Do not modify unrelated files in the same commit/change
+- Do not commit unless explicitly asked
+- Do not over-engineer (no unnecessary abstractions, helpers, or error handling for impossible edges)
+- Do not add comments that merely narrate what code does
+
+---
+
+## Canonical File References
+
+| Purpose | Path |
+|---------|------|
+| Project brain | `MASTER_CONTEXT.md` |
+| Documentation index | `docs/README.md` |
+| Admin routes | `abutabl-admin/src/App.tsx` |
+| Student routes | `abutabl-student/src/routes/routes.tsx` |
+| Admin HTTP | `abutabl-admin/src/utils/fetchMethods.tsx` |
+| Student HTTP | `abutabl-student/src/guards/axiosInstane.tsx` |
+| Backend admin routes | `abutabl-backend/routes/api/admin.php` |
+| Backend student routes | `abutabl-backend/routes/api/student.php` |
+| Models | `abutabl-backend/app/Models/` |
+| API trait | `abutabl-backend/app/Traits/GeneralTrait.php` |
+
+---
+
+*These rules persist across all sessions via `alwaysApply: true`. When in doubt, read the docs and ask before coding.*

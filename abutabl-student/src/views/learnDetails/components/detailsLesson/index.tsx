@@ -24,11 +24,10 @@ import Sheet from 'assets/images/svg/sheets.svg';
 
 import LoadingPartially from 'components/loading-partially';
 import './index.css';
-import LogoImage from 'assets/images/svg/logo-aboutabl-dark 2.svg?react';
+import { studentBrandLogoUrl } from 'config/figmaAssets';
 
 import { useParams } from 'react-router-dom';
 import { SubjectDetails } from 'redux-toolkit/reducer/SubjectsReducer';
-import { todoList } from 'redux-toolkit/reducer/todoReducer';
 import LessonContentViewer from './LessonContentViewer';
 
 const DetailsUnit = () => {
@@ -43,41 +42,22 @@ const DetailsUnit = () => {
 	const [show, setShow] = useState(false);
 	const [loading, setLoading] = useState(true);
 
+	// Enrollment-based: load subject curriculum by subject id (no assignment required).
 	useEffect(() => {
-		dispatch(todoList());
-	}, [dispatch]);
-
-	const todoListData = useSelector((state: any) => state.todoReducer);
-	const allData = todoListData?.todoListData?.allAssigns?.flatMap((assign: any) => assign.data) || [];
-
-	const info = allData?.find((item: any) => item?.subject_id === id);
-
-	// Fetch subject details only when we have info (from todoList) so type/type_id are valid
-	useEffect(() => {
-		if (!id || !info?.type || info?.type_id == null) {
-			// If todoList has loaded but user has no assignment for this subject, stop loading
-			if (todoListData?.todoListData && !info) {
-				setLoading(false);
-			}
-			return;
-		}
+		if (!id) return;
 		let cancelled = false;
 		(async () => {
 			setLoading(true);
 			try {
-				await dispatch(
-					SubjectDetails({
-						id,
-						type: info.type,
-						type_id: info.type_id,
-					})
-				);
+				await dispatch(SubjectDetails({ id }));
 			} finally {
 				if (!cancelled) setLoading(false);
 			}
 		})();
-		return () => { cancelled = true; };
-	}, [id, dispatch, info?.type, info?.type_id, todoListData?.todoListData]);
+		return () => {
+			cancelled = true;
+		};
+	}, [id, dispatch]);
 
 	useEffect(() => {
 		if (activeId) localStorage.setItem('id', String(activeId));
@@ -119,7 +99,7 @@ const DetailsUnit = () => {
 						nagivate('/learn');
 					}}
 				>
-					<LogoImage width={80} />
+					<img src={studentBrandLogoUrl()} alt="ABOUTABL" width={120} height={25} style={{ height: 28, width: 'auto' }} />
 				</Box>
 				<Text className={`${show ? 'ms-5' : 'ms-48'} text-LightSeaGreen text-l font-semibold`}>{item?.name}</Text>
 				<Flex className="justify-between ml-auto">
@@ -177,9 +157,9 @@ const DetailsUnit = () => {
 				<Box className="mt-48">
 					<LoadingPartially />
 				</Box>
-			) : todoListData?.todoListData && !info ? (
+			) : subjectDetails?.subjectDetailsData?.status === false ? (
 				<Box className="mt-48 flex justify-center">
-					<Text className="text-stone-500">You are not assigned to this subject.</Text>
+					<Text className="text-stone-500">Unable to load this subject.</Text>
 				</Box>
 			) : (
 				<Flex>

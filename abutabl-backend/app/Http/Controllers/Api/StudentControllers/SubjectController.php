@@ -42,6 +42,10 @@ use File ;
 use Illuminate\Support\Facades\Hash;
 use App\Http\Resources\questionResourceStudent;
 use App\Services\StudentMetricsService;
+use App\Services\Student\StudentCurriculumAccessService;
+use App\Services\Student\StudentMyProgressService;
+use App\Services\Student\StudentProgressOverviewService;
+use App\Services\Student\StudentViewSubjectEnrichmentService;
 
 class SubjectController extends Controller
 {
@@ -50,9 +54,25 @@ class SubjectController extends Controller
     /** @var StudentMetricsService */
     private $metrics;
 
-    public function __construct(StudentMetricsService $metrics)
-    {
+    /** @var StudentProgressOverviewService */
+    private $progressOverview;
+
+    /** @var StudentMyProgressService */
+    private $myProgress;
+
+    /** @var StudentViewSubjectEnrichmentService */
+    private $viewSubjectEnrichment;
+
+    public function __construct(
+        StudentMetricsService $metrics,
+        StudentProgressOverviewService $progressOverview,
+        StudentMyProgressService $myProgress,
+        StudentViewSubjectEnrichmentService $viewSubjectEnrichment
+    ) {
         $this->metrics = $metrics;
+        $this->progressOverview = $progressOverview;
+        $this->myProgress = $myProgress;
+        $this->viewSubjectEnrichment = $viewSubjectEnrichment;
         auth()->setDefaultDriver('user-api');
     }
 
@@ -86,15 +106,7 @@ class SubjectController extends Controller
                     ->select(
                         'id',
                         app()->getLocale()=='ar'?'subjects.name_ar as name':'subjects.name as name',
-                        'subjects.photo',
-                        DB::raw('COALESCE((
-                            SELECT CASE WHEN COUNT(DISTINCT g.id) = 0 THEN 0
-                            ELSE LEAST(100, ROUND(100 * COUNT(DISTINCT CASE WHEN gs.status = 1 THEN g.id END) / COUNT(DISTINCT g.id)))
-                            END
-                            FROM games g
-                            LEFT JOIN games_students gs ON g.id = gs.game_id AND gs.student_id = '.(int) $id.'
-                            WHERE g.subject_id = subjects.id AND g.status = 1
-                        ), 0) as progress')
+                        'subjects.photo'
                     )
                     ->withCount('lessons')
                     ->withCount('units')
@@ -104,6 +116,25 @@ class SubjectController extends Controller
              $subjects = $subjects->paginate($request->paginate);
          else
              $subjects = $subjects->get();
+
+            $pageIds = $subjects instanceof \Illuminate\Pagination\AbstractPaginator
+                ? $subjects->getCollection()->pluck('id')->map(static fn ($sid) => (int) $sid)->all()
+                : $subjects->pluck('id')->map(static fn ($sid) => (int) $sid)->all();
+
+            $progressBySubject = $this->myProgress->batchSubjectUnitProgressPercents((int) $id, $pageIds);
+
+            $attachProgress = static function ($subject) use ($progressBySubject) {
+                $sid = (int) $subject->id;
+                $subject->setAttribute('progress', $progressBySubject[$sid] ?? 0.0);
+
+                return $subject;
+            };
+
+            if ($subjects instanceof \Illuminate\Pagination\AbstractPaginator) {
+                $subjects->setCollection($subjects->getCollection()->map($attachProgress));
+            } else {
+                $subjects = $subjects->map($attachProgress);
+            }
 
             return $this->returnData('subjects', $subjects );
         }
@@ -185,10 +216,17 @@ class SubjectController extends Controller
         }
     }
   
-   public function subjectUnits($id , Request $request)
+    public function subjectUnits($id , Request $request)
     {
-        try { 
-             $subject = Subject::where('id',$id)->first();
+        try {
+             $denied = $this->denyUnlessCanAccessSubject((int) $id);
+             if ($denied !== null) {
+                 return $denied;
+             }
+
+             $subject = Subject::where('id',$id)->where(function ($q) {
+                 $q->where('status', '1')->orWhere('status', 1);
+             })->first();
             
                 if(!$subject)
                  {
@@ -246,7 +284,12 @@ class SubjectController extends Controller
   
     public function subjectGames($id , Request $request)
     {
-        try { 
+        try {
+           $denied = $this->denyUnlessCanAccessSubject((int) $id);
+           if ($denied !== null) {
+               return $denied;
+           }
+
            $sid = auth()->user()->id;
            $games = games::where('subject_id',$id)->where('status','1')
                         ->orderBy('created_at','desc')
@@ -264,9 +307,11 @@ class SubjectController extends Controller
                         )
                         ->get();
 
+                 $gamesPayload = $this->viewSubjectEnrichment->enrichSubjectGames($games);
+
                  return response()->json([
                   'status'  => true ,
-                  'games' => $games,
+                  'games' => $gamesPayload,
                   ] , 200);
           
         }catch (\Exception $ex){
@@ -277,7 +322,18 @@ class SubjectController extends Controller
   public function show($id,Request $request)
      {
        try {
+                  $denied = $this->denyUnlessCanAccessSubject((int) $id);
+                  if ($denied !== null) {
+                      return $denied;
+                  }
+
+                  $studentId = (int) (auth()->user()->id ?? 0);
+                  $localeAr = app()->getLocale() === 'ar';
+
                   $subject = Subject::where('id',$id)
+                    ->where(function ($q) {
+                        $q->where('status', '1')->orWhere('status', 1);
+                    })
                     ->select('id',app()->getLocale()=='ar'?'name_ar as name':'name as name',app()->getLocale()=='ar'?'des_ar as des':'des as des',app()->getLocale()=='ar'?'pass_ar as pass':'pass as pass','photo')
                     ->withCount('Lessons')
                     ->withCount('Units')
@@ -286,11 +342,17 @@ class SubjectController extends Controller
                     ->withCount('WorkSheets')
                     ->first();
 
+                  if (!$subject) {
+                      return $this->returnError('E001', __('api.not_exists_item_for_this_data'), 400);
+                  }
+
+                  // Deterministic unit order (no dedicated sort column — id ASC).
                   $units = Units::where('subject_id',$id)
-                            ->select('units.id',app()->getLocale()=='ar'?'name as name':'name','for_teacher')
+                            ->select('units.id',app()->getLocale()=='ar'?'name_ar as name':'name as name','for_teacher')
                             ->withCount('lessons')
                             ->withCount('Quizes')
                             ->with('Contents')
+                            ->orderBy('units.id', 'ASC')
                             ->get();
 
                  $quizesSubject = Quizes::where('subject_id',$id)->whereNull('unit_id')->whereNull('lesson_id')
@@ -314,10 +376,11 @@ class SubjectController extends Controller
                   $syllabus = [];
 
                   foreach ($units as $k => $unit) {
-                    $lessons = Lessons::where('unit_id',$unit->id)->get();
+                    $lessons = Lessons::where('unit_id',$unit->id)->orderBy('id', 'ASC')->get();
 
                     $quizesUnit = Quizes::where('subject_id',$id)->where('unit_id',$unit->id)->whereNull('lesson_id')
                         ->select('quizes.id',app()->getLocale()=='ar'?'title_ar as title':'title_en as title','title_en','title_ar',DB::raw("CONCAT( '".url('/api/student/quizes/show')."/' ,id) AS path"))
+                        ->orderBy('quizes.id', 'ASC')
                         ->get();
 
                     $unit_arr = [];
@@ -328,18 +391,23 @@ class SubjectController extends Controller
 
                        $quizesLesson = Quizes::where('subject_id',$id)->where('unit_id',$unit->id)->where('lesson_id',$lesson->id)
                         ->select('quizes.id',app()->getLocale()=='ar'?'title_ar as title':'title_en as title','title_en','title_ar',DB::raw("CONCAT( '".url('/api/student/quizes/show')."/' ,id) AS path"))
+                        ->orderBy('quizes.id', 'ASC')
                         ->get();
 
-                        $name =$lesson->name_en;
+                        $name = $localeAr
+                            ? (string) ($lesson->name_ar ?: $lesson->name_en)
+                            : (string) ($lesson->name_en ?: $lesson->name_ar);
                         $lessons_arr = [];
-                        $contents = LessonsContents::where('lesson_id',$lesson->id)->get();
+                        $contents = LessonsContents::where('lesson_id',$lesson->id)->orderBy('id', 'ASC')->get();
                         $contents_arr = [];
 
                         if(count($contents) != 0)
                          {
                            foreach ($contents as $c => $content) {
                              $arr    = [];
-                             $c_name = $content->name_en;
+                             $c_name = $localeAr
+                                 ? (string) ($content->name_ar ?: $content->name_en)
+                                 : (string) ($content->name_en ?: $content->name_ar);
                              $arr['id'] = $content->id;
                              $arr['name'] = $c_name;
                              $arr['path'] = $content->path;
@@ -364,12 +432,20 @@ class SubjectController extends Controller
                    
                   }
 
+                  $enriched = $this->viewSubjectEnrichment->enrichViewSubjectPayload(
+                      $studentId,
+                      (int) $id,
+                      $syllabus,
+                      $quizesSubject,
+                      $worksheetsSubject
+                  );
+
                    return  response()->json([
                     'status'     => true ,
                     'basic_info' => $subject,
-                    'units'   =>$syllabus,
-                    "quizesSubject"=>$quizesSubject,
-                    'worksheetsSubject'=>$worksheetsSubject,
+                    'units'   =>$enriched['units'],
+                    "quizesSubject"=>$enriched['quizesSubject'],
+                    'worksheetsSubject'=>$enriched['worksheetsSubject'],
                     ] , 200);
           
         }catch (\Exception $ex){
@@ -392,6 +468,10 @@ class SubjectController extends Controller
                 return $this->returnError('E001',__('api.not_exists_item_for_this_data'),400);
                }
 
+            $denied = $this->denyUnlessCanAccessSubject((int) $lesson->subject_id);
+            if ($denied !== null) {
+                return $denied;
+            }
 
             $contents = DB::table('lessons_contents')
               ->leftjoin('users', 'lessons_contents.created_by', '=', 'users.id')
@@ -453,8 +533,20 @@ class SubjectController extends Controller
 
     public function gamesView($id)
     {
-        try { 
-                 $game = games::where('id',$id)->first();
+        try {
+                 $game = games::where('id',$id)->where(function ($q) {
+                     $q->where('status', '1')->orWhere('status', 1);
+                 })->first();
+
+                 if (!$game) {
+                     return $this->returnError('E001', __('api.not_exists_item_for_this_data'), 400);
+                 }
+
+                 $denied = $this->denyUnlessCanAccessSubject((int) $game->subject_id);
+                 if ($denied !== null) {
+                     return $denied;
+                 }
+
                  $game = new GameStudentResource($game) ;
 
                  $data     = Student::where('id', Auth::guard('user-api')->user()->id)->first();
@@ -490,6 +582,11 @@ class SubjectController extends Controller
 
   public function quizesList($id)
   {
+        $denied = $this->denyUnlessCanAccessSubject((int) $id);
+        if ($denied !== null) {
+            return $denied;
+        }
+
         $quizes = Quizes::where('subject_id',$id)
                         ->select('quizes.id',app()->getLocale()=='ar'?'title_ar as title':'title_en as title','title_en','title_ar',DB::raw("CONCAT( '".url('/api/student/quizes/show')."/' ,id) AS path"))
                         ->orderBy('lesson_id')
@@ -506,6 +603,15 @@ class SubjectController extends Controller
        // F-045B — Legacy Definition read. Student play MUST use /api/student/quiz-runtime/*.
        // Kept for backward-compatible metadata only; do not use for grading or scoring.
        try {
+                  $quizeRow = Quizes::where('id', $id)->first();
+                  if (!$quizeRow) {
+                      return $this->returnError('E001', __('api.not_exists_item_for_this_data'), 400);
+                  }
+
+                  $denied = $this->denyUnlessCanAccessSubject((int) $quizeRow->subject_id);
+                  if ($denied !== null) {
+                      return $denied;
+                  }
 
                   $quize = Quizes::where('id',$id)
                     ->select('id',app()->getLocale()=='ar'?'title_ar as title':'title_en as title','title_en','title_ar','start_date as startDate','start_date','due_date as DueDate','due_date','time_limit','type_time','do_when_time_end','score_method','score_to_pass','num_attempts','code','notify_student','notify_about_submission','notify_about_late_submission','questions_per_page','navigation_method','reminder_before_due_date','subject_id');
@@ -576,66 +682,9 @@ class SubjectController extends Controller
                 ->where('status', '1')
                 ->pluck('subject_id')->toArray();
 
-            $totalSubjects = count(array_unique($subjectsId));
-            $progressRows = StudentSubjectProgress::where('student_id', $studentId)
-                ->whereIn('subject_id', $subjectsId)
-                ->get();
-            $subjectsWithProgress = $progressRows->count();
-            $overallProgress = $totalSubjects > 0
-                ? (int) $this->metrics->computeAveragePercent(
-                    $progressRows->pluck('value')->all(),
-                    0,
-                    true
-                )
-                : 0;
+            $payload = $this->progressOverview->buildForProfile((int) $studentId, array_map('intval', $subjectsId));
 
-            $totalQuizes = $totalSubjects > 0
-                ? Quizes::whereIn('subject_id', $subjectsId)->count()
-                : 0;
-            $totalQuestions = $totalQuizes > 0
-                ? QuizesQuestions::whereIn('quize_id', Quizes::whereIn('subject_id', $subjectsId)->pluck('id'))->count()
-                : 0;
-
-            $assignIds = array_filter(AssignsStudents::where('student_id', $studentId)->pluck('assign_id')->toArray());
-            $totalHomework = !empty($assignIds) ? Assigns::whereIn('id', $assignIds)->where('status', 1)->count() : 0;
-
-            $tier = 'Silver';
-            $nextTier = 'Golden';
-            if ($overallProgress < 33) {
-                $tier = 'Bronze';
-                $nextTier = 'Silver';
-            } elseif ($overallProgress >= 66) {
-                $tier = 'Golden';
-                $nextTier = null;
-            }
-
-            $classification = [
-                'tier'             => $tier,
-                'tier_key'          => $tier === 'Bronze' ? 'Bronze-Tire' : ($tier === 'Silver' ? 'Silver-Tire' : 'Golden-Tire'),
-                'description'       => $tier === 'Silver'
-                    ? 'Submit on time , complete your task and homework to increase the progress'
-                    : ($tier === 'Bronze' ? 'Complete subjects and assignments to reach Silver tier.' : 'You reached the Golden tier!'),
-                'next_tier'         => $nextTier,
-                'next_tier_message' => $nextTier ? 'Next tire is the ' . $nextTier . ' tire' : null,
-                'progress_percent'  => $overallProgress,
-                'badge_image'       => null,
-            ];
-
-            $stats = [
-                'assessment_finished' => 0,
-                'assessment_total'   => $totalQuizes,
-                'subjects_finished'  => $subjectsWithProgress,
-                'subjects_total'     => $totalSubjects,
-                'questions_solved'   => 0,
-                'questions_total'    => $totalQuestions,
-                'homework_finished'  => 0,
-                'homework_total'     => $totalHomework,
-            ];
-
-            return $this->returnData('progress', [
-                'classification' => $classification,
-                'stats'           => $stats,
-            ], __('api.success'), 200);
+            return $this->returnData('progress', $payload, __('api.success'), 200);
         } catch (\Exception $ex) {
             return $this->returnError($ex->getCode(), $ex->getMessage());
         }
@@ -790,8 +839,16 @@ class SubjectController extends Controller
                    $assignsTodayObjects[$i]['course_name'] = $courseName;
                    $assignsTodayObjects[$i]['assignment_title'] = $assignmentTitle;
                    $assignsTodayObjects[$i]['subject_name'] = $assignmentTitle ?: $courseName;
-                
-                   if( $assignsTodayObjects[$i]['type'] == "lessons")
+
+                   if ($assign->type === \App\Support\Assignment\LearningActivityMap::ASSIGN_TYPE) {
+                       $assignModel = Assigns::with('activities')->find($assign->id);
+                       $assignsTodayObjects[$i]['activities'] = $assignModel
+                           ? app(\App\Services\Assignment\AssignActivitySubmissionService::class)
+                               ->activitiesPayloadForAssign($assignModel, (int) auth()->user()->id)
+                           : [];
+                       $assignsTodayObjects[$i]['unit_id'] = 0;
+                       $assignsTodayObjects[$i]['lesson_id'] = 0;
+                   } elseif ($assignsTodayObjects[$i]['type'] == "lessons")
                    {
                     $row = \DB::table($assign->type)->where('id',$assignsTodayObjects[$i]['type_id'])->first(); 
 
@@ -871,5 +928,37 @@ class SubjectController extends Controller
         } catch (\Exception $ex) {
             return $this->returnError($ex->getCode(), $ex->getMessage());
         }
+    }
+
+    /**
+     * Fail closed when the authenticated student is not enrolled in the subject.
+     * Uses StudentCurriculumAccessService (same rule as content completion).
+     *
+     * @return \Illuminate\Http\JsonResponse|null
+     */
+    private function denyUnlessCanAccessSubject(int $subjectId)
+    {
+        $student = Auth::guard('user-api')->user();
+        if (! $student instanceof Student) {
+            return $this->returnError('E401', 'Unauthorized', 401);
+        }
+
+        $access = app(StudentCurriculumAccessService::class);
+        if (! $access->studentCanAccessSubject($student, $subjectId)) {
+            return $this->returnError('E403', 'Student cannot access this subject.', 403);
+        }
+
+        $subjectActive = Subject::query()
+            ->where('id', $subjectId)
+            ->where(function ($q) {
+                $q->where('status', '1')->orWhere('status', 1);
+            })
+            ->exists();
+
+        if (! $subjectActive) {
+            return $this->returnError('E001', __('api.not_exists_item_for_this_data'), 400);
+        }
+
+        return null;
     }
 }

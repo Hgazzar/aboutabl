@@ -90,6 +90,13 @@ protected $guarded = [];
         return $this->hasMany(AssignActivity::class, 'assign_id')->orderBy('sort_order');
     }
 
+    public function materials()
+    {
+        return $this->hasMany(AssignmentMaterial::class, 'assign_id')
+            ->orderBy('sort_order')
+            ->orderBy('id');
+    }
+
     public function isLearningActivitiesAssign(): bool
     {
         return $this->type === \App\Support\Assignment\LearningActivityMap::ASSIGN_TYPE;

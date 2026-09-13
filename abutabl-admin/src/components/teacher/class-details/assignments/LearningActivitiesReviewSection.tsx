@@ -13,6 +13,8 @@ import {
   submitLearningActivityManualGrade,
 } from "@/api/classAssignmentsApi";
 import AssignmentRuntimeReviewSection from "@/components/teacher/class-details/assignments/AssignmentRuntimeReviewSection";
+import { StudentMyWorkReviewPanel } from "./StudentMyWorkReviewPanel";
+import { myWorkFromReviewStudentRow } from "./studentMyWorkReviewUtils";
 import { notify } from "@/utils/notify";
 
 const CARD_SHADOW = "0 4px 16px rgba(15, 23, 42, 0.06)";
@@ -140,6 +142,10 @@ export const LearningActivitiesReviewSection = ({
   ).toLowerCase();
   const canFinalizeParent = parentSubmissionStatus === "submitted";
   const parentAlreadyGraded = parentSubmissionStatus === "graded";
+  const studentMyWork = useMemo(
+    () => myWorkFromReviewStudentRow(parentStudentRow),
+    [parentStudentRow]
+  );
 
   useEffect(() => {
     const firstQuiz = activities.find((row) => row.activity_type === "quiz");
@@ -323,7 +329,7 @@ export const LearningActivitiesReviewSection = ({
     );
   }
 
-  if (activities.length === 0) {
+  if (activities.length === 0 && studentMyWork.length === 0) {
     return (
       <div
         className="mb-4 rounded-[16px] border border-dashed border-[#E5E7EB] bg-white px-5 py-8 text-center text-sm font-semibold text-[#6B7280]"
@@ -367,6 +373,14 @@ export const LearningActivitiesReviewSection = ({
           </button>
         ) : null}
       </div>
+
+      <StudentMyWorkReviewPanel items={studentMyWork} />
+
+      {activities.length === 0 ? (
+        <div className="rounded-[16px] border border-dashed border-[#E5E7EB] bg-white px-5 py-6 text-center text-sm font-semibold text-[#6B7280]">
+          {t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S9_LA_EMPTY")}
+        </div>
+      ) : null}
 
       {activities.map((row) => {
         const Icon = TYPE_ICON[row.activity_type] ?? DescriptionOutlinedIcon;

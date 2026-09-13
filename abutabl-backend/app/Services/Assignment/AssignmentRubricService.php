@@ -103,6 +103,97 @@ class AssignmentRubricService
         return $this->payloadForAssign($assign);
     }
 
+    /**
+     * Student-safe rubric definition for Assignment Detail (Phase 4D).
+     * Assignment-scoped; caller must enforce student ownership.
+     * Does not include grades, drafts, or teacher-only lock metadata.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function studentDefinitionForAssign(Assigns $assign): ?array
+    {
+        if (! $assign->relationLoaded('rubric')) {
+            $assign->load(['rubric.criteria']);
+        } elseif ($assign->rubric && ! $assign->rubric->relationLoaded('criteria')) {
+            $assign->rubric->load('criteria');
+        }
+
+        $rubric = $assign->rubric;
+        if (! $rubric) {
+            return null;
+        }
+
+        $criteria = [];
+        foreach ($rubric->criteria as $criterion) {
+            $criteria[] = [
+                'id' => (int) $criterion->id,
+                'label' => (string) $criterion->label,
+                'weight' => round((float) $criterion->weight, 4),
+                'max_points' => (int) $criterion->max_points,
+                'sort_order' => (int) $criterion->sort_order,
+            ];
+        }
+
+        return [
+            'id' => (int) $rubric->id,
+            'title' => (string) $rubric->title,
+            // SSOT: assigns.possible_xp (nullable; never invent a default).
+            'points_possible' => $assign->possible_xp !== null ? (int) $assign->possible_xp : null,
+            'criteria' => $criteria,
+            'levels' => $this->localizedPerformanceLevels(),
+        ];
+    }
+
+    /**
+     * Generic 4→1 performance catalog (not overall assignment badges).
+     *
+     * @return array<int, array{points: int, key: string, label: string, descriptor: string|null}>
+     */
+    public function localizedPerformanceLevels(): array
+    {
+        $catalog = config('assignment_rubric.performance_levels', []);
+        if (! is_array($catalog) || $catalog === []) {
+            return [];
+        }
+
+        $levels = [];
+        foreach ($catalog as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $points = (int) ($row['points'] ?? 0);
+            $key = strtolower(trim((string) ($row['key'] ?? '')));
+            if ($points < 1 || $key === '') {
+                continue;
+            }
+
+            $label = (string) __('assignment_rubric.levels.'.$key.'.label');
+            // Fall back to stable key if translation missing (avoid empty UI labels).
+            if ($label === 'assignment_rubric.levels.'.$key.'.label') {
+                $label = $key;
+            }
+
+            $descriptorKey = 'assignment_rubric.levels.'.$key.'.descriptor';
+            $descriptorRaw = __('assignment_rubric.levels.'.$key.'.descriptor');
+            $descriptor = null;
+            if (is_string($descriptorRaw)
+                && $descriptorRaw !== $descriptorKey
+                && trim($descriptorRaw) !== ''
+            ) {
+                $descriptor = trim($descriptorRaw);
+            }
+
+            $levels[] = [
+                'points' => $points,
+                'key' => $key,
+                'label' => $label,
+                'descriptor' => $descriptor,
+            ];
+        }
+
+        return $levels;
+    }
+
     public function deleteRubric(int $assignId): void
     {
         DB::transaction(function () use ($assignId) {

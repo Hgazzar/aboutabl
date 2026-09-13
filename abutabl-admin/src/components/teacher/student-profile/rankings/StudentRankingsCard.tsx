@@ -222,7 +222,7 @@ export const StudentRankingsCard = ({
             onClick={() => onScopeChange("class")}
             className={`h-9 rounded-full px-5 text-[13px] font-semibold transition ${
               scope === "class"
-                ? "bg-[#1F2937] text-white shadow-sm"
+                ? "bg-[#038e7b] text-white shadow-sm"
                 : "bg-transparent text-[#6B7280]"
             }`}
           >
@@ -233,7 +233,7 @@ export const StudentRankingsCard = ({
             onClick={() => onScopeChange("all_classes")}
             className={`h-9 rounded-full px-5 text-[13px] font-semibold transition ${
               scope === "all_classes"
-                ? "bg-[#1F2937] text-white shadow-sm"
+                ? "bg-[#038e7b] text-white shadow-sm"
                 : "bg-transparent text-[#6B7280]"
             }`}
           >

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Menu } from '@mantine/core';
-import avatar from 'assets/images/png/avatar.png';
 import badge from 'assets/images/png/badge.png';
+import { resolveStudentAvatarSrc } from 'lib/studentAvatar';
 import progress from 'assets/images/png/icon.png';
 import certificateIcon from 'assets/images/svg/certificate.svg';
 import editIcon from 'assets/images/png/edit.svg';
@@ -51,7 +51,7 @@ function ProfileNav({ setActive, active, open, setPasswordModalOpened, setLogout
 
 	const displayName = profile?.name ?? userInfo?.name ?? '';
 	const displayCode = userInfo?.code ?? profile?.code ?? '';
-	const photoSrc = profile?.photo || avatar;
+	const photoSrc = resolveStudentAvatarSrc({ photoUrl: profile?.photo });
 	const handleModuleClick = (type: string) => {
 		// console.log({ type });
 

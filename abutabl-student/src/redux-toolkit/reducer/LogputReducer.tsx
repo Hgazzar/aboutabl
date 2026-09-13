@@ -1,6 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { postRequest } from 'lib/requests';
-import { toast } from 'react-toastify';
 import { Ilogin } from 'views/auth/types/login.type';
 import Cookies from 'js-cookie';
 
@@ -16,14 +15,13 @@ function clearStudentSession() {
     }
 }
 
-export const logout: any = createAsyncThunk('auth/logout', async (loginData: Ilogin | Record<string, never>) => {
+export const logout: any = createAsyncThunk('auth/logout', async (_loginData: Ilogin | Record<string, never>) => {
     try {
-        const response = await postRequest('logout', loginData);
-        return response;
-    } catch (error: any) {
-        const msg = error?.response?.data?.msg;
-        if (msg) toast.error(msg);
-        throw error;
+        if (Cookies.get('token_')) {
+            await postRequest('logout', {});
+        }
+    } catch {
+        // Local session is always cleared; server logout is best-effort.
     } finally {
         clearStudentSession();
     }

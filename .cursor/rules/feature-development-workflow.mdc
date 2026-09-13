@@ -1,0 +1,57 @@
+---
+description: Strict Database → Backend → Frontend workflow for every new feature (no hardcoded UI data)
+alwaysApply: true
+---
+
+# Feature Development Workflow (Mandatory)
+
+For **every new feature**, follow these phases **in order**. Do not skip or reorder.
+
+## Phase 1 — Database First
+
+Before writing any application code:
+
+1. Propose **Migration(s)** and **Schema** (tables, columns, indexes, foreign keys).
+2. Document **relationships** to existing models (`teachers_grades`, `students`, etc.).
+3. Present the plan and **wait for user approval** before proceeding.
+
+**Do not** create Models, Controllers, or UI until the schema is agreed.
+
+## Phase 2 — Backend Logic
+
+After schema approval:
+
+1. Implement **Model** (relationships, scopes) → **Controller/Service** → **API Routes**.
+2. Include **Validation** (Form Request or inline rules).
+3. Include **Authorization** — teacher scope via `user_id`, `SchoolsIDs()` / assignment scope as appropriate; reject admin-only paths for teacher portal features.
+4. Verify the API works (**Postman** or **`php artisan tinker`**) before any frontend work.
+
+**Do not** start frontend until the API response is confirmed.
+
+## Phase 3 — Frontend Integration
+
+After API is verified:
+
+1. Build **Component / Screen** in `abutabl-admin` (or `abutabl-student` if applicable).
+2. Wire to the **exact API endpoint** from Phase 2 via `fetchMethods.tsx` / existing patterns.
+3. Map API snake_case to UI props; default to `0` or empty states — never fake success data.
+
+## Golden Rule
+
+**No hardcoded or mock data in production UI** for feature metrics, lists, or forms. All displayed data must come from the API designed in Phases 1–2.
+
+## Before Closing Any Feature
+
+Always tell the user **how to verify end-to-end integration**:
+
+| Layer | Verification step |
+|-------|-------------------|
+| DB | `php artisan migrate` + manual SQL on new/changed tables |
+| API | Postman/Tinker — status, payload shape, teacher vs admin access |
+| Frontend | Browser Network tab — correct endpoint, response matches UI |
+
+Provide concrete URLs, sample requests, and expected JSON fields — not generic advice.
+
+## When Discussing a New Feature
+
+Start with: **"Phase 1 — Database proposal"** (migrations + relationships). Do not jump to React or Controller code in the same turn unless the user explicitly approves the schema.

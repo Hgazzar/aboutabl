@@ -43,12 +43,12 @@ return new class extends Migration
             );
         }
 
-        // Drop non-unique composite index if present (unique supersedes it).
-        $this->dropIndexIfExists('student_subject_progress', 'ssp_student_subject_idx');
-
-        // Drop real FOREIGN KEY constraints by discovered names (never assume names).
+        // Drop FOREIGN KEY constraints first — MySQL blocks dropping indexes they depend on.
         $this->dropForeignKeysOnColumn('student_subject_progress', 'student_id');
         $this->dropForeignKeysOnColumn('student_subject_progress', 'subject_id');
+
+        // Drop non-unique composite index if present (unique supersedes it).
+        $this->dropIndexIfExists('student_subject_progress', 'ssp_student_subject_idx');
 
         // Drop leftover non-unique single-column indexes (e.g. MyISAM-era *_foreign names
         // that are indexes only, not TABLE_CONSTRAINTS FOREIGN KEY rows).
@@ -362,9 +362,48 @@ return new class extends Migration
             return;
         }
 
-        Schema::table($table, function (Blueprint $blueprint) use ($indexName) {
-            $blueprint->dropIndex($indexName);
-        });
+        if ($this->foreignKeyNamesOnIndex($table, $indexName) !== []) {
+            return;
+        }
+
+        try {
+            Schema::table($table, function (Blueprint $blueprint) use ($indexName) {
+                $blueprint->dropIndex($indexName);
+            });
+        } catch (\Throwable $e) {
+            if (! str_contains($e->getMessage(), '1553') && ! str_contains($e->getMessage(), 'foreign key')) {
+                throw $e;
+            }
+        }
+    }
+
+    /**
+     * @return string[]
+     */
+    private function foreignKeyNamesOnIndex(string $table, string $indexName): array
+    {
+        $rows = DB::select(
+            'SELECT DISTINCT tc.CONSTRAINT_NAME AS constraint_name
+             FROM information_schema.TABLE_CONSTRAINTS tc
+             INNER JOIN information_schema.KEY_COLUMN_USAGE kcu
+                ON kcu.CONSTRAINT_SCHEMA = tc.CONSTRAINT_SCHEMA
+               AND kcu.CONSTRAINT_NAME = tc.CONSTRAINT_NAME
+               AND kcu.TABLE_NAME = tc.TABLE_NAME
+             INNER JOIN information_schema.STATISTICS s
+                ON s.TABLE_SCHEMA = kcu.TABLE_SCHEMA
+               AND s.TABLE_NAME = kcu.TABLE_NAME
+               AND s.INDEX_NAME = ?
+             WHERE tc.CONSTRAINT_SCHEMA = ?
+               AND tc.TABLE_NAME = ?
+               AND tc.CONSTRAINT_TYPE = \'FOREIGN KEY\'
+               AND kcu.COLUMN_NAME = s.COLUMN_NAME',
+            [$indexName, $this->databaseName(), $table]
+        );
+
+        return array_values(array_unique(array_map(
+            static fn ($row) => (string) $row->constraint_name,
+            $rows
+        )));
     }
 
     /**

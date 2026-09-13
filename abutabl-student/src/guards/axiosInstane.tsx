@@ -1,22 +1,32 @@
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import Cookies from 'js-cookie';
+import { resolveStudentApiBaseUrl } from 'lib/studentApiBaseUrl';
 
-const baseURL = import.meta.env.VITE_BASE_URL ?? 'https://aboutabl.com/api/student/';
+const baseURL = resolveStudentApiBaseUrl();
 
 const axiosInstance = axios.create({
-	baseURL: baseURL.endsWith('/') ? baseURL : `${baseURL}/`,
+	baseURL: `${baseURL}/`,
 });
 
-// Session expiration check (same pattern as admin)
+const clearStudentSession = (): void => {
+	Cookies.remove('token_');
+	Cookies.remove('username');
+	Cookies.remove('abotable_id');
+	Cookies.remove('expiration');
+	localStorage.removeItem('user_info');
+};
+
+// Only expire sessions when an expiration timestamp exists and is in the past.
 const checkSessionExpiration = (): void => {
+	const token = Cookies.get('token_');
+	if (!token) {
+		return;
+	}
+
 	const expiration = Cookies.get('expiration');
-	if (!expiration || +expiration < Date.now()) {
-		Cookies.remove('token_');
-		Cookies.remove('username');
-		Cookies.remove('abotable_id');
-		Cookies.remove('expiration');
-		localStorage.removeItem('user_info');
+	if (expiration && +expiration < Date.now()) {
+		clearStudentSession();
 		window.location.href = '/login';
 	}
 };
@@ -45,22 +55,42 @@ axiosInstance.interceptors.response.use(
 		return response;
 	},
 	function (error) {
-		if (error.response?.status === 400 || error.response?.status === 500) {
-			toast.error(error.response?.data?.msg);
+		const status = error.response?.status;
+		const apiMsg = error.response?.data?.msg;
+		const method = (error.config?.method ?? 'get').toLowerCase();
+		const isGet = method === 'get';
+		const isNetworkFailure =
+			!error.response &&
+			(error.code === 'ERR_NETWORK' || error.message === 'Network Error');
+		const isBackendUnavailable = isNetworkFailure || status === 502 || status === 503 || status === 504;
+
+		const message =
+			(typeof apiMsg === 'string' && apiMsg) ||
+			(isBackendUnavailable
+				? import.meta.env.DEV
+					? 'API server unavailable — start Laravel on http://127.0.0.1:8000'
+					: 'Unable to connect to the server. Please try again later.'
+				: undefined) ||
+			error.message ||
+			(status ? `Request failed (${status})` : 'Network error — check that the API server is running');
+
+		if (status === 401) {
+			toast.error('Your token has expired, please login again');
+			clearStudentSession();
+			window.location.href = '/login';
+		} else if (!isGet) {
+			if (status === 400 || status === 500) {
+				toast.error(typeof apiMsg === 'string' ? apiMsg : message);
+			} else if (typeof apiMsg === 'string' && apiMsg) {
+				toast.error(apiMsg);
+			} else if (isBackendUnavailable) {
+				toast.error(message);
+			} else if (error.message) {
+				toast.error(error.message);
+			}
 		}
 
-		if (error.response?.status === 401) {
-			toast.error('Your token has expired, please login again');
-			Cookies.remove('token_');
-			Cookies.remove('username');
-			Cookies.remove('abotable_id');
-			Cookies.remove('expiration');
-			localStorage.removeItem('user_info');
-			window.location.href = '/login';
-		} else {
-			toast.error(error?.response?.data?.message);
-		}
-		return Promise.reject(error.response);
+		return Promise.reject(new Error(message));
 	}
 );
 

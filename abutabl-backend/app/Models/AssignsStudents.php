@@ -38,6 +38,13 @@ class AssignsStudents extends Model
         return $this->hasOne(AssignmentGrade::class, 'assign_student_id');
     }
 
+    public function works()
+    {
+        return $this->hasMany(AssignmentStudentWork::class, 'assign_student_id')
+            ->orderBy('sort_order')
+            ->orderBy('id');
+    }
+
     public function hasParentSubmission(): bool
     {
         if (! \Illuminate\Support\Facades\Schema::hasColumn($this->getTable(), 'submission_status')

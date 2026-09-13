@@ -63,15 +63,18 @@ export const StudentSummaryBanner = ({
       </div>
 
       {/*
-        Design: "Statue" label + cyan badge with white value text.
-        Own badge covers the baked-in PNG plate so typography stays correct.
+        Design: "Statue" label + cyan badge.
+        Banner PNG has a baked-in empty plate — mask it so only one badge shows.
       */}
-      <div className="relative z-[2] flex shrink-0 flex-col items-center gap-1.5">
+      <div className="relative z-[2] flex shrink-0 flex-col items-center gap-2.5">
         <span className="student-banner-status-label">
           {t("TEACHER_STUDENT_PROFILE.STATUS_LABEL")}
         </span>
-        <span className="student-banner-status-badge" title={statusValue}>
-          {statusValue}
+        <span className="student-banner-status-badge-wrap">
+          <span className="student-banner-status-badge-mask" aria-hidden />
+          <span className="student-banner-status-badge" title={statusValue}>
+            {statusValue}
+          </span>
         </span>
       </div>
     </section>

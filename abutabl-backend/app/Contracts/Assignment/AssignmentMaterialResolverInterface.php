@@ -3,13 +3,14 @@
 namespace App\Contracts\Assignment;
 
 /**
- * F-041C — Stub for future Assignment Materials (Content Library).
- * Foundation: always empty; no schema or storage.
+ * Assignment Materials SSOT reader (assignment_materials).
  */
 interface AssignmentMaterialResolverInterface
 {
     /**
-     * @return array<int, mixed>
+     * Flat serialized materials for an assign, ordered by sort_order then id.
+     *
+     * @return array<int, array<string, mixed>>
      */
     public function resolveForAssign(int $assignId): array;
 }

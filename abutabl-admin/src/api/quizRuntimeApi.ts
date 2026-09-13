@@ -7,6 +7,8 @@ import {
 export const fetchQuizRuntimeAttempts = async (params: {
   assign_id: number;
   student_id: number;
+  /** Optional — scopes to one quiz inside a Multi-Activity assign. */
+  quiz_id?: number;
 }): Promise<QuizRuntimeAttemptsListResponse> => {
   return getRequest(params, "/api/quiz-runtime/attempts") as Promise<
     QuizRuntimeAttemptsListResponse

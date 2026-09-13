@@ -185,6 +185,9 @@ class StudentAssignParentSubmitApiTest extends TestCase
         $this->assertTrue($data['lifecycle']['is_late']);
         $this->assertFalse($data['lifecycle']['can_submit']);
         $this->assertSame('assigns_students', $data['lifecycle']['source']);
+        // Fixture due_at is in the past → Assignment REDO forbidden after submit.
+        $this->assertFalse($data['redo_allowed']);
+        $this->assertFalse($data['lifecycle']['redo_allowed']);
 
         $row = AssignsStudents::query()->find($fx['assign_student_id']);
         $this->assertSame('submitted', $row->submission_status);
@@ -265,6 +268,33 @@ class StudentAssignParentSubmitApiTest extends TestCase
         $this->assertTrue($data['lifecycle']['is_overdue']);
         $this->assertTrue($data['lifecycle']['can_submit']);
         $this->assertNull($data['lifecycle']['submitted_at']);
+        // Curriculum context is display-only; must not block parent submit readiness.
+        $this->assertArrayHasKey('context_label', $data);
+    }
+
+    public function test_after_submit_waiting_has_no_can_submit_even_without_context(): void
+    {
+        $fx = $this->seedFixture(true);
+        if ($fx === null) {
+            $this->markTestSkipped('Parent submit fixtures unavailable.');
+        }
+
+        $headers = $this->studentHeaders($fx['owner']);
+        $submit = $this->withHeaders($headers)
+            ->postJson('/api/student/assigns/'.$fx['assign_id'].'/submit');
+        $submit->assertStatus(200)->assertJsonPath('status', true);
+
+        $data = $submit->json('data');
+        $this->assertSame('waiting_on_teacher', $data['lifecycle']['mode']);
+        $this->assertSame('submitted', $data['lifecycle']['status']);
+        $this->assertFalse($data['lifecycle']['can_submit']);
+
+        $refresh = $this->withHeaders($headers)
+            ->getJson('/api/student/assigns/'.$fx['assign_id'].'/learning_activities');
+        $refresh->assertStatus(200);
+        $again = $refresh->json('data');
+        $this->assertSame('waiting_on_teacher', $again['lifecycle']['mode']);
+        $this->assertFalse($again['lifecycle']['can_submit']);
     }
 
     public function test_graded_parent_cannot_be_resubmitted(): void

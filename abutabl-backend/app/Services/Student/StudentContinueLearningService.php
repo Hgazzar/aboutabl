@@ -80,7 +80,9 @@ class StudentContinueLearningService
 
         $lessonIdsInSubject = Lessons::query()
             ->where('subject_id', $subjectId)
-            ->where('status', '1')
+            ->where(function ($q) {
+                $q->where('status', '1')->orWhere('status', 1);
+            })
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->all();
@@ -179,7 +181,9 @@ class StudentContinueLearningService
         $subjectId = (int) $lesson->subject_id;
         $nextLesson = Lessons::query()
             ->where('subject_id', $subjectId)
-            ->where('status', '1')
+            ->where(function ($q) {
+                $q->where('status', '1')->orWhere('status', 1);
+            })
             ->where('id', '>', $lessonId)
             ->orderBy('id')
             ->first();
@@ -204,7 +208,9 @@ class StudentContinueLearningService
 
         $lessonIds = Lessons::query()
             ->whereIn('subject_id', $subjectIds)
-            ->where('status', '1')
+            ->where(function ($q) {
+                $q->where('status', '1')->orWhere('status', 1);
+            })
             ->orderBy('subject_id')
             ->orderBy('id')
             ->pluck('id')
@@ -248,6 +254,11 @@ class StudentContinueLearningService
         $nameCol = 'name_'.$locale;
         $title = (string) ($content->{$nameCol} ?? $content->name_en ?? $content->name_ar ?? '');
 
+        $lessonTitle = '';
+        if ($lesson) {
+            $lessonTitle = (string) ($lesson->{$nameCol} ?? $lesson->name_en ?? $lesson->name_ar ?? '');
+        }
+
         $required = $this->lessonCompletion->requiredContentIds((int) $content->lesson_id);
         $finished = StudentLessonContentCompletion::query()
             ->where('student_id', $studentId)
@@ -273,6 +284,7 @@ class StudentContinueLearningService
             'subject_id'       => $subjectId,
             'subject_name'     => $subjectName,
             'lesson_id'        => (int) $content->lesson_id,
+            'lesson_title'     => $lessonTitle !== '' ? $lessonTitle : null,
             'content_id'       => (int) $content->id,
             'title'            => $title,
             'lesson_progress_percent' => $lessonProgress,

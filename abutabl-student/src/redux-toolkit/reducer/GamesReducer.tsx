@@ -3,8 +3,14 @@ import { getRequest } from 'lib/requests';
 
 export const gamesList: any = createAsyncThunk(
 	'gamesList',
-	async ({ id, type, type_id }: { id: number; type: string; type_id: string }) => {
-		const result = await getRequest(`subjectGames/${id}?type=${type}&type_id=${type_id}`);
+	async ({ id, type, type_id }: { id: string | number; type?: string; type_id?: string | number }) => {
+		const params = new URLSearchParams();
+		if (type != null && type_id != null && String(type_id) !== '') {
+			params.set('type', String(type));
+			params.set('type_id', String(type_id));
+		}
+		const qs = params.toString();
+		const result = await getRequest(`subjectGames/${id}${qs ? `?${qs}` : ''}`);
 		return result;
 	}
 );

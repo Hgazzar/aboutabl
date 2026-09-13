@@ -1,5 +1,6 @@
 import { Grid, Flex, Avatar } from '@mantine/core';
 import Wellcomeimage from 'assets/images/png/hi.png';
+import { resolveStudentAvatarSrc } from 'lib/studentAvatar';
 import SearchAutoComplete from 'components/searchComponent';
 import VectorImage from 'components/vectorImage';
 import { HeaderWrapper } from './styles';
@@ -16,7 +17,7 @@ function readUserInfo() {
 export default function PageHeader() {
 	const user = readUserInfo();
 	const displayName = user?.name ?? '';
-	const face = user?.avatar_preset || user?.photo;
+	const face = resolveStudentAvatarSrc({ photoUrl: user?.photo, avatarPreset: user?.avatar_preset });
 
 	return (
 		<HeaderWrapper>

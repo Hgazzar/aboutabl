@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
 	assignmentPath,
 	getSubjectIndicatorColor,
+	resolveAssignmentListAction,
 } from './myAssignmentsUtils';
 
 describe('myAssignmentsUtils', () => {
-	it('maps learning activities to assign detail route', () => {
+	it('maps View to assign detail route', () => {
 		expect(
 			assignmentPath({
 				assign_id: 12,
@@ -16,21 +17,21 @@ describe('myAssignmentsUtils', () => {
 		).toBe('/todo/assign/12');
 	});
 
-	it('appends assign_student_id for quiz assignments', () => {
-		expect(
-			assignmentPath({
-				assign_id: 5,
-				assign_student_id: 99,
-				title: 'Quiz',
-				type: 'quizes',
-				type_id: 7,
-				subject_id: 2,
-			})
-		).toBe('/learn/2/quiz/7?assign_student_id=99');
-	});
-
 	it('returns stable subject stripe colors', () => {
-		expect(getSubjectIndicatorColor(1)).toBe(getSubjectIndicatorColor(1));
 		expect(getSubjectIndicatorColor(null)).toBe('#FFB300');
+	});
+});
+
+describe('resolveAssignmentListAction', () => {
+	it('always returns View — SUBMIT / REDO are Detail-only', () => {
+		expect(
+			resolveAssignmentListAction({ can_submit: false, redo_allowed: false })
+		).toBe('view');
+		expect(
+			resolveAssignmentListAction({ can_submit: true, redo_allowed: false })
+		).toBe('view');
+		expect(
+			resolveAssignmentListAction({ can_submit: false, redo_allowed: true })
+		).toBe('view');
 	});
 });

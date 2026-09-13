@@ -29,6 +29,9 @@ Route::group([ 'middleware' => ['api' , 'checkSecretApi' , 'changeLanguage'] , '
     Route::post('/verification_code', 'Auth\AuthApiController@Verification');
     Route::post('/forgetPassword', 'Auth\AuthApiController@ForgetPassword');  
     Route::post('/setPassword', 'Auth\AuthApiController@setPassword');
+
+    // Public landing Contact Us → info@aboutabl.com (no student token).
+    Route::post('/contact', 'ContactController@store');
        
     
 });
@@ -55,10 +58,21 @@ Route::group([ 'middleware' => ['api' , 'checkSecretApi' , 'changeLanguage','che
 
     ///Profile
     Route::get('/profile','Auth\AuthApiController@getProfile');
+    Route::get('/navbar','StudentNavbarController@index');
+    Route::get('/search','StudentSearchController@index');
     Route::get('/dashboard','StudentDashboardController@index');
+    Route::get('/leaderboard','StudentLeaderboardController@index');
+    Route::get('/streak/calendar','StudentStreakCalendarController@index');
+    Route::get('/friends','StudentFriendsController@index');
+    Route::post('/friends/invite','StudentFriendsController@invite');
+    Route::post('/friends/{id}/accept','StudentFriendsController@accept');
+    Route::delete('/friends/{id}','StudentFriendsController@destroy');
+    Route::get('/achievements','StudentAchievementsController@index');
+    Route::get('/my-progress','StudentMyProgressController@index');
     Route::get('/progress','SubjectController@getProgressOverview');
     Route::post('/changePassword','Auth\AuthApiController@updatePassword');
     Route::post('/editProfile','Auth\AuthApiController@editProfile');
+    Route::post('/avatar/select','Auth\AuthApiController@selectAvatar');
   	///Auth
     Route::post('/logout','Auth\AuthApiController@logout');
 
@@ -70,9 +84,16 @@ Route::group([ 'middleware' => ['api' , 'checkSecretApi' , 'changeLanguage','che
     // Multi-activity assignment detail + per-activity submit (student scope).
     Route::get('/assigns/{assignId}/learning_activities','AssignActivityStudentController@show');
     Route::post('/assigns/{assignId}/submit','AssignActivityStudentController@submitAssignment');
+    Route::post('/assigns/{assignId}/redo','AssignActivityStudentController@redoAssignment');
     Route::get('/assign-activities/{assignActivityId}','AssignActivityStudentController@activityShow');
     Route::post('/assign-activities/{assignActivityId}/submit','AssignActivityStudentController@submit');
+    Route::post('/assign-activities/{assignActivityId}/redo','AssignActivityStudentController@redoActivity');
 
+    // Student My Work (optional image/document/voice — independent of parent submit).
+    Route::get('/assigns/{assignId}/my-work','AssignmentStudentWorkController@index');
+    Route::post('/assigns/{assignId}/my-work','AssignmentStudentWorkController@store');
+    Route::delete('/assigns/{assignId}/my-work/{workId}','AssignmentStudentWorkController@destroy');
+    Route::get('/assigns/{assignId}/my-work/{workId}/file','AssignmentStudentWorkController@download');
 
 
        ////NOTIFICATION

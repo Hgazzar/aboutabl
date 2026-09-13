@@ -1,9 +1,13 @@
+import { useState } from 'react';
 import Modal from 'components/modal';
 import { FormProvider, useForm, useWatch } from 'react-hook-form';
 import { useIntl } from 'react-intl';
 import { Button, Divider, Flex, Grid } from '@mantine/core';
 import PasswordIcon from 'assets/images/svg/lock.svg?react';
 import InputPassword from 'components/inputPassword';
+import { postRequest } from 'lib/requests';
+import { getApiErrorMessage } from 'lib/studentApiResponse';
+import { toast } from 'react-toastify';
 import { EditContainer } from './../styles';
 
 type ChangePasswordProps = {
@@ -13,6 +17,7 @@ type ChangePasswordProps = {
 
 function ChangePassword({ passwordModalOpened, setPasswordModalOpened }: ChangePasswordProps) {
 	const { formatMessage } = useIntl();
+	const [submitting, setSubmitting] = useState(false);
 	const methods = useForm();
 	const { handleSubmit } = methods;
 
@@ -21,18 +26,37 @@ function ChangePassword({ passwordModalOpened, setPasswordModalOpened }: ChangeP
 		name: 'NewPassword',
 	});
 
-	methods.formState.isValid;
-
-	const confirmValidation = (value: string) => value === newPassword || `${formatMessage({ id: 'PasswordMismatch' })}`;
+	const confirmValidation = (value: string) =>
+		value === newPassword || `${formatMessage({ id: 'PasswordMismatch' })}`;
 
 	methods.register('ConfirmPassword', {
 		required: 'requiredField',
 		validate: confirmValidation,
 	});
 
-	const onSubmit = (data: any) => {
-		// console.log(data);
-		setPasswordModalOpened(false);
+	const onSubmit = async (data: {
+		CurrentPassword?: string;
+		NewPassword?: string;
+		ConfirmPassword?: string;
+	}) => {
+		setSubmitting(true);
+		try {
+			const res = await postRequest('changePassword', {
+				password: data.CurrentPassword,
+				new_password: data.NewPassword,
+				confirm_new_password: data.ConfirmPassword,
+			});
+			if (res?.status === false) {
+				throw new Error(typeof res.msg === 'string' ? res.msg : formatMessage({ id: 'profile-password-error' }));
+			}
+			toast.success(formatMessage({ id: 'profile-password-success' }));
+			setPasswordModalOpened(false);
+			methods.reset();
+		} catch (err) {
+			toast.error(getApiErrorMessage(err, formatMessage({ id: 'profile-password-error' })));
+		} finally {
+			setSubmitting(false);
+		}
 	};
 
 	return (
@@ -103,8 +127,12 @@ function ChangePassword({ passwordModalOpened, setPasswordModalOpened }: ChangeP
 								justify={'space-between'}
 								align={'center'}
 							>
-								<Button type="submit">{formatMessage({ id: 'SaveChanges' })}</Button>
-								<Button onClick={() => setPasswordModalOpened(false)}>{formatMessage({ id: 'Discard' })}</Button>
+								<Button type="submit" disabled={submitting}>
+									{formatMessage({ id: 'SaveChanges' })}
+								</Button>
+								<Button type="button" onClick={() => setPasswordModalOpened(false)}>
+									{formatMessage({ id: 'Discard' })}
+								</Button>
 							</Flex>
 						</form>
 					</FormProvider>

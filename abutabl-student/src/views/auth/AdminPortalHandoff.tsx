@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Cookies from 'js-cookie';
 import { getRequest } from 'lib/requests';
+import { withDefaultStudentAvatar } from 'lib/studentAvatar';
 import LoadingPartially from 'components/loading-partially';
 
 function decodeJwtPayload(token: string): { exp?: number; sub?: string | number } {
@@ -60,7 +61,8 @@ export default function AdminPortalHandoff() {
 
 				localStorage.setItem(
 					'user_info',
-					JSON.stringify({
+					JSON.stringify(
+						withDefaultStudentAvatar({
 						id: profile.id,
 						name: profile.name,
 						code,
@@ -75,11 +77,15 @@ export default function AdminPortalHandoff() {
 						class_name: profile.class_name,
 						photo: profile.photo ?? null,
 						name_ar: profile.name_ar,
+						avatar_preset: profile.avatar_preset ?? null,
+						needs_avatar_selection: profile.needs_avatar_selection === true,
 					})
+					)
 				);
 
 				window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
-				navigate('/learn', { replace: true });
+				const needsAvatar = profile.needs_avatar_selection === true;
+				navigate(needsAvatar ? '/onboarding/avatar' : '/learn', { replace: true });
 			})
 			.catch(() => {
 				Cookies.remove('token_');

@@ -44,6 +44,9 @@ export const theme = {
 		Regular: 'Regular',
 		CommicRegular: 'CommicRegular',
 		Medium: 'Medium',
+		buttonNormal: 'buttonNormal',
+		Fredoka: 'Fredoka',
+		Nunito: 'Nunito',
 	},
 	space_size: '8px',
 	brekpoints: {
@@ -99,6 +102,15 @@ export const GlobalStyles = createGlobalStyle`
 	}
     .Medium{
 		font-family: ${theme.fonts.Medium};
+	}
+    .buttonNormal{
+		font-family: ${theme.fonts.buttonNormal};
+	}
+    .Fredoka{
+		font-family: ${theme.fonts.Fredoka};
+	}
+    .Nunito{
+		font-family: ${theme.fonts.Nunito};
 	}
 	.ErrorMessageStyle{
 		color: ${theme.colours.error};

@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
@@ -22,6 +29,7 @@ export type StandardsAnalyticsProps = {
 
 const CHART_BAR_MAX_HEIGHT = 132;
 const CHART_BAR_WIDTH = 48;
+const SCROLL_STEP = 220;
 
 const DEFAULT_TABS: StandardsTab[] = [
   { subject_id: 0, slug: "letters-explorer", label: "Letter Explorer", active: true },
@@ -128,14 +136,14 @@ const AuditInfoButton = ({
 
 const resolveBarColor = (percent: number): string => {
   if (percent >= 90) {
-    return "#00897B";
+    return "#038e7b";
   }
 
   if (percent >= 80) {
-    return "#26A69A";
+    return "#23b8a2";
   }
 
-  return "#FBC02D";
+  return "#f6c113";
 };
 
 const StandardBar = ({
@@ -184,6 +192,8 @@ const StandardBar = ({
 export const StandardsAnalytics = ({ classId, range }: StandardsAnalyticsProps) => {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const [canScroll, setCanScroll] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ClassStandardsResponse | null>(null);
@@ -237,6 +247,23 @@ export const StandardsAnalytics = ({ classId, range }: StandardsAnalyticsProps) 
     [selectedItem]
   );
 
+  const updateScrollProgress = useCallback(() => {
+    const node = scrollRef.current;
+    if (!node) {
+      return;
+    }
+    const max = node.scrollWidth - node.clientWidth;
+    setCanScroll(max > 1);
+    setScrollProgress(max <= 0 ? 0 : Math.min(1, node.scrollLeft / max));
+  }, []);
+
+  useEffect(() => {
+    updateScrollProgress();
+    const onResize = () => updateScrollProgress();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [items.length, loading, updateScrollProgress]);
+
   const handleTabChange = (slug: StandardsSubjectSlug) => {
     if (slug === activeSubject) {
       return;
@@ -251,14 +278,34 @@ export const StandardsAnalytics = ({ classId, range }: StandardsAnalyticsProps) 
       return;
     }
 
-    const amount = direction === "left" ? -220 : 220;
-    container.scrollBy({ left: amount, behavior: "smooth" });
+    container.scrollBy({
+      left: direction === "left" ? -SCROLL_STEP : SCROLL_STEP,
+      behavior: "smooth",
+    });
   };
+
+  const handleTrackClick = (event: ReactMouseEvent<HTMLDivElement>) => {
+    const container = scrollRef.current;
+    if (!container || !canScroll) {
+      return;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    const ratio = Math.min(
+      1,
+      Math.max(0, (event.clientX - rect.left) / rect.width)
+    );
+    const max = container.scrollWidth - container.clientWidth;
+    container.scrollTo({ left: ratio * max, behavior: "smooth" });
+  };
+
+  const thumbWidthPercent = canScroll ? 33 : 100;
+  const thumbLeftPercent = canScroll
+    ? scrollProgress * (100 - thumbWidthPercent)
+    : 0;
 
   return (
     <section className="bg-[#F7F9FA] px-6 pb-5 pt-5 md:px-8">
       <article className="rounded-2xl bg-white p-6 shadow-[0_4px_6px_rgba(0,0,0,0.05)]">
-        {/* Header */}
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
             <h2 className="text-[1.0625rem] font-bold leading-tight text-[#111827]">
@@ -271,7 +318,6 @@ export const StandardsAnalytics = ({ classId, range }: StandardsAnalyticsProps) 
           <OpenInFullIcon sx={{ fontSize: 22, color: "#9CA3AF", mt: 0.25 }} />
         </div>
 
-        {/* Subject tabs */}
         <div className="mb-4 flex flex-wrap gap-3">
           {tabs.map((tab) => {
             const isActive = tab.slug === activeSubject;
@@ -307,7 +353,6 @@ export const StandardsAnalytics = ({ classId, range }: StandardsAnalyticsProps) 
           </div>
         ) : (
           <>
-            {/* Selected standard detail bar */}
             {selectedItem && (
               <div className="mb-5 flex items-center rounded-[10px] bg-[#FFF5EE] px-4 py-3">
                 <p className="flex-1 text-[0.9375rem] leading-relaxed text-[#111827]">
@@ -320,36 +365,52 @@ export const StandardsAnalytics = ({ classId, range }: StandardsAnalyticsProps) 
               </div>
             )}
 
-            {/* Bar chart */}
             <div
               ref={scrollRef}
-              className="standards-chart-scroll overflow-x-auto pb-1"
-              style={{ scrollbarWidth: "thin" }}
+              onScroll={updateScrollProgress}
+              className="overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
               <div className="flex min-w-max items-end gap-4 px-1">
                 {items.map((item) => (
-                  <StandardBar key={item.standard_id} item={item} onSelect={setSelectedItem} />
+                  <StandardBar
+                    key={item.standard_id}
+                    item={item}
+                    onSelect={setSelectedItem}
+                  />
                 ))}
               </div>
             </div>
 
-            {/* Scroll controls */}
             <div className="mt-3 flex items-center gap-2">
               <IconButton
                 size="small"
                 onClick={() => scrollChart("left")}
                 aria-label="Scroll left"
+                disabled={!canScroll}
                 sx={{ color: "#9CA3AF", p: 0.5 }}
               >
                 <ChevronLeftIcon sx={{ fontSize: 18 }} />
               </IconButton>
-              <div className="h-1.5 flex-1 rounded-full bg-[#E5E7EB]">
-                <div className="h-full w-1/3 rounded-full bg-[#D1D5DB]" />
+              <div
+                role="scrollbar"
+                aria-valuenow={Math.round(scrollProgress * 100)}
+                tabIndex={0}
+                onClick={handleTrackClick}
+                className="relative h-1.5 flex-1 cursor-pointer overflow-hidden rounded-full bg-[#E5E7EB]"
+              >
+                <div
+                  className="absolute top-0 h-full rounded-full bg-[#9CA3AF] transition-[left] duration-150"
+                  style={{
+                    width: `${thumbWidthPercent}%`,
+                    left: `${thumbLeftPercent}%`,
+                  }}
+                />
               </div>
               <IconButton
                 size="small"
                 onClick={() => scrollChart("right")}
                 aria-label="Scroll right"
+                disabled={!canScroll}
                 sx={{ color: "#9CA3AF", p: 0.5 }}
               >
                 <ChevronRightIcon sx={{ fontSize: 18 }} />
@@ -358,20 +419,6 @@ export const StandardsAnalytics = ({ classId, range }: StandardsAnalyticsProps) 
           </>
         )}
       </article>
-
-      <style>{`
-        .standards-chart-scroll::-webkit-scrollbar {
-          height: 6px;
-        }
-        .standards-chart-scroll::-webkit-scrollbar-track {
-          background: #E5E7EB;
-          border-radius: 999px;
-        }
-        .standards-chart-scroll::-webkit-scrollbar-thumb {
-          background: #D1D5DB;
-          border-radius: 999px;
-        }
-      `}</style>
     </section>
   );
 };

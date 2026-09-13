@@ -801,6 +801,7 @@ class InsightMetricsReader
             'behaviour_confidence' => $confidence,
             'current_streak' => $streaks['current'],
             'longest_streak' => $streaks['longest'],
+            'active_day_dates' => $sortedDays,
             // Internal reuse for last-activity (stripped before context merge).
             '_latest_activity_at' => $timestamps !== []
                 ? $timestamps[count($timestamps) - 1]
@@ -1689,7 +1690,7 @@ class InsightMetricsReader
             config('smart_insight', []),
             $now
         );
-        unset($stats['_latest_activity_at']);
+        unset($stats['_latest_activity_at'], $stats['active_day_dates']);
 
         if (! ($stats['has_learning_behaviour_data'] ?? false)) {
             $stats['current_streak'] = 0;
@@ -1697,6 +1698,83 @@ class InsightMetricsReader
         }
 
         return $stats;
+    }
+
+    /**
+     * Streak block for student dashboard (Widget 8) — includes weekly tracker.
+     *
+     * @return array<string, mixed>
+     */
+    public function streakPayloadForStudent(int $studentId, ?Carbon $now = null): array
+    {
+        $emptyWeekly = $this->buildWeeklyStreakDays([], $now ?? now());
+
+        if ($studentId <= 0) {
+            return [
+                'has_learning_behaviour_data' => false,
+                'current_streak' => 0,
+                'longest_streak' => 0,
+                'today_completed' => false,
+                'weekly_days' => $emptyWeekly,
+            ];
+        }
+
+        $now = $now ?? now();
+        $stats = $this->resolveLearningBehaviourStats(
+            ['student_id' => $studentId],
+            config('smart_insight', []),
+            $now
+        );
+
+        $activeDayDates = is_array($stats['active_day_dates'] ?? null)
+            ? $stats['active_day_dates']
+            : [];
+        $weeklyDays = $this->buildWeeklyStreakDays($activeDayDates, $now);
+        $todayKey = $now->copy()->startOfDay()->toDateString();
+        $todayCompleted = in_array($todayKey, $activeDayDates, true);
+
+        if (! ($stats['has_learning_behaviour_data'] ?? false)) {
+            return [
+                'has_learning_behaviour_data' => false,
+                'current_streak' => 0,
+                'longest_streak' => 0,
+                'today_completed' => false,
+                'weekly_days' => $weeklyDays,
+            ];
+        }
+
+        return [
+            'has_learning_behaviour_data' => true,
+            'current_streak' => (int) ($stats['current_streak'] ?? 0),
+            'longest_streak' => (int) ($stats['longest_streak'] ?? 0),
+            'today_completed' => $todayCompleted,
+            'weekly_days' => $weeklyDays,
+        ];
+    }
+
+    /**
+     * @param  string[]  $activeDayDates  Y-m-d
+     * @return array<int, array{label: string, date: string, completed: bool, is_today: bool}>
+     */
+    private function buildWeeklyStreakDays(array $activeDayDates, Carbon $now): array
+    {
+        $daySet = array_flip($activeDayDates);
+        $start = $now->copy()->startOfWeek(Carbon::MONDAY);
+        $labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+        $days = [];
+
+        for ($i = 0; $i < 7; $i++) {
+            $day = $start->copy()->addDays($i);
+            $dateStr = $day->toDateString();
+            $days[] = [
+                'label' => $labels[$i],
+                'date' => $dateStr,
+                'completed' => isset($daySet[$dateStr]),
+                'is_today' => $day->isSameDay($now),
+            ];
+        }
+
+        return $days;
     }
 
     /**
@@ -1728,6 +1806,11 @@ class InsightMetricsReader
         $current = 0;
         $cursor = $now->copy()->startOfDay();
 
+        // Grace: streak still counts through today even if today's lesson is not done yet.
+        if (! isset($daySet[$cursor->toDateString()])) {
+            $cursor->subDay();
+        }
+
         while (isset($daySet[$cursor->toDateString()])) {
             $current++;
             $cursor->subDay();
@@ -1737,5 +1820,72 @@ class InsightMetricsReader
             'current' => $current,
             'longest' => $longest,
         ];
+    }
+
+    /**
+     * Month-scoped activity calendar for student streak popup (read-only).
+     * Uses the same activity pipeline as streakPayloadForStudent — no duplicate queries.
+     *
+     * @return array{year: int, month: int, days: array<int, array{date: string, status: string}>}
+     */
+    public function calendarPayloadForStudent(int $studentId, int $year, int $month, ?Carbon $now = null): array
+    {
+        $now = $now ?? now();
+        $activeDayDates = [];
+
+        if ($studentId > 0) {
+            $stats = $this->resolveLearningBehaviourStats(
+                ['student_id' => $studentId],
+                config('smart_insight', []),
+                $now
+            );
+            $activeDayDates = is_array($stats['active_day_dates'] ?? null)
+                ? $stats['active_day_dates']
+                : [];
+        }
+
+        return [
+            'year' => $year,
+            'month' => $month,
+            'days' => $this->buildCalendarDaysForMonth($activeDayDates, $year, $month, $now),
+        ];
+    }
+
+    /**
+     * @param  string[]  $activeDayDates  Y-m-d
+     * @return array<int, array{date: string, status: string}>
+     */
+    private function buildCalendarDaysForMonth(array $activeDayDates, int $year, int $month, Carbon $now): array
+    {
+        $daySet = array_flip($activeDayDates);
+        $monthStart = Carbon::createFromDate($year, $month, 1)->startOfDay();
+        $monthEnd = $monthStart->copy()->endOfMonth()->startOfDay();
+        $today = $now->copy()->startOfDay();
+
+        $days = [];
+        $cursor = $monthStart->copy();
+
+        while ($cursor <= $monthEnd) {
+            $dateStr = $cursor->toDateString();
+
+            if ($cursor->isAfter($today)) {
+                $status = 'future';
+            } elseif (isset($daySet[$dateStr])) {
+                $status = 'completed';
+            } elseif ($cursor->isSameDay($today)) {
+                $status = 'today_pending';
+            } else {
+                $status = 'missed';
+            }
+
+            $days[] = [
+                'date' => $dateStr,
+                'status' => $status,
+            ];
+
+            $cursor->addDay();
+        }
+
+        return $days;
     }
 }

@@ -37,6 +37,11 @@ export default function Quiz() {
 	const assignStudentId = assignStudentIdParam
 		? Number(assignStudentIdParam)
 		: null;
+	const assignActivityIdParam = searchParams.get('assign_activity_id');
+	const assignActivityId =
+		assignActivityIdParam && Number(assignActivityIdParam) > 0
+			? Number(assignActivityIdParam)
+			: null;
 
 	const quizState = useSelector((state: any) => state.QuizReducer);
 	const questions: QuizRuntimePlayQuestion[] = quizState.questions || [];
@@ -74,9 +79,10 @@ export default function Quiz() {
 					assignStudentId != null && assignStudentId > 0
 						? assignStudentId
 						: null,
+				assignActivityId,
 			})
 		);
-	}, [dispatch, idQuiz, assignStudentId]);
+	}, [dispatch, idQuiz, assignStudentId, assignActivityId]);
 
 	useEffect(() => {
 		if (!questionActive?.snapshot_question_key) {

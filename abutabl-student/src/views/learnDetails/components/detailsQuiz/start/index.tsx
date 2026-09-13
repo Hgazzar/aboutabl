@@ -26,6 +26,11 @@ export default function QuizDetails() {
 		assignStudentIdParam && Number(assignStudentIdParam) > 0
 			? Number(assignStudentIdParam)
 			: null;
+	const assignActivityIdParam = searchParams.get('assign_activity_id');
+	const assignActivityId =
+		assignActivityIdParam && Number(assignActivityIdParam) > 0
+			? Number(assignActivityIdParam)
+			: null;
 
 	const dispatch = useDispatch<AppDispatch>();
 	const nagivate = useNavigate();
@@ -39,9 +44,10 @@ export default function QuizDetails() {
 			startQuizRuntime({
 				quizId: idQuiz,
 				assignStudentId,
+				assignActivityId,
 			})
 		);
-	}, [dispatch, idQuiz, assignStudentId]);
+	}, [dispatch, idQuiz, assignStudentId, assignActivityId]);
 
 	const contant = [
 		{
@@ -92,10 +98,14 @@ export default function QuizDetails() {
 	];
 
 	const playPath = (() => {
-		const qs =
-			assignStudentId != null
-				? `?assign_student_id=${assignStudentId}`
-				: '';
+		const params = new URLSearchParams();
+		if (assignStudentId != null) {
+			params.set('assign_student_id', String(assignStudentId));
+		}
+		if (assignActivityId != null) {
+			params.set('assign_activity_id', String(assignActivityId));
+		}
+		const qs = params.toString() ? `?${params.toString()}` : '';
 		if (id) {
 			return `/learn/quiz/${idQuiz}${qs}`;
 		}

@@ -38,31 +38,15 @@ const Units = () => {
 	const focusLesson = searchParams.get('focusLesson');
 	const autoOpenedLessonKey = useRef<string | null>(null);
 
-	const todoListData = useSelector((state: any) => state.todoReducer);
-	const allData = todoListData?.todoListData?.allAssigns?.flatMap((assign: any) => assign.data) || [];
-
 	const focusUnit = searchParams.get('focusUnit');
-	const info = focusLesson
-		? allData?.find(
-				(item: any) =>
-					String(item?.subject_id) === String(id) &&
-					item?.type === 'lessons' &&
-					String(item?.type_id) === String(focusLesson)
-			) ?? allData?.find((item: any) => String(item?.subject_id) === String(id))
-		: focusUnit
-			? allData?.find(
-					(item: any) =>
-						String(item?.subject_id) === String(id) &&
-						item?.type === 'units' &&
-						String(item?.type_id) === String(focusUnit)
-				) ?? allData?.find((item: any) => String(item?.subject_id) === String(id))
-			: allData?.find((item: any) => String(item?.subject_id) === String(id));
+	const preExpandedUnits = focusUnit ? [String(focusUnit)] : [];
+
 	useEffect(() => {
 		setData(lesson?.lessonContentData);
 	}, [lesson]);
 
 	useEffect(() => {
-		if (!focusLesson || !info || !subjectDetails?.subjectDetailsData?.units?.length) {
+		if (!focusLesson || !subjectDetails?.subjectDetailsData?.units?.length) {
 			return;
 		}
 		const cacheKey = `${id}-${focusLesson}`;
@@ -81,15 +65,13 @@ const Units = () => {
 				setIdData(found.name);
 				(async () => {
 					setLoading(true);
-					await dispatch(
-						lessonContent({ id: lid, type: info.type, type_id: info.type_id })
-					);
+					await dispatch(lessonContent({ id: lid }));
 					setLoading(false);
 				})();
 				break;
 			}
 		}
-	}, [focusLesson, id, info, subjectDetails?.subjectDetailsData, dispatch]);
+	}, [focusLesson, id, subjectDetails?.subjectDetailsData, dispatch]);
 
 	useEffect(() => {
 		// console.log("lllllllllllllllllllllll");
@@ -104,7 +86,7 @@ const Units = () => {
 							Course content
 							<Text className="text-stone-400">{subjectDetails?.subjectDetailsData?.units?.length} units</Text>
 						</Box>
-						<Accordion allowZeroExpanded>
+						<Accordion allowZeroExpanded preExpanded={preExpandedUnits}>
 							{subjectDetails?.subjectDetailsData?.units?.map(
 								(
 									unit: {
@@ -118,7 +100,7 @@ const Units = () => {
 									index: number
 								) => {
 									return (
-										<AccordionItem key={id}>
+										<AccordionItem key={unit.id} uuid={String(unit.id)}>
 											<AccordionItemHeading>
 												<AccordionItemButton>
 													<Box className="flex justify-between mx-5">
@@ -152,9 +134,7 @@ const Units = () => {
 																onClick={async (event: any) => {
 																	setIdData(event.target.innerText);
 																	setLoading(true);
-																	await dispatch(
-																		lessonContent({ id: lesson?.id, type: info.type, type_id: info.type_id })
-																	);
+																	await dispatch(lessonContent({ id: lesson?.id }));
 
 																	setLoading(false);
 																}}

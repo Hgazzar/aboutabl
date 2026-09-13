@@ -6,9 +6,13 @@ import DatePickerInput from 'components/date-picker';
 import Input from 'components/input';
 import Select from 'components/select';
 import { FORM_REGEX_VALIDATORS } from 'app-constants/form-validations';
-import avatar from 'assets/images/png/avatar.png';
 import { useState, useEffect } from 'react';
 import { getRequest, postRequest, postFormDataRequest } from 'lib/requests';
+import {
+	isStudentAvatarPresetId,
+	resolveStudentAvatarSrc,
+	STUDENT_AVATAR_PRESETS,
+} from 'lib/studentAvatar';
 import { toast } from 'react-toastify';
 import CameraIcon from 'assets/images/svg/camera.svg?react';
 import ProfileIcon from 'assets/images/svg/profileIcon.svg?react';
@@ -19,13 +23,6 @@ import SchoolIcon from 'assets/images/svg/courthouse.svg?react';
 import GradeIcon from 'assets/images/svg/teacher.svg?react';
 import AddressIcon from 'assets/images/svg/location.svg?react';
 import { EditContainer } from './../styles';
-
-const AVATAR_PRESETS = [
-	{ id: 'a1', url: 'https://api.dicebear.com/7.x/personas/svg?seed=Nour' },
-	{ id: 'a2', url: 'https://api.dicebear.com/7.x/personas/svg?seed=Omar' },
-	{ id: 'a3', url: 'https://api.dicebear.com/7.x/personas/svg?seed=Lina' },
-	{ id: 'a4', url: 'https://api.dicebear.com/7.x/personas/svg?seed=Kareem' },
-];
 
 type EditProfileProps = {
 	opened: boolean;
@@ -161,10 +158,13 @@ function EditProfile({ opened, close }: EditProfileProps) {
 				if (raw) {
 					const userInfo = JSON.parse(raw);
 					userInfo.name = data.user_name || userInfo.name;
-					if (profilePhoto && String(profilePhoto).startsWith('http')) {
+					if (photoFile) {
+						delete userInfo.avatar_preset;
+					} else if (profilePhoto && isStudentAvatarPresetId(profilePhoto)) {
 						userInfo.avatar_preset = profilePhoto;
 					}
 					localStorage.setItem('user_info', JSON.stringify(userInfo));
+					window.dispatchEvent(new CustomEvent('student-avatar-updated'));
 				}
 			} catch {
 				// ignore
@@ -186,13 +186,14 @@ function EditProfile({ opened, close }: EditProfileProps) {
 						<form onSubmit={handleSubmit(onSubmit)}>
 							<Flex direction={'column'} className="change_image" align={'center'} justify={'center'} gap={16} mb={24}>
 								<div className="upload_container">
-									{uploadedLogoImage ? (
-										<img className="uploadded_image" src={uploadedLogoImage} alt="UploadedLogo" />
-									) : profilePhoto ? (
-										<img className="uploadded_image w-[120]" src={profilePhoto} alt="Profile" />
-									) : (
-										<img src={avatar} alt="avatar" className="w-[120]" />
-									)}
+									<img
+										className="uploadded_image w-[120]"
+										src={resolveStudentAvatarSrc({
+											photoUrl: uploadedLogoImage ?? (isStudentAvatarPresetId(profilePhoto) ? null : profilePhoto),
+											avatarPreset: isStudentAvatarPresetId(profilePhoto) ? profilePhoto : null,
+										})}
+										alt="Profile"
+									/>
 								</div>
 								<div className="file_input_container">
 									<Controller
@@ -212,17 +213,19 @@ function EditProfile({ opened, close }: EditProfileProps) {
 										)}
 									/>
 								</div>
-								<Flex gap={8} wrap="wrap" justify="center" mt={8}>
-									{AVATAR_PRESETS.map((p) => (
+								<Flex gap={8} wrap="wrap" justify="center" mt={8} maw={320}>
+									{STUDENT_AVATAR_PRESETS.map((p) => (
 										<button
 											type="button"
 											key={p.id}
 											onClick={() => {
-												setProfilePhoto(p.url);
+												setProfilePhoto(p.id);
 												setPhotoFile(null);
 												setUploadedLogoImage(null);
 											}}
-											className="border border-Platinum rounded-full p-0 overflow-hidden w-14 h-14 bg-white cursor-pointer hover:ring-2 ring-LightSeaGreen"
+											className={`border rounded-xl p-0 overflow-hidden w-14 h-14 bg-white cursor-pointer hover:ring-2 ring-LightSeaGreen ${
+												profilePhoto === p.id ? 'border-LightSeaGreen ring-2 ring-LightSeaGreen' : 'border-Platinum'
+											}`}
 										>
 											<img src={p.url} alt="" className="w-full h-full object-cover" />
 										</button>

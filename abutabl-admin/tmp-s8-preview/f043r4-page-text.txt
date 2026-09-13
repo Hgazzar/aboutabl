@@ -1,0 +1,15 @@
+URL=http://127.0.0.1:3000/
+
+Welcome Back
+
+Login to manage your schools
+
+Username *
+​
+Password *
+​
+Remember me
+
+Forget Password ?
+
+Login

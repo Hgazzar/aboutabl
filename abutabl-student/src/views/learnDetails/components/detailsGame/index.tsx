@@ -8,10 +8,9 @@ import Arrow2 from 'assets/images/svg/arrow2.svg';
 import { useNavigate } from 'react-router-dom';
 import LoadingPartially from 'components/loading-partially';
 import './index.css';
-import LogoImage from 'assets/images/svg/logo-aboutabl-dark 2.svg?react';
+import { studentBrandLogoUrl } from 'config/figmaAssets';
 import { useParams } from 'react-router-dom';
 import { gameDetails, gamesList } from 'redux-toolkit/reducer/GamesReducer';
-import { todoList } from 'redux-toolkit/reducer/todoReducer';
 import { toStudentScormUrl } from 'utils/functions';
 
 const DetailsGames = () => {
@@ -26,34 +25,23 @@ const DetailsGames = () => {
 	const [show, setShow] = useState(false);
 	const [loading, setLoading] = useState(true);
 
-	useEffect(() => {
-		dispatch(todoList());
-	}, [dispatch]);
-
-	const todoListData = useSelector((state: any) => state.todoReducer);
-	const allData = todoListData?.todoListData?.allAssigns?.flatMap((assign: any) => assign.data) || [];
-
-	const info = allData?.find((item: any) => item?.subject_id === id);
-
-	// Wait for todoList (info) before fetching game details so type/type_id are valid
+	// Enrollment-based: load games by subject id (no assignment required).
 	useEffect(() => {
 		if (!id || !idGame) return;
-		if (!info?.type || info?.type_id == null) {
-			if (todoListData?.todoListData && !info) setLoading(false);
-			return;
-		}
 		let cancelled = false;
 		(async () => {
 			setLoading(true);
 			try {
 				await dispatch(gameDetails(idGame));
-				await dispatch(gamesList({ id, type: info.type, type_id: info.type_id }));
+				await dispatch(gamesList({ id }));
 			} finally {
 				if (!cancelled) setLoading(false);
 			}
 		})();
-		return () => { cancelled = true; };
-	}, [id, idGame, dispatch, info?.type, info?.type_id, todoListData?.todoListData]);
+		return () => {
+			cancelled = true;
+		};
+	}, [id, idGame, dispatch]);
 
 	useEffect(() => {
 		setItem(statusGames?.gamesDetailstData?.game);
@@ -73,7 +61,7 @@ const DetailsGames = () => {
 						nagivate('/learn');
 					}}
 				>
-					<LogoImage width={80} />
+					<img src={studentBrandLogoUrl()} alt="ABOUTABL" width={120} height={25} style={{ height: 28, width: 'auto' }} />
 				</Box>
 				<Text className={`${show ? 'ms-5' : 'ms-48'} text-LightSeaGreen text-l font-semibold`}>{item?.name}</Text>
 				<Flex className="justify-between ml-auto">
@@ -131,9 +119,9 @@ const DetailsGames = () => {
 					</Flex>
 			</Box>
 
-			{todoListData?.todoListData && !info ? (
+			{statusGames?.gamesDetailstData?.status === false ? (
 				<Box className="mt-48 flex justify-center">
-					<Text className="text-stone-500">You are not assigned to this subject.</Text>
+					<Text className="text-stone-500">Unable to load this game.</Text>
 				</Box>
 			) : (
 			<Flex>

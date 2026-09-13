@@ -2,6 +2,7 @@
 import axios from "axios";
 import Cookies from "js-cookie";
 import { clearPersistedLoginUser } from "./authSession";
+import { redirectToStudentLogin } from "./studentAppUrl";
 
 // Helper to build URLs without double slashes
 export const buildUrl = (baseUrl: string | undefined, endpoint: string): string => {
@@ -44,7 +45,7 @@ const checkSessionExpiration = (): void => {
     Cookies.remove("abotable_id");
     Cookies.remove("expiration");
     clearPersistedLoginUser();
-    window.location.href = "/";
+    redirectToStudentLogin();
   }
 };
 

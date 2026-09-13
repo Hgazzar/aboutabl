@@ -277,6 +277,23 @@ export type LearningActivityReviewRow = {
   submission: LearningActivityReviewSubmission | null;
 };
 
+/** Student My Work item from learning_activities/review (Phase 3 backend). */
+export type LearningActivitiesReviewMyWorkKind = "image" | "document" | "voice";
+
+export type LearningActivitiesReviewMyWorkItem = {
+  id: number;
+  assign_id: number;
+  assign_student_id: number;
+  student_id: number;
+  kind: LearningActivitiesReviewMyWorkKind | string;
+  original_filename: string | null;
+  url: string | null;
+  mime_type: string | null;
+  size_bytes: number | null;
+  duration_ms: number | null;
+  sort_order: number;
+};
+
 export type LearningActivitiesReviewStudent = {
   assign_student_id: number;
   student_id: number;
@@ -285,6 +302,8 @@ export type LearningActivitiesReviewStudent = {
   submitted_at?: string | null;
   graded_at?: string | null;
   activities: LearningActivityReviewRow[];
+  /** Optional student → teacher work; never an activity. */
+  my_work?: LearningActivitiesReviewMyWorkItem[];
 };
 
 export type LearningActivitiesReviewPayload = {

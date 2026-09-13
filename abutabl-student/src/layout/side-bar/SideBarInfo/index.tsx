@@ -1,12 +1,13 @@
-import Logo from 'assets/images/svg/logo.svg?react';
+import { studentBrandLogoUrl } from 'config/figmaAssets';
 import { SideBarInfo } from '../styles';
 
-export default function SideBarInfoSection() {
+const LOGO = studentBrandLogoUrl();
 
+export default function SideBarInfoSection() {
 	return (
 		<SideBarInfo>
 			<div className="LogoWrapper">
-				<Logo />
+				<img src={LOGO} alt="ABOUTABL" />
 			</div>
 		</SideBarInfo>
 	);

@@ -21,6 +21,7 @@ class Student extends Authenticatable implements JWTSubject
      */
     protected $casts = [
         'game_password' => 'encrypted',
+        'avatar_selected_at' => 'datetime',
     ];
     //  protected $fillable = [
     //         'name',

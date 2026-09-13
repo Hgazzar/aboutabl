@@ -5,12 +5,14 @@ namespace App\Services\Assignment;
 use App\Models\AssignActivity;
 use App\Models\AssignActivitySubmission;
 use App\Models\AssignmentGrade;
-use App\Models\AssignmentRubric;
 use App\Models\Assigns;
 use App\Models\AssignsStudents;
+use App\Contracts\Assignment\AssignmentMaterialResolverInterface;
+use App\Services\Assignment\AssignmentStudentWorkService;
 use App\Support\Assignment\LearningActivityMap;
 use App\Support\Assignment\MultiActivityMetrics;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 /**
@@ -18,6 +20,20 @@ use InvalidArgumentException;
  */
 class AssignActivitySubmissionService
 {
+    /** @var AssignmentMaterialResolverInterface */
+    private $materials;
+
+    /** @var AssignmentStudentWorkService */
+    private $studentWorks;
+
+    public function __construct(
+        AssignmentMaterialResolverInterface $materials,
+        AssignmentStudentWorkService $studentWorks
+    ) {
+        $this->materials = $materials;
+        $this->studentWorks = $studentWorks;
+    }
+
     /**
      * Ensure a submission row exists for student + activity.
      */
@@ -142,6 +158,111 @@ class AssignActivitySubmissionService
         $this->maybeMarkAssignOpened($assignStudent);
 
         return $submission->fresh();
+    }
+
+    /**
+     * Activity-level REDO — resets ONE assign_activity_submission while parent stays active.
+     * Does not reopen the parent assignment (distinct from Assignment REDO).
+     * Does not delete quiz_attempts / lesson completions / games_students history.
+     */
+    public function redoActivity(int $assignActivityId, int $studentId): AssignActivitySubmission
+    {
+        return DB::transaction(function () use ($assignActivityId, $studentId) {
+            $activity = AssignActivity::with('assign')->lockForUpdate()->find($assignActivityId);
+            if (! $activity || ! $activity->assign) {
+                throw new InvalidArgumentException('activity_not_found');
+            }
+
+            /** @var AssignsStudents|null $assignStudent */
+            $assignStudent = AssignsStudents::query()
+                ->where('assign_id', $activity->assign_id)
+                ->where('student_id', $studentId)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $assignStudent) {
+                throw new InvalidArgumentException('assign_student_not_found');
+            }
+
+            /** @var AssignmentParentSubmissionService $parent */
+            $parent = app(AssignmentParentSubmissionService::class);
+            if (! $parent->canActivityRedoParentGates($activity->assign, $assignStudent)) {
+                $status = $parent->resolveParentStatus($assignStudent);
+                if (in_array($status, [
+                    AssignmentParentSubmissionService::STATUS_SUBMITTED,
+                    AssignmentParentSubmissionService::STATUS_GRADED,
+                ], true)) {
+                    throw new InvalidArgumentException('assignment_locked');
+                }
+                if ($parent->isPastDeadline($activity->assign)) {
+                    throw new InvalidArgumentException('assignment_deadline_passed');
+                }
+                throw new InvalidArgumentException('activity_redo_not_allowed');
+            }
+
+            $submission = AssignActivitySubmission::query()
+                ->where('assign_activity_id', $activity->id)
+                ->where('student_id', $studentId)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $submission || ! $this->activitySubmissionAllowsRedo($submission)) {
+                throw new InvalidArgumentException('activity_redo_not_allowed');
+            }
+
+            $previousPayload = is_array($submission->payload) ? $submission->payload : [];
+            $kept = [];
+            foreach (['grading_mode', 'quiz_id'] as $key) {
+                if (array_key_exists($key, $previousPayload)) {
+                    $kept[$key] = $previousPayload[$key];
+                }
+            }
+            if (isset($previousPayload['quiz_attempt_id'])) {
+                $kept['previous_quiz_attempt_id'] = $previousPayload['quiz_attempt_id'];
+            }
+
+            $submission->status = AssignActivitySubmission::STATUS_PENDING;
+            $submission->score = null;
+            $submission->max_score = null;
+            $submission->percent = null;
+            $submission->completeness = null;
+            $submission->submitted_at = null;
+            $submission->graded_at = null;
+            $submission->graded_by = null;
+            $submission->teacher_feedback = null;
+            $submission->payload = array_merge($kept, [
+                'redone_at' => now()->toIso8601String(),
+            ]);
+            $submission->save();
+
+            return $submission->fresh();
+        });
+    }
+
+    /**
+     * Activity REDO eligibility for one submission row (does not include parent/deadline gates).
+     */
+    public function activitySubmissionAllowsRedo(?AssignActivitySubmission $submission): bool
+    {
+        if (! $submission) {
+            return false;
+        }
+
+        $status = (string) $submission->status;
+
+        // Preserve teacher manual activity grades — student cannot wipe graded worksheets.
+        if ($status === AssignActivitySubmission::STATUS_GRADED) {
+            return false;
+        }
+
+        return in_array(
+            $status,
+            [
+                AssignActivitySubmission::STATUS_COMPLETED,
+                AssignActivitySubmission::STATUS_SUBMITTED,
+            ],
+            true
+        );
     }
 
     /**
@@ -304,7 +425,12 @@ class AssignActivitySubmissionService
         $canSubmit = $lifecycleStatus === AssignmentParentSubmissionService::STATUS_ACTIVE
             && $parent->canSubmitAssignment($assign, $studentId);
 
-        $rubricAvailable = AssignmentRubric::query()->where('assign_id', $assign->id)->exists();
+        $redoAllowed = $parent->canRedoAssignment($assign, $assignStudent);
+
+        /** @var AssignmentRubricService $rubrics */
+        $rubrics = app(AssignmentRubricService::class);
+        $rubricPayload = $rubrics->studentDefinitionForAssign($assign);
+        $rubricAvailable = $rubricPayload !== null;
 
         $gradePayload = null;
         $assignmentXp = null;
@@ -333,13 +459,21 @@ class AssignActivitySubmissionService
             $gradePayload = null;
         }
 
+        $curriculum = app(AssignmentCurriculumContextResolver::class)->forAssign($assign);
+
         return [
             'assign_id' => (int) $assign->id,
             'assign_student_id' => $assignStudent ? (int) $assignStudent->id : null,
             'title' => (string) $assign->assigned_name,
             'due_at' => $dueAt,
             'type' => (string) $assign->type,
-            'subject_id' => (int) ($assign->subject_id ?? 0),
+            'subject_id' => (int) ($curriculum['subject_id'] ?? $assign->subject_id ?? 0),
+            'subject_name' => $curriculum['subject_name'] ?? null,
+            'unit_id' => $curriculum['unit_id'] ?? null,
+            'unit_name' => $curriculum['unit_name'] ?? null,
+            'lesson_id' => $curriculum['lesson_id'] ?? null,
+            'lesson_name' => $curriculum['lesson_name'] ?? null,
+            'context_label' => $curriculum['context_label'] ?? null,
             'progress' => [
                 'tasks_completed' => (int) ($progress['tasks_completed'] ?? 0),
                 'tasks_total' => (int) ($progress['tasks_total'] ?? 0),
@@ -356,15 +490,20 @@ class AssignActivitySubmissionService
                 'is_overdue' => $isOverdue,
                 'source' => 'assigns_students',
                 'can_submit' => $canSubmit,
+                'redo_allowed' => $redoAllowed,
             ],
             'teacher_feedback_items' => $feedbackItems,
             'grade' => $gradePayload,
             'activities' => $activityRows,
-            'materials' => [],
-            'my_work' => [],
+            'materials' => $this->materials->resolveForAssign((int) $assign->id),
+            'my_work' => $assignStudent
+                ? $this->studentWorks->listForStudent((int) $assign->id, $studentId)
+                : [],
             'rubric_available' => $rubricAvailable,
+            'rubric' => $rubricPayload,
             'assignment_xp' => $assignmentXp,
-            'redo_allowed' => false,
+            // Assignment-level REDO (header). Distinct from activities[].redo_allowed.
+            'redo_allowed' => $redoAllowed,
         ];
     }
 
@@ -430,8 +569,25 @@ class AssignActivitySubmissionService
                 ->keyBy('assign_activity_id');
         }
 
-        return $activities->map(function (AssignActivity $activity) use ($assign, $studentId, $submissionsByActivity) {
+        /** @var AssignmentParentSubmissionService $parent */
+        $parent = app(AssignmentParentSubmissionService::class);
+        $assignStudent = null;
+        if ($studentId !== null && $studentId > 0) {
+            $assignStudent = AssignsStudents::query()
+                ->where('assign_id', $assign->id)
+                ->where('student_id', $studentId)
+                ->first();
+        }
+        $activityRedoParentOk = $parent->canActivityRedoParentGates($assign, $assignStudent);
+
+        return $activities->map(function (AssignActivity $activity) use (
+            $assign,
+            $studentId,
+            $submissionsByActivity,
+            $activityRedoParentOk
+        ) {
             $submission = $submissionsByActivity->get($activity->id);
+            $redoAllowed = $activityRedoParentOk && $this->activitySubmissionAllowsRedo($submission);
 
             return [
                 'assign_activity_id' => (int) $activity->id,
@@ -444,6 +600,7 @@ class AssignActivitySubmissionService
                 'sort_order' => (int) $activity->sort_order,
                 'subject_id' => (int) ($assign->subject_id ?? 0),
                 'path' => $this->studentPath($activity, (int) ($assign->subject_id ?? 0), $studentId),
+                'redo_allowed' => $redoAllowed,
                 'submission' => $submission ? [
                     'id' => (int) $submission->id,
                     'status' => (string) $submission->status,

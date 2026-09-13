@@ -1,5 +1,5 @@
 import React, { useCallback } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   Box,
   Button,
@@ -21,6 +21,9 @@ import { ReactComponent as ClassesIcon } from "../assets/classes-icon.svg";
 import { ReactComponent as AboutablLogo } from "../assets/aboutabl-logo.svg";
 import { clearPermissions } from "../redux/reducers/permissionReducer";
 import { setLoginProcess, setUser } from "../redux/reducers/loginReducer";
+import { clearPersistedLoginUser } from "../utils/authSession";
+import { redirectToStudentLogin } from "../utils/studentAppUrl";
+import { clearStaffHandoffStorage } from "../utils/staffHandoff";
 
 export const TEACHER_SIDE_NAV_WIDTH = 240;
 
@@ -54,7 +57,6 @@ export const TeacherSideNav = (props: { open: boolean; onClose: () => void }) =>
   const { t } = useTranslation();
   const theme = useTheme();
   const lgUp = useMediaQuery(theme.breakpoints.up("lg"));
-  const navigate = useNavigate();
   const dispatch = useDispatch();
 
   const handleSignOut = useCallback(() => {
@@ -62,11 +64,13 @@ export const TeacherSideNav = (props: { open: boolean; onClose: () => void }) =>
     Cookies.remove("abotable_id");
     Cookies.remove("username");
     Cookies.remove("expiration");
+    clearPersistedLoginUser();
+    clearStaffHandoffStorage();
     dispatch(clearPermissions());
     dispatch(setUser({}));
     dispatch(setLoginProcess("signIn"));
-    navigate("/");
-  }, [dispatch, navigate]);
+    redirectToStudentLogin();
+  }, [dispatch]);
 
   const isActive = (path: string) => {
     if (path === "/dashboard") {

@@ -1,5 +1,4 @@
 import { useCallback } from "react";
-import { useNavigate } from "react-router-dom";
 import PropTypes from "prop-types";
 import {
   Box,
@@ -9,11 +8,13 @@ import {
   Popover,
   Typography,
 } from "@mui/material";
-import { useDispatch, useSelector } from "react-redux";
-import { RootState } from "../redux/store";
+import { useDispatch } from "react-redux";
 import Cookies from "js-cookie";
 import { clearPermissions } from "../redux/reducers/permissionReducer";
 import { setLoginProcess, setUser } from "../redux/reducers/loginReducer";
+import { clearPersistedLoginUser } from "../utils/authSession";
+import { redirectToStudentLogin } from "../utils/studentAppUrl";
+import { clearStaffHandoffStorage } from "../utils/staffHandoff";
 
 export const AccountPopover = (props: {
   anchorEl: any;
@@ -22,7 +23,6 @@ export const AccountPopover = (props: {
 }) => {
   // -------------- hooks ------------
   const { anchorEl, onClose, open } = props;
-  const navigate = useNavigate();
   const dispatch = useDispatch();
 
   // ------------- functions ---------------
@@ -32,11 +32,13 @@ export const AccountPopover = (props: {
     Cookies.remove("abotable_id");
     Cookies.remove("username");
     Cookies.remove("expiration");
+    clearPersistedLoginUser();
+    clearStaffHandoffStorage();
     dispatch(clearPermissions());
     dispatch(setUser({}));
     dispatch(setLoginProcess("signIn"));
-    navigate("/");
-  }, [onClose, navigate, dispatch]);
+    redirectToStudentLogin();
+  }, [onClose, dispatch]);
 
   return (
     <Popover

@@ -12,6 +12,9 @@ const SUBJECT_INDICATOR_COLORS = [
 
 export type AssignTab = 'todo' | 'past_due' | 'completed';
 
+/** Assignment-card CTA — list is View-only (SUBMIT / REDO live on Assignment Detail). */
+export type AssignmentListAction = 'view';
+
 export function getSubjectIndicatorColor(subjectId?: number | null): string {
 	if (subjectId == null || subjectId <= 0) {
 		return SUBJECT_INDICATOR_COLORS[0];
@@ -19,26 +22,20 @@ export function getSubjectIndicatorColor(subjectId?: number | null): string {
 	return SUBJECT_INDICATOR_COLORS[subjectId % SUBJECT_INDICATOR_COLORS.length];
 }
 
+/** My Assignments View — same detail route for To Do / Past Due / Completed. */
 export function assignmentPath(item: DashboardAssignmentItem): string {
-	const sid = item.subject_id;
-	if (item.type === 'learning_activities') {
-		return `/todo/assign/${item.assign_id}`;
+	if (!item.assign_id) {
+		return '/todo';
 	}
-	if (!sid) return '/todo';
-	switch (item.type) {
-		case 'subjects':
-			return `/learn/${sid}`;
-		case 'quizes': {
-			if (!item.type_id) return `/learn/${sid}`;
-			const assignQs =
-				item.assign_student_id > 0
-					? `?assign_student_id=${item.assign_student_id}`
-					: '';
-			return `/learn/${sid}/quiz/${item.type_id}${assignQs}`;
-		}
-		case 'games':
-			return item.type_id ? `/learn/${sid}/detailsGame/${item.type_id}` : `/learn/${sid}`;
-		default:
-			return `/learn/${sid}`;
-	}
+	return `/todo/assign/${item.assign_id}`;
+}
+
+/**
+ * List card action is always View → open Assignment Detail.
+ * Parent SUBMIT and REDO stay on the detail page only (not on the list card).
+ */
+export function resolveAssignmentListAction(
+	_item?: Pick<DashboardAssignmentItem, 'can_submit' | 'redo_allowed'>
+): AssignmentListAction {
+	return 'view';
 }

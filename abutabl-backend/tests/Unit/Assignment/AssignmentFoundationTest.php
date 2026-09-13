@@ -51,7 +51,7 @@ class AssignmentFoundationTest extends TestCase
         $this->assertFalse(class_exists('App\\Services\\Assignment\\AssignmentNotificationService'));
     }
 
-    public function test_material_resolver_stub_returns_empty(): void
+    public function test_material_resolver_returns_empty_when_none(): void
     {
         $resolver = new AssignmentMaterialResolver();
         $this->assertSame([], $resolver->resolveForAssign(1));

@@ -21,6 +21,9 @@ import ComicRegular_woff from './Comic-Sans-MS-V3.woff';
 import SemiBold_woff from './Nunito-SemiBold.woff';
 import SemiBold_woff2 from './Nunito-SemiBold.woff2';
 
+import Fredoka_Medium_woff from './Fredoka-Medium.woff';
+import Fredoka_Medium_woff2 from './Fredoka-Medium.woff2';
+
 export const fonts = css`
 	@font-face {
 		font-family: 'ExtraBold';
@@ -80,6 +83,42 @@ export const fonts = css`
 		src: url(${Medium_woff});
 		src: url(${Medium_woff2}) format('woff2'), url(${Medium_woff}) format('woff');
 		font-weight: 500;
+		font-style: normal;
+		font-display: swap;
+	}
+
+	@font-face {
+		font-family: 'buttonNormal';
+		src: url(${ComicRegular_woff});
+		src: url(${ComicRegular_woff2}) format('woff2'), url(${ComicRegular_woff}) format('woff');
+		font-weight: normal;
+		font-style: normal;
+		font-display: swap;
+	}
+
+	@font-face {
+		font-family: 'Fredoka';
+		src: url(${Fredoka_Medium_woff});
+		src: url(${Fredoka_Medium_woff2}) format('woff2'), url(${Fredoka_Medium_woff}) format('woff');
+		font-weight: 500;
+		font-style: normal;
+		font-display: swap;
+	}
+
+	@font-face {
+		font-family: 'Fredoka';
+		src: url(${Fredoka_Medium_woff});
+		src: url(${Fredoka_Medium_woff2}) format('woff2'), url(${Fredoka_Medium_woff}) format('woff');
+		font-weight: 600;
+		font-style: normal;
+		font-display: swap;
+	}
+
+	@font-face {
+		font-family: 'Nunito';
+		src: url(${Regular_woff});
+		src: url(${Regular_woff2}) format('woff2'), url(${Regular_woff}) format('woff');
+		font-weight: normal;
 		font-style: normal;
 		font-display: swap;
 	}

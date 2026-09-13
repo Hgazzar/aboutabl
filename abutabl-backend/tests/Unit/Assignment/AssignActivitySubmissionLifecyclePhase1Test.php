@@ -56,6 +56,8 @@ class AssignActivitySubmissionLifecyclePhase1Test extends TestCase
         $this->assertStringContainsString('submission_locked', $source);
         $this->assertStringContainsString('isTerminalSubmissionStatus', $source);
         $this->assertStringContainsString('studentDetailPayload', $source);
+        $this->assertStringContainsString('subject_name', $source);
+        $this->assertStringContainsString('context_label', $source);
         $this->assertStringContainsString('MultiActivityMetrics::forStudent', $source);
     }
 
@@ -67,7 +69,9 @@ class AssignActivitySubmissionLifecyclePhase1Test extends TestCase
 
         $this->assertStringContainsString('api/student/assigns/{assignId}/learning_activities', $routes);
         $this->assertStringContainsString('api/student/assigns/{assignId}/submit', $routes);
+        $this->assertStringContainsString('api/student/assigns/{assignId}/redo', $routes);
         $this->assertStringContainsString('api/student/assign-activities/{assignActivityId}/submit', $routes);
+        $this->assertStringContainsString('api/student/assign-activities/{assignActivityId}/redo', $routes);
         $this->assertStringContainsString('api/student/assign-activities/{assignActivityId}', $routes);
     }
 }

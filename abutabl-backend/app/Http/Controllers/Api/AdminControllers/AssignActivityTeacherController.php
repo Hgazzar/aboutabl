@@ -9,6 +9,7 @@ use App\Models\Assigns;
 use App\Services\Assignment\AssignActivitySubmissionService;
 use App\Services\Assignment\AssignmentGradeService;
 use App\Services\Assignment\AssignmentParentSubmissionService;
+use App\Services\Assignment\AssignmentStudentWorkService;
 use App\Traits\GeneralTrait;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
@@ -27,15 +28,20 @@ class AssignActivityTeacherController extends Controller
     /** @var AssignmentGradeService */
     private $grades;
 
+    /** @var AssignmentStudentWorkService */
+    private $studentWorks;
+
     public function __construct(
         AssignActivitySubmissionService $submissions,
         AssignmentParentSubmissionService $parentSubmissions,
-        AssignmentGradeService $grades
+        AssignmentGradeService $grades,
+        AssignmentStudentWorkService $studentWorks
     ) {
         auth()->setDefaultDriver('admin-api');
         $this->submissions = $submissions;
         $this->parentSubmissions = $parentSubmissions;
         $this->grades = $grades;
+        $this->studentWorks = $studentWorks;
     }
 
     /**
@@ -81,6 +87,10 @@ class AssignActivityTeacherController extends Controller
                         : null,
                     'grade' => $gradePayload,
                     'activities' => $this->submissions->activitiesPayloadForAssign($assign, $studentId),
+                    'my_work' => $this->studentWorks->listForAssignStudent(
+                        (int) $assign->id,
+                        (int) $row->id
+                    ),
                 ];
             }
 
@@ -267,6 +277,37 @@ class AssignActivityTeacherController extends Controller
         } catch (AuthorizationException $ex) {
             return $this->returnError('E403', __('Forbidden.'), 403);
         } catch (InvalidArgumentException $ex) {
+            return $this->returnError('E001', $ex->getMessage());
+        } catch (\Exception $ex) {
+            return $this->returnError($ex->getCode(), $ex->getMessage());
+        }
+    }
+
+    /**
+     * Secure My Work file stream for authorized teacher/admin (assignment scope).
+     */
+    public function downloadMyWork(int $assignId, int $workId)
+    {
+        try {
+            $assign = Assigns::query()->find($assignId);
+            if (! $assign) {
+                return $this->returnError('E001', __('api.not_exists_item_for_this_data'));
+            }
+
+            $this->authorize('view', $assign);
+            $this->assertTeacherSchoolAccess($assign);
+
+            return $this->studentWorks->downloadForTeacher($assign, $workId);
+        } catch (AuthorizationException $ex) {
+            return $this->returnError('E403', __('Forbidden.'), 403);
+        } catch (InvalidArgumentException $ex) {
+            if ($ex->getMessage() === 'forbidden_school' || $ex->getMessage() === 'forbidden') {
+                return $this->returnError('E403', __('Forbidden.'), 403);
+            }
+            if ($ex->getMessage() === 'not_found') {
+                return $this->returnError('E001', __('api.not_exists_item_for_this_data'));
+            }
+
             return $this->returnError('E001', $ex->getMessage());
         } catch (\Exception $ex) {
             return $this->returnError($ex->getCode(), $ex->getMessage());

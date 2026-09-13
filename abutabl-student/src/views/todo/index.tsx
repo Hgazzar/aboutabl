@@ -1,197 +1,139 @@
-import { Box, Flex, Text, Button } from '@mantine/core';
-import ModuleView from 'components/module-view';
-import { useEffect } from 'react';
-import PageHeader from 'views/learn/component/pageHeader';
-import Assign from 'assets/images/svg/assign.svg?react';
-import Man from 'assets/images/svg/man.svg';
-
-import { useDispatch, useSelector } from 'react-redux';
-import { markTodoAssignOpened, todoList } from 'redux-toolkit/reducer/todoReducer';
-import { useNavigate } from 'react-router-dom';
-
-const ASSIGNMENT_TYPE_LABELS: Record<string, string> = {
-	subjects: 'Subject',
-	units: 'Unit',
-	lessons: 'Lesson',
-	lessons_contents: 'Lesson content',
-	quizes: 'Quiz',
-	games: 'Game',
-	worksheets: 'Worksheet',
-	assigments: 'Assignment',
-};
-
-function assignmentNavigatePath(item: {
-	type: string;
-	subject_id: string;
-	type_id?: string;
-	path?: string;
-	assign_student_id?: number | null;
-}): string | null {
-	const sid = item.subject_id;
-	if (!sid) return null;
-	switch (item.type) {
-		case 'subjects':
-			return `/learn/${sid}`;
-		case 'units':
-			return item.type_id != null && String(item.type_id) !== ''
-				? `/learn/${sid}?focusUnit=${encodeURIComponent(String(item.type_id))}`
-				: `/learn/${sid}`;
-		case 'lessons':
-			return item.type_id != null && String(item.type_id) !== ''
-				? `/learn/${sid}?focusLesson=${encodeURIComponent(String(item.type_id))}`
-				: `/learn/${sid}`;
-		case 'lessons_contents':
-			return item.type_id ? `/learn/${sid}/details/${item.type_id}` : `/learn/${sid}`;
-		case 'quizes': {
-			if (!item.type_id) {
-				return `/learn/${sid}`;
-			}
-			const assignQs =
-				item.assign_student_id != null && Number(item.assign_student_id) > 0
-					? `?assign_student_id=${Number(item.assign_student_id)}`
-					: '';
-			return `/learn/${sid}/quiz/${item.type_id}${assignQs}`;
-		}
-		case 'games':
-			return item.type_id ? `/learn/${sid}/detailsGame/${item.type_id}` : `/learn/${sid}`;
-		case 'worksheets':
-		case 'assigments':
-			return `/learn/${sid}`;
-		default:
-			if (item.path && item.path.startsWith('/')) return item.path;
-			return `/learn/${sid}`;
-	}
-}
-import EmptyComp from 'views/Empty';
+import { useEffect, useMemo, useState } from 'react';
+import { useIntl } from 'react-intl';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import LoadingPartially from 'components/loading-partially';
-import { CardsWrapper } from 'views/learn/styles';
-import Header from './header/header';
+import MyAssignmentsWidget from 'views/dashboard/components/MyAssignmentsWidget';
+import TopRankingWidget from 'views/dashboard/components/TopRankingWidget';
+import LearningStreakWidget from 'views/dashboard/components/LearningStreakWidget';
+import { useDashboardData } from 'views/dashboard/useDashboardData';
+import MyProgressAchievementsWidget from 'views/myProgress/MyProgressAchievementsWidget';
+import { fetchStudentAchievements } from 'views/profile/profileApi';
+import type { ProfileAchievement } from 'views/profile/types';
+import TodoHeroSection from './components/TodoHeroSection';
+import {
+	applyTodoTabToSearchParams,
+	readTodoTabFromSearchParams,
+} from './todoTabRoute';
+import {
+	DashboardAside,
+	TodoAssignmentsShell,
+	TodoBackLink,
+	TodoEmptyHint,
+	TodoErrorBanner,
+	TodoMainColumn,
+	TodoPageGrid,
+} from './todoPageStyles';
 
 export default function Todo() {
-	const todoListData = useSelector((state: any) => state.todoReducer);
-	const dispatch = useDispatch();
+	const { formatMessage } = useIntl();
 	const navigate = useNavigate();
+	const [searchParams, setSearchParams] = useSearchParams();
+	const activeTab = readTodoTabFromSearchParams(searchParams);
+	const { data, initialLoading, error, retry } = useDashboardData('week');
+	const [achievements, setAchievements] = useState<ProfileAchievement[]>([]);
+
 	useEffect(() => {
-		dispatch(todoList());
+		let cancelled = false;
+		fetchStudentAchievements()
+			.then((items) => {
+				if (!cancelled) setAchievements(items);
+			})
+			.catch(() => {
+				if (!cancelled) setAchievements([]);
+			});
+		return () => {
+			cancelled = true;
+		};
 	}, []);
 
+	const assignItems = useMemo(() => {
+		if (!data) return [];
+		return data.assignments.tabs[activeTab] ?? [];
+	}, [data, activeTab]);
+
+	const setActiveTab = (tab: typeof activeTab) => {
+		setSearchParams(applyTodoTabToSearchParams(searchParams, tab), { replace: true });
+	};
+
+	const openAchievements = () => {
+		navigate('/progress#my-progress-achievements');
+	};
+
+	if (initialLoading && !data) {
+		return (
+			<TodoPageGrid>
+				<TodoMainColumn>
+					<LoadingPartially />
+				</TodoMainColumn>
+				<DashboardAside aria-hidden />
+			</TodoPageGrid>
+		);
+	}
+
+	if (!data) {
+		return (
+			<TodoPageGrid>
+				<TodoMainColumn>
+					<TodoEmptyHint>
+						{error ?? formatMessage({ id: 'dashboard-load-error' })}
+						{error ? (
+							<>
+								{' '}
+								<button type="button" onClick={retry}>
+									{formatMessage({ id: 'dashboard-retry' })}
+								</button>
+							</>
+						) : null}
+					</TodoEmptyHint>
+				</TodoMainColumn>
+				<DashboardAside aria-hidden />
+			</TodoPageGrid>
+		);
+	}
+
 	return (
-		<>
-			<PageHeader />
+		<TodoPageGrid>
+			<TodoMainColumn>
+				{error ? (
+					<TodoErrorBanner role="alert">
+						<span>{error}</span>
+						<button type="button" onClick={retry}>
+							{formatMessage({ id: 'dashboard-retry' })}
+						</button>
+					</TodoErrorBanner>
+				) : null}
 
-			<ModuleView header={<Header />}>
-				<>
-					{todoListData?.loading && (
-						<CardsWrapper>
-							<LoadingPartially />
-						</CardsWrapper>
-					)}
-					{todoListData?.todoListData?.allAssigns?.length == 0 ? (
-						<EmptyComp />
-					) : (
-						<>
-							{' '}
-							{todoListData?.todoListData?.allAssigns?.map((item: { data: []; date: string }) => {
-								return (
-									<>
-										{item?.data?.length !== 0 && (
-											<Flex className="align-center flex-wrap ">
-												<Text className="mb-3 font-bold">{item?.date}</Text>
-												{item?.data?.map(
-													(item: {
-														assign_id?: number;
-														assign_student_id?: number;
-														by: string;
-														status: string;
-														subject_name: string;
-														course_name?: string | null;
-														assignment_title?: string | null;
-														type: string;
-														type_id?: string;
-														date: string;
-														due_date?: string | null;
-														path: string;
-														subject_id: string;
-														unit_id: string;
-													}) => {
-														return (
-															<Box className="border border-Platinum rounded-xl w-[100%] p-5 flex  justify-between mb-5">
-																<Flex>
-																	<Box className="bg-Cultured p-10 rounded-xl">
-																		{item?.status === 'New' ? (
-																			<Text className="bg-New absolute top-3 right-3 text-sm px-3 text-TextNew">
-																				New
-																			</Text>
-																		) : null}
-																		<Assign />
-																	</Box>
-																	<Box className="mx-5 gap-4 flex flex-col ">
-																		<Box>
-																			<Text className="text-LightSeaGreen">
-																				{ASSIGNMENT_TYPE_LABELS[item?.type] ?? item?.type?.replace(/_/g, ' ')}
-																			</Text>
-																			<Text>
-																				{item?.assignment_title ?? item?.subject_name}
-																			</Text>
-																			{item?.course_name &&
-																			(item?.assignment_title ?? item?.subject_name) !== item?.course_name ? (
-																				<Text className="text-gray text-sm mt-1">
-																					{item.course_name}
-																				</Text>
-																			) : null}
-																		</Box>
+				<TodoHeroSection />
 
-																		<Box>
-																			<Text className="text-gray text-sm pl-1">Assigned by:</Text>
-																			<Text className="flex pt-3">
-																				{' '}
-																				<img src={Man} width={30} className="pr-1" />
-																				{item?.by || '—'}
-																			</Text>
-																		</Box>
-																	</Box>
-																</Flex>
-																<Box className="mt-3">
-																	<Text className="text-xs">
-																		<span className="text-gray">Due: </span>
-																		{item?.due_date ?? '—'}
-																	</Text>
-																	<Text className="text-xs mt-1">
-																		<span className="text-gray">Assigned: </span>
-																		{item?.date}
-																	</Text>
-																	<Button
-																		type="submit"
-																		className=" bg-Sunglow  rounded-[15px] shadow-custom-sm-warning  hover:bg-Warning text-black mt-5"
-																		onClick={async () => {
-																			const path = assignmentNavigatePath(item);
-																			if (!path) return;
-																			if (item.assign_id != null) {
-																				try {
-																					await dispatch(markTodoAssignOpened(item.assign_id)).unwrap();
-																				} catch {
-																					/* still navigate if mark fails */
-																				}
-																			}
-																			navigate(path);
-																		}}
-																	>
-																		View Assignment
-																	</Button>{' '}
-																</Box>
-															</Box>
-														);
-													}
-												)}
-											</Flex>
-										)}
-									</>
-								);
-							})}
-						</>
-					)}
-				</>
-			</ModuleView>
-		</>
+				<TodoAssignmentsShell>
+					<TodoBackLink to="/learn">
+						{formatMessage({ id: 'todo-back-dashboard' })}
+					</TodoBackLink>
+
+					<MyAssignmentsWidget
+						idPrefix="todo"
+						embedded
+						listMode="full"
+						activeTab={activeTab}
+						items={assignItems}
+						onTabChange={setActiveTab}
+						onActionComplete={retry}
+					/>
+				</TodoAssignmentsShell>
+			</TodoMainColumn>
+
+			<DashboardAside>
+				<MyProgressAchievementsWidget
+					hero={{
+						level: data.xp.level,
+						level_badge_label: data.xp.level_badge_label,
+					}}
+					items={achievements}
+					onViewAll={openAchievements}
+				/>
+				<TopRankingWidget rankings={data.rankings} />
+				<LearningStreakWidget streak={data.streak} />
+			</DashboardAside>
+		</TodoPageGrid>
 	);
 }

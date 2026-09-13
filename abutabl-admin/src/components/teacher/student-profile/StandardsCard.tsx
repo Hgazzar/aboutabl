@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
@@ -21,6 +27,7 @@ export type StandardsCardProps = {
 
 const CHART_BAR_MAX_HEIGHT = 132;
 const CHART_BAR_WIDTH = 48;
+const SCROLL_STEP = 220;
 
 const formatLinkedAt = (value: string | null, locale: string) => {
   if (!value) {
@@ -35,6 +42,17 @@ const formatLinkedAt = (value: string | null, locale: string) => {
   } catch {
     return value;
   }
+};
+
+/** Display bands matching Standards design (by percent). */
+const resolveBarColor = (percent: number): string => {
+  if (percent >= 90) {
+    return "#038e7b";
+  }
+  if (percent >= 80) {
+    return "#23b8a2";
+  }
+  return "#f6c113";
 };
 
 const AuditInfoButton = ({
@@ -129,9 +147,11 @@ const StandardBar = ({
   onSelect: (item: StudentProfileStandardItem) => void;
 }) => {
   const percent = Number(item.percent ?? item.percentage ?? 0);
-  // UI layout only — bar height from API percent (not a new metric).
-  const barHeight = Math.max(28, Math.round((percent / 100) * CHART_BAR_MAX_HEIGHT));
-  const fill = item.color || "#D4A843";
+  const barHeight = Math.max(
+    28,
+    Math.round((percent / 100) * CHART_BAR_MAX_HEIGHT)
+  );
+  const fill = resolveBarColor(percent);
 
   return (
     <button
@@ -168,12 +188,14 @@ const StandardBar = ({
 };
 
 /**
- * Presentational Standards card — displays profile.standards as-is.
- * Colors/percents come from API; subject tabs notify parent to refetch.
+ * Presentational Standards card — percents from API; bar colors by percent bands.
+ * Horizontal scroll uses design track + chevrons (native scrollbar hidden).
  */
 export const StandardsCard = ({ standards, onSubjectChange }: StandardsCardProps) => {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const [canScroll, setCanScroll] = useState(false);
   const items = standards.items ?? [];
 
   const initialSelected = useMemo(() => {
@@ -194,18 +216,60 @@ export const StandardsCard = ({ standards, onSubjectChange }: StandardsCardProps
     setSelectedItem(initialSelected);
   }, [initialSelected]);
 
+  const updateScrollProgress = () => {
+    const node = scrollRef.current;
+    if (!node) {
+      return;
+    }
+    const max = node.scrollWidth - node.clientWidth;
+    setCanScroll(max > 1);
+    setScrollProgress(max <= 0 ? 0 : Math.min(1, node.scrollLeft / max));
+  };
+
+  useEffect(() => {
+    updateScrollProgress();
+    const node = scrollRef.current;
+    if (!node) {
+      return;
+    }
+    const onResize = () => updateScrollProgress();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [items.length]);
+
   const scrollChart = (direction: "left" | "right") => {
     const container = scrollRef.current;
     if (!container) {
       return;
     }
-    container.scrollBy({ left: direction === "left" ? -220 : 220, behavior: "smooth" });
+    container.scrollBy({
+      left: direction === "left" ? -SCROLL_STEP : SCROLL_STEP,
+      behavior: "smooth",
+    });
+  };
+
+  const handleTrackClick = (event: ReactMouseEvent<HTMLDivElement>) => {
+    const container = scrollRef.current;
+    if (!container || !canScroll) {
+      return;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    const ratio = Math.min(
+      1,
+      Math.max(0, (event.clientX - rect.left) / rect.width)
+    );
+    const max = container.scrollWidth - container.clientWidth;
+    container.scrollTo({ left: ratio * max, behavior: "smooth" });
   };
 
   const selectedPercent = Number(
     selectedItem?.percent ?? selectedItem?.percentage ?? 0
   );
   const visibleAuditDetails = getVisibleAuditDetails(selectedItem?.audit_details);
+  const thumbWidthPercent = canScroll ? 33 : 100;
+  const thumbLeftPercent = canScroll
+    ? scrollProgress * (100 - thumbWidthPercent)
+    : 0;
 
   return (
     <article className="flex h-full min-h-[360px] flex-col rounded-2xl bg-white p-6 shadow-[0_4px_6px_rgba(0,0,0,0.05)]">
@@ -263,8 +327,8 @@ export const StandardsCard = ({ standards, onSubjectChange }: StandardsCardProps
 
           <div
             ref={scrollRef}
-            className="student-standards-chart-scroll overflow-x-auto pb-1"
-            style={{ scrollbarWidth: "thin" }}
+            onScroll={updateScrollProgress}
+            className="overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             <div className="flex min-w-max items-end gap-4 px-1">
               {items.map((item) => (
@@ -282,36 +346,36 @@ export const StandardsCard = ({ standards, onSubjectChange }: StandardsCardProps
               size="small"
               onClick={() => scrollChart("left")}
               aria-label="Scroll left"
+              disabled={!canScroll}
               sx={{ color: "#9CA3AF", p: 0.5 }}
             >
               <ChevronLeftIcon sx={{ fontSize: 18 }} />
             </IconButton>
-            <div className="h-1.5 flex-1 rounded-full bg-[#E5E7EB]">
-              <div className="h-full w-1/3 rounded-full bg-[#D1D5DB]" />
+            <div
+              role="scrollbar"
+              aria-valuenow={Math.round(scrollProgress * 100)}
+              tabIndex={0}
+              onClick={handleTrackClick}
+              className="relative h-1.5 flex-1 cursor-pointer overflow-hidden rounded-full bg-[#E5E7EB]"
+            >
+              <div
+                className="absolute top-0 h-full rounded-full bg-[#9CA3AF] transition-[left] duration-150"
+                style={{
+                  width: `${thumbWidthPercent}%`,
+                  left: `${thumbLeftPercent}%`,
+                }}
+              />
             </div>
             <IconButton
               size="small"
               onClick={() => scrollChart("right")}
               aria-label="Scroll right"
+              disabled={!canScroll}
               sx={{ color: "#9CA3AF", p: 0.5 }}
             >
               <ChevronRightIcon sx={{ fontSize: 18 }} />
             </IconButton>
           </div>
-
-          <style>{`
-            .student-standards-chart-scroll::-webkit-scrollbar {
-              height: 6px;
-            }
-            .student-standards-chart-scroll::-webkit-scrollbar-track {
-              background: #E5E7EB;
-              border-radius: 999px;
-            }
-            .student-standards-chart-scroll::-webkit-scrollbar-thumb {
-              background: #D1D5DB;
-              border-radius: 999px;
-            }
-          `}</style>
         </>
       )}
     </article>

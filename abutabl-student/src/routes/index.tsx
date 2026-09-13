@@ -8,6 +8,7 @@ import Result from 'views/learnDetails/components/detailsQuiz/quiz/result';
 
 const AuthSections = lazy(() => import('views/auth'));
 const Learn = lazy(() => import('views/learn'));
+const LearnBooks = lazy(() => import('views/learn/BooksCatalog'));
 const LearnDetails = lazy(() => import('views/learnDetails'));
 const DetailsUnit = lazy(() => import('views/learnDetails/components/detailsLesson'));
 const Profile = lazy(() => import('views/profile'));
@@ -41,6 +42,7 @@ export interface IRoutes {
 	emailVerify: IRoute;
 	restPassword: IRoute;
 	learn: IRoute;
+	learnBooks: IRoute;
 	liveGames: IRoute;
 	profile: IRoute;
 	todo: IRoute;
@@ -109,9 +111,19 @@ export function useRoutesConst() {
 				icon: <LearnIcon />,
 				privileges: true,
 				to: () => '/learn',
-				fullTitle: () => [{ name: formatMessage({ id: 'learn' }) }],
-				title: () => formatMessage({ id: 'learn' }),
-				sidebarTitle: () => formatMessage({ id: 'learn' }),
+				fullTitle: () => [{ name: formatMessage({ id: 'nav-dashboard' }) }],
+				title: () => formatMessage({ id: 'nav-dashboard' }),
+				sidebarTitle: () => formatMessage({ id: 'nav-dashboard' }),
+			},
+			learnBooks: {
+				component: <LearnBooks />,
+				path: 'learn/books',
+				icon: <LearnIcon />,
+				privileges: true,
+				to: () => '/learn/books',
+				fullTitle: () => [{ name: formatMessage({ id: 'nav-books' }) }],
+				title: () => formatMessage({ id: 'nav-books' }),
+				sidebarTitle: () => formatMessage({ id: 'nav-books' }),
 			},
 
 			liveGames: {

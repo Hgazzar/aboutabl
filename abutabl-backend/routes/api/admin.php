@@ -242,10 +242,14 @@ Route::group([ 'middleware' => ['api' , 'checkSecretApi' , 'changeLanguage','che
     Route::delete('/assigns/{assignId}/rubric','AssignsController@destroyRubric');
     Route::put('/assigns/{assignId}/possible_xp','AssignsController@updatePossibleXp');
     Route::get('/assigns/{assignId}/learning_activities/review','AssignActivityTeacherController@review');
+    Route::get('/assigns/{assignId}/my-work/{workId}/file','AssignActivityTeacherController@downloadMyWork');
     Route::post('/assigns/learning_activities/{assignActivityId}/manual_grade','AssignActivityTeacherController@manualGrade');
     Route::post('/assigns/{assignId}/students/{studentId}/finalize_parent','AssignActivityTeacherController@finalizeParent');
     Route::put('/assigns/{assignId}/students/{studentId}/grade','AssignActivityTeacherController@upsertGrade');
     Route::get('/assigns/{assignId}/students/{studentId}/grade','AssignActivityTeacherController@showGrade');
+    Route::get('/assigns/{assignId}/materials','AssignmentMaterialController@index');
+    Route::post('/assigns/{assignId}/materials','AssignmentMaterialController@store');
+    Route::delete('/assigns/{assignId}/materials/{materialId}','AssignmentMaterialController@destroy');
 
 
        ///// file_maanger

@@ -1,18 +1,13 @@
-import { useRoutesConst } from 'routes';
-import SideBarItem from '../SideBarItem';
+import { STUDENT_SHELL_NAV } from 'config/studentShellNav';
 import { SideBarLinks } from '../styles';
+import SideBarNavItem from '../SideBarNavItem';
 
 export default function SideBarLinksSection() {
-	const { ROUTES } = useRoutesConst();
-
 	return (
 		<SideBarLinks>
-			<SideBarItem routes={ROUTES.learn || ROUTES.learnDetails} />
-			<SideBarItem routes={ROUTES.todo} />
-			<SideBarItem routes={ROUTES.liveGames} />
-
-			<SideBarItem routes={ROUTES.profile} />
-			{/* Support/ticketing hidden until flows are stable */}
+			{STUDENT_SHELL_NAV.map((item) => (
+				<SideBarNavItem key={item.id} item={item} />
+			))}
 		</SideBarLinks>
 	);
 }

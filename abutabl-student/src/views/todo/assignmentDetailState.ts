@@ -3,6 +3,7 @@ import type {
 	AssignmentDetailPayload,
 	AssignmentLifecycleMode,
 } from 'lib/assignmentDetailApi';
+import { apiFlagTrue } from 'lib/assignmentDetailApi';
 import type { AssignTab } from 'views/dashboard/components/myAssignmentsUtils';
 
 /** Activity statuses that count as done for action UI (mirrors MultiActivityMetrics). */
@@ -98,11 +99,26 @@ export function unavailableProductFeatures(detail: AssignmentDetailPayload): {
 		detail.grade?.earned_xp != null || detail.grade?.possible_xp != null;
 	return {
 		showXp: detail.assignment_xp != null || gradeXp,
-		showRubric: detail.rubric_available === true,
+		showRubric: detail.rubric_available === true && detail.rubric != null,
 		showMaterials: Array.isArray(detail.materials) && detail.materials.length > 0,
 		showMyWork: Array.isArray(detail.my_work) && detail.my_work.length > 0,
-		showRedo: detail.redo_allowed === true,
+		// Assignment-level REDO only (header) — backend authoritative.
+		showRedo: apiFlagTrue(detail.redo_allowed) || apiFlagTrue(detail.lifecycle.redo_allowed),
 	};
+}
+
+/**
+ * Assignment-level REDO (header).
+ * Backend `redo_allowed` is authoritative (already encodes submitted + before deadline + not graded).
+ * Do not re-derive deadline on the client.
+ */
+export function canShowAssignmentRedo(detail: AssignmentDetailPayload): boolean {
+	return apiFlagTrue(detail.redo_allowed) || apiFlagTrue(detail.lifecycle.redo_allowed);
+}
+
+/** Activity-level REDO — per-activity API flag only. */
+export function canShowActivityRedo(activity: AssignmentActivityRow): boolean {
+	return apiFlagTrue(activity.redo_allowed);
 }
 
 /**
@@ -135,11 +151,115 @@ export function progressLabel(
 	return { completed, total, percent };
 }
 
-/** Final SUBMIT enabled only when API says can_submit (parent active + activities complete). */
+/** Final SUBMIT — backend lifecycle.can_submit is authoritative. */
 export function canShowAssignmentSubmit(detail: AssignmentDetailPayload): boolean {
-	return (
-		detail.lifecycle.mode === 'homework_hero' &&
-		detail.lifecycle.status === 'active' &&
-		detail.lifecycle.can_submit === true
+	return apiFlagTrue(detail.lifecycle.can_submit);
+}
+
+/**
+ * Student Assignment Header — authoritative API fields only.
+ * Layout: "{Subject} Homework:" then Assignment title on the next line.
+ * Never parse title for Subject; never gate Submit on context_label.
+ */
+export type AssignmentHeaderDisplay = {
+	subjectName: string | null;
+	/** homework | waiting | null (graded uses separate status UI) */
+	statusKind: 'homework' | 'waiting' | null;
+	/** assigns.assigned_name from API `title` — display only, not Subject. */
+	assignmentTitle: string | null;
+	/** Lesson/Unit when authoritative; optional tertiary line. */
+	contextLabel: string | null;
+	showSubmit: boolean;
+};
+
+export function assignmentHeaderDisplay(
+	detail: AssignmentDetailPayload
+): AssignmentHeaderDisplay {
+	const subjectName =
+		typeof detail.subject_name === 'string' && detail.subject_name.trim() !== ''
+			? detail.subject_name.trim()
+			: null;
+
+	const assignmentTitle =
+		typeof detail.title === 'string' && detail.title.trim() !== ''
+			? detail.title.trim()
+			: null;
+
+	const contextLabel =
+		typeof detail.context_label === 'string' && detail.context_label.trim() !== ''
+			? detail.context_label.trim()
+			: null;
+
+	let statusKind: AssignmentHeaderDisplay['statusKind'] = null;
+	if (
+		detail.lifecycle.mode === 'waiting_on_teacher' ||
+		detail.lifecycle.status === 'submitted'
+	) {
+		statusKind = 'waiting';
+	} else if (
+		detail.lifecycle.mode === 'homework_hero' ||
+		detail.lifecycle.status === 'active'
+	) {
+		statusKind = 'homework';
+	}
+
+	return {
+		subjectName,
+		statusKind,
+		assignmentTitle,
+		contextLabel,
+		// Independent of contextLabel — lifecycle.can_submit only.
+		showSubmit: canShowAssignmentSubmit(detail),
+	};
+}
+
+/** Criteria ordered for Rubric Popup (API sort_order ascending, then id). */
+export function sortedRubricCriteria(
+	rubric: AssignmentDetailPayload['rubric']
+): NonNullable<AssignmentDetailPayload['rubric']>['criteria'] {
+	if (!rubric) return [];
+	return [...rubric.criteria].sort((a, b) => {
+		if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order;
+		return a.id - b.id;
+	});
+}
+
+/** Levels ordered by points descending (4 → 1) using API points only. */
+export function sortedRubricLevels(
+	rubric: AssignmentDetailPayload['rubric']
+): NonNullable<AssignmentDetailPayload['rubric']>['levels'] {
+	if (!rubric) return [];
+	return [...rubric.levels].sort((a, b) => b.points - a.points);
+}
+
+export function rubricLevelDescriptorVisible(descriptor: string | null): boolean {
+	return typeof descriptor === 'string' && descriptor.trim() !== '';
+}
+
+/**
+ * After "Great work" / "أحسنت", insert student name then ", " and keep the rest.
+ * e.g. "Great work! Your teacher…" → "Great work Alex, Your teacher…"
+ */
+export function insertStudentNameAfterGreatWork(
+	text: string,
+	studentName: string | null | undefined
+): string {
+	const name = typeof studentName === 'string' ? studentName.trim() : '';
+	if (!name || !text) return text;
+
+	const alreadyNamed = new RegExp(
+		`(?:Great work|أحسنت)\\s+${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*[,،]`,
+		'i'
 	);
+	if (alreadyNamed.test(text)) return text;
+
+	if (/Great work/i.test(text)) {
+		return text.replace(/Great work(?:\s*[—–\-!])?\s*/i, `Great work ${name}, `);
+	}
+
+	if (/أحسنت/.test(text)) {
+		return text.replace(/أحسنت(?:\s*[—–\-!])?\s*/, `أحسنت ${name}، `);
+	}
+
+	return text;
 }

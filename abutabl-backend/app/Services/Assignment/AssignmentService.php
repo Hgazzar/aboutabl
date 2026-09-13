@@ -362,12 +362,37 @@ class AssignmentService
                 'average_score'         => $averageScore,
             ],
             'students'      => $students,
-            // Empty until materials persistence exists — no fake data.
-            'materials'     => [
-                'files'            => [],
-                'voice_recordings' => [],
-                'links'            => [],
-            ],
+            'materials'     => $this->bucketMaterials(
+                $this->materials->resolveForAssign((int) $assign->id)
+            ),
+        ];
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $items
+     * @return array{files: array<int, mixed>, voice_recordings: array<int, mixed>, links: array<int, mixed>}
+     */
+    private function bucketMaterials(array $items): array
+    {
+        $files = [];
+        $voices = [];
+        $links = [];
+
+        foreach ($items as $item) {
+            $kind = (string) ($item['kind'] ?? '');
+            if ($kind === 'voice') {
+                $voices[] = $item;
+            } elseif ($kind === 'link') {
+                $links[] = $item;
+            } else {
+                $files[] = $item;
+            }
+        }
+
+        return [
+            'files' => $files,
+            'voice_recordings' => $voices,
+            'links' => $links,
         ];
     }
 
@@ -852,7 +877,7 @@ class AssignmentService
     }
 
     /**
-     * Foundation materials stub passthrough.
+     * Materials for an assign (assignment_materials via resolver).
      *
      * @return array<int, mixed>
      */

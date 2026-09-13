@@ -6,7 +6,7 @@ import { useRoutesConst } from 'routes';
 import AdminPortalHandoff from 'views/auth/AdminPortalHandoff';
 import Error from 'views/error';
 import Home from 'views/home';
-import Landing from 'views/landing';
+import PublicHome from 'views/landing/PublicHome';
 import LoadingPartially from 'components/loading-partially';
 import GameBareLayout from 'views/games/components/GameBareLayout';
 
@@ -23,6 +23,9 @@ const GoldQuestGifts = lazy(() => import('views/games/GoldQuest/Gifts'));
 const FactsScreen = lazy(() => import('views/games/Facts'));
 const AnswerListScreen = lazy(() => import('views/games/AnswerList'));
 const TodoAssignActivities = lazy(() => import('views/todo/AssignActivities'));
+const LeaderboardPage = lazy(() => import('views/leaderboard'));
+const MyProgressPage = lazy(() => import('views/myProgress'));
+const AvatarOnboarding = lazy(() => import('views/onboarding/avatar'));
 
 const Routes = () => {
 	const { ROUTES } = useRoutesConst();
@@ -33,7 +36,8 @@ const Routes = () => {
 			element: <Layout />,
 			errorElement: <Error />,
 			children: [
-				{ path: 'welcome', element: <Landing /> },
+				{ index: true, element: <PublicHome /> },
+				{ path: 'welcome', element: <Navigate to="/" replace /> },
 				{
 					path: 'login',
 					element: ROUTES.authSections.component,
@@ -66,9 +70,16 @@ const Routes = () => {
 					),
 					children: [
 						{
+							path: 'onboarding/avatar',
+							element: (
+								<Suspense fallback={<LoadingPartially />}>
+									<AvatarOnboarding />
+								</Suspense>
+							),
+						},
+						{
 							element: <Home />,
 							children: [
-								{ index: true, element: <Navigate to="/learn" replace /> },
 								{
 									path: 'games',
 									element: (
@@ -88,6 +99,10 @@ const Routes = () => {
 								{
 									path: 'learn',
 									element: ROUTES.learn.component,
+								},
+								{
+									path: 'learn/books',
+									element: ROUTES.learnBooks.component,
 								},
 								{
 									path: 'learn/:id',
@@ -110,6 +125,22 @@ const Routes = () => {
 											),
 										},
 									],
+								},
+								{
+									path: 'leaderboard',
+									element: (
+										<Suspense fallback={<LoadingPartially />}>
+											<LeaderboardPage />
+										</Suspense>
+									),
+								},
+								{
+									path: 'progress',
+									element: (
+										<Suspense fallback={<LoadingPartially />}>
+											<MyProgressPage />
+										</Suspense>
+									),
 								},
 								{
 									path: ROUTES.profile.path,

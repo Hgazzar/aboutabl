@@ -134,6 +134,8 @@ class AuthApiController extends Controller
                 'gender'      => $student->gender ?? '',
                 'address'     => $student->address ?? '',
                 'photo'       => $photoUrl,
+                'avatar_preset' => $student->avatar_preset,
+                'needs_avatar_selection' => empty($student->avatar_selected_at),
                 'code'        => $student->memberShip ?? $student->username ?? '',
                 'memberShip'  => $student->memberShip ?? $student->username ?? '',
                 'school_id'   => $student->school_id,
@@ -154,7 +156,7 @@ class AuthApiController extends Controller
             $rules = [
                 'name'     => 'sometimes|string|max:150',
                 'email'    => 'sometimes|nullable|email',
-                'birthday' => 'sometimes|nullable|date',
+				'birthday' => 'sometimes|nullable|date|before_or_equal:today',
                 'gender'   => 'sometimes|nullable|string|in:male,female,Male,Female',
                 'address'  => 'sometimes|nullable|string',
                 'photo'    => 'sometimes|nullable|file|mimes:jpg,jpeg,png|max:5120',
@@ -191,6 +193,39 @@ class AuthApiController extends Controller
         }
     }
 
+    /**
+     * First-login / profile: persist Figma avatar preset (a1–a9).
+     */
+    public function selectAvatar(Request $request)
+    {
+        try {
+            $rules = [
+                'avatar_preset' => 'required|string|in:a1,a2,a3,a4,a5,a6,a7,a8,a9',
+            ];
+            $validator = Validator::make($request->all(), $rules);
+            if ($validator->fails()) {
+                $code = $this->returnCodeAccordingToInput($validator);
+                return $this->returnValidationError($code, $validator);
+            }
+
+            $student = Student::where('id', auth()->user()->id)->first();
+            if (!$student) {
+                return $this->returnError('E001', __('api.not_exists_user_for_this_data'));
+            }
+
+            $student->avatar_preset = $request->input('avatar_preset');
+            $student->avatar_selected_at = now();
+            $student->save();
+
+            return $this->returnData('avatar', [
+                'avatar_preset' => $student->avatar_preset,
+                'needs_avatar_selection' => false,
+            ], __('api.success'), 200);
+        } catch (\Exception $ex) {
+            return $this->returnError($ex->getCode(), $ex->getMessage());
+        }
+    }
+
     public function updatePassword(Request $request){
      try {
          $rules = [
@@ -219,7 +254,7 @@ class AuthApiController extends Controller
             $user->password             = bcrypt($request->new_password) ;
             $user->save();
 
-            auth()->logout();
+            $this->invalidateStudentJwt();
             return $this -> returnSuccessMessage( __('api.password_has_changed_successfully') ,"200",200);
         }else{
             return $this->returnError('E001',__('api.not_exists_user_for_this_data'));
@@ -340,11 +375,20 @@ class AuthApiController extends Controller
     }
     public function logout(Request $request)
     {
+        $this->invalidateStudentJwt();
+
+        return $this->returnSuccessMessage(__('api.successlogout'), 201);
+    }
+
+    private function invalidateStudentJwt(): void
+    {
         try {
-            auth()->logout();
-            return $this->returnSuccessMessage( __('api.successlogout') ,201) ;
-        }catch (\Exception $ex){
-            return $this->returnError($ex->getCode(), $ex->getMessage());
+            $token = JWTAuth::getToken();
+            if ($token) {
+                JWTAuth::invalidate($token);
+            }
+        } catch (\Throwable $ex) {
+            // Client clears session regardless; ignore parse/invalidate errors.
         }
     }
 

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>F-043R-4 Visual Verify — class 22 / assignment 23</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { margin: 0; background: #F7F9FA; font-family: ui-sans-serif, system-ui, sans-serif; }
+    .sh { box-shadow: 0 4px 16px rgba(15,23,42,.05); }
+  </style>
+</head>
+<body>
+  <div id="root" class="px-8 py-6">
+    <p class="text-sm text-gray-500">Loading assignment 23…</p>
+  </div>
+  <script>
+    const TOKEN = window.__TOKEN__;
+    const API = "http://127.0.0.1:8000/api/dashboard/teacher/classes/22/assignments/23";
+    const BRAND = "#23B8A2";
+
+    async function load() {
+      const res = await fetch(API, {
+        headers: {
+          Accept: "application/json",
+          Authorizations: "Bearer " + TOKEN,
+          apiSecret: "OASzRok654E0AJ20KH",
+        },
+      });
+      const data = await res.json();
+      const assignment = data.assignment || {};
+      const stats = data.statistics || {};
+      const students = Array.isArray(data.students) ? data.students : [];
+      const isQuiz =
+        assignment.assignment_type === "quiz" ||
+        assignment.module === "quizes" ||
+        assignment.module_type === "quizes";
+
+      const fourthLabel = isQuiz ? "Average Score" : "Completion Rate";
+      const fourthValue = isQuiz
+        ? (stats.average_score != null ? Math.round(Number(stats.average_score)) + "%" : "N/A")
+        : Math.round(Number(stats.completion_percentage || 0)) + "%";
+
+      const cards = [
+        { label: "Students", value: String(stats.target_students ?? 0) },
+        { label: "Submitted", value: String(stats.completed_students ?? 0) },
+        { label: "Missing", value: String(Math.max(0, (stats.pending_students||0)+(stats.overdue_students||0))) },
+        { label: fourthLabel, value: fourthValue },
+      ];
+
+      const root = document.getElementById("root");
+      root.innerHTML = `
+        <div class="mb-3 text-xs text-[#6B7280]">
+          VERIFY class_id=22 assignment_id=23 |
+          assignment_type=<b>${assignment.assignment_type}</b> |
+          module=<b>${assignment.module}</b> |
+          isQuiz=<b>${isQuiz}</b>
+        </div>
+        <h1 class="text-[30px] font-extrabold text-[#111827] mb-6">${assignment.title || ""}</h1>
+        <div class="mb-5 grid grid-cols-4 gap-3.5">
+          ${cards.map(c => `
+            <div class="sh flex h-[112px] items-center justify-between rounded-[16px] border border-[#F0F2F4] bg-white px-5 py-4">
+              <div>
+                <p class="text-[13px] font-medium text-[#9CA3AF]">${c.label}</p>
+                <p class="mt-2 text-[32px] font-extrabold text-[#111827]">${c.value}</p>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+        <div class="sh overflow-hidden rounded-[16px] border border-[#EEF0F2] bg-white">
+          <table class="w-full table-fixed border-collapse text-left">
+            <thead>
+              <tr class="border-b border-[#F3F4F6] text-[11px] font-bold uppercase tracking-[0.06em] text-[#9CA3AF]">
+                <th class="px-5 py-[18px] w-12"></th>
+                <th class="px-2 py-[18px]">Student</th>
+                <th class="px-2 py-[18px]">Status</th>
+                ${isQuiz ? '<th class="px-2 py-[18px]">Score</th>' : ""}
+                <th class="px-2 py-[18px]">Submission Date</th>
+                <th class="px-5 py-[18px] text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${students.map(s => `
+                <tr class="border-b border-[#F3F4F6]">
+                  <td class="h-16 px-5"><input type="checkbox" /></td>
+                  <td class="h-16 px-2 text-[14px] font-medium text-[#111827]">${s.name}</td>
+                  <td class="h-16 px-2"><span class="inline-flex h-7 items-center rounded-full border border-[#FDBA74] bg-[#FFF7ED] px-3 text-[11px] font-bold uppercase text-[#C2410C]">${s.status}</span></td>
+                  ${isQuiz ? `<td class="h-16 px-2 text-[14px] font-semibold text-[#23B8A2]">${s.score_percent != null ? s.score_percent + "%" : "N/A"}</td>` : ""}
+                  <td class="h-16 px-2 text-[13px] text-[#9CA3AF]">${s.opened_at ? new Date(s.opened_at).toLocaleDateString() : "N/A"}</td>
+                  <td class="h-16 px-5 text-right"><button class="h-9 rounded-[10px] px-5 text-[13px] font-bold text-white" style="background:${BRAND}">Review</button></td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+        <pre id="raw" class="mt-6 hidden"></pre>
+      `;
+      document.getElementById("raw").textContent = JSON.stringify({
+        assignment_type: assignment.assignment_type,
+        average_score: stats.average_score,
+        score_percent: students[0]?.score_percent,
+      }, null, 2);
+      document.title = "READY:" + fourthLabel + ":" + fourthValue + ":SCORE=" + isQuiz;
+    }
+    load().catch(e => {
+      document.getElementById("root").innerHTML = "<pre>" + e + "</pre>";
+    });
+  </script>
+</body>
+</html>

@@ -8,6 +8,7 @@ use App\Models\AssignmentRubric;
 use App\Models\AssignmentRubricCriterion;
 use App\Models\Assigns;
 use App\Models\AssignsStudents;
+use App\Models\User;
 use App\Services\Student\StudentXpService;
 use App\Support\Assignment\LearningActivityMap;
 use Illuminate\Support\Facades\DB;
@@ -270,7 +271,7 @@ class AssignmentGradeService
         }
 
         $grade = AssignmentGrade::query()
-            ->with('criteria')
+            ->with(['criteria', 'grader', 'assign'])
             ->where('assign_id', $assignId)
             ->where('assign_student_id', (int) $assignStudent->id)
             ->first();
@@ -440,6 +441,8 @@ class AssignmentGradeService
             ];
         }
 
+        $teacher = $this->resolveTeacherProfile($grade);
+
         return [
             'id' => (int) $grade->id,
             'assign_id' => (int) $grade->assign_id,
@@ -453,10 +456,100 @@ class AssignmentGradeService
                 ? (string) $grade->teacher_feedback
                 : null,
             'graded_by' => $grade->graded_by !== null ? (int) $grade->graded_by : null,
+            'teacher_id' => $teacher['teacher_id'],
+            'teacher_name' => $teacher['teacher_name'],
+            'teacher_photo_url' => $teacher['teacher_photo_url'],
             'finalized_at' => $grade->finalized_at
                 ? $grade->finalized_at->toIso8601String()
                 : null,
             'criteria' => $criteria,
         ];
+    }
+
+    /**
+     * Prefer the grading teacher photo; fall back to assignment creator (class teacher).
+     *
+     * @return array{teacher_id: int|null, teacher_name: string|null, teacher_photo_url: string|null}
+     */
+    private function resolveTeacherProfile(AssignmentGrade $grade): array
+    {
+        $candidateIds = [];
+        if ($grade->graded_by !== null && (int) $grade->graded_by > 0) {
+            $candidateIds[] = (int) $grade->graded_by;
+        }
+
+        $assign = $grade->relationLoaded('assign')
+            ? $grade->assign
+            : Assigns::query()->find((int) $grade->assign_id);
+        $createdBy = $assign ? (int) ($assign->created_by ?? 0) : 0;
+        if ($createdBy > 0) {
+            $candidateIds[] = $createdBy;
+        }
+
+        $candidateIds = array_values(array_unique($candidateIds));
+
+        $teacherId = null;
+        $teacherName = null;
+        $teacherPhotoUrl = null;
+
+        foreach ($candidateIds as $userId) {
+            /** @var User|null $user */
+            $user = null;
+            if (
+                $grade->relationLoaded('grader')
+                && $grade->grader
+                && (int) $grade->grader->id === $userId
+            ) {
+                $user = $grade->grader;
+            } else {
+                $user = User::query()->find($userId);
+            }
+
+            if (! $user) {
+                continue;
+            }
+
+            if ($teacherId === null) {
+                $teacherId = $userId;
+                $teacherName = $this->teacherDisplayName($user);
+            }
+
+            $rawPhoto = $user->getRawOriginal('photo');
+            if (is_string($rawPhoto) && trim($rawPhoto) !== '') {
+                $photoUrl = $user->photo;
+                if (is_string($photoUrl) && $photoUrl !== '') {
+                    $teacherId = $userId;
+                    $teacherName = $this->teacherDisplayName($user);
+                    $teacherPhotoUrl = $photoUrl;
+                    break;
+                }
+            }
+        }
+
+        return [
+            'teacher_id' => $teacherId,
+            'teacher_name' => $teacherName,
+            'teacher_photo_url' => $teacherPhotoUrl,
+        ];
+    }
+
+    private function teacherDisplayName(User $user): ?string
+    {
+        $name = trim((string) ($user->name ?? ''));
+        if ($name !== '') {
+            return $name;
+        }
+
+        $en = trim(trim((string) ($user->fname_en ?? '')).' '.trim((string) ($user->lname_en ?? '')));
+        if ($en !== '') {
+            return $en;
+        }
+
+        $ar = trim(trim((string) ($user->fname_ar ?? '')).' '.trim((string) ($user->lname_ar ?? '')));
+        if ($ar !== '') {
+            return $ar;
+        }
+
+        return null;
     }
 }

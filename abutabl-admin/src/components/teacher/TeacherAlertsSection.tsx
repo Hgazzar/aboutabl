@@ -16,6 +16,7 @@ import {
 import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
 import TrendingDownIcon from "@mui/icons-material/TrendingDown";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import {
   TeacherAlertCategory,
   TeacherAlertItem,
@@ -23,6 +24,10 @@ import {
   TeacherAlertType,
   TeacherAlertsResponse,
 } from "@/types/teacherAlerts";
+import {
+  buildStudentProfilePath,
+  resolveAlertProfileNavigation,
+} from "@/utils/teacherAlertNavigation";
 
 const EDGE_PADDING = 3; // 24px — equal inset for Student (left) and Actions (right)
 const ACTIONS_CONTENT_WIDTH = 132;
@@ -179,7 +184,16 @@ export const TeacherAlertsSection = ({
   error = null,
 }: TeacherAlertsSectionProps) => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const alerts = data?.alerts ?? [];
+
+  const openStudentProfile = (alert: TeacherAlertItem) => {
+    const nav = resolveAlertProfileNavigation(alert);
+    if (!nav.classId || !nav.studentId) {
+      return;
+    }
+    navigate(buildStudentProfilePath(nav));
+  };
 
   return (
     <Box id="teacher-alerts" sx={{ scrollMarginTop: 24, mt: 4 }}>
@@ -263,6 +277,7 @@ export const TeacherAlertsSection = ({
                           variant="outlined"
                           size="small"
                           fullWidth
+                          onClick={() => openStudentProfile(alert)}
                           sx={{
                             borderRadius: "999px",
                             borderColor: "#99F6E4",

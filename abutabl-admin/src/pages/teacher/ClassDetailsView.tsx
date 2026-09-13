@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { Box, CircularProgress, Typography } from "@mui/material";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import ClassDetailsHeader from "@/components/teacher/class-details/ClassDetailsHeader";
 import ClassOverviewTab from "@/components/teacher/class-details/ClassOverviewTab";
@@ -16,6 +16,10 @@ import {
   TeacherClassesOverviewResponse,
   TeacherClassOverviewItem,
 } from "@/types/teacherClasses";
+import {
+  StudentProfileFocusSection,
+  StudentProfileHighlight,
+} from "@/utils/teacherAlertNavigation";
 
 /** Lazy-loaded to avoid HMR/circular init issues with the assignments tab module. */
 const ClassAssignmentsTab = lazy(
@@ -29,6 +33,7 @@ const ClassAssignmentsTab = lazy(
 const ClassDetailsView = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { classId: classIdParam, tab: tabParam } = useParams<{
     classId?: string;
     tab?: string;
@@ -45,6 +50,42 @@ const ClassDetailsView = () => {
 
   const activeClassId = classIdParam ? Number(classIdParam) : null;
   const activeTab: ClassDetailsTab = isClassDetailsTab(tabParam) ? tabParam : "overview";
+
+  const profileFocus = useMemo((): StudentProfileFocusSection | null => {
+    const raw = searchParams.get("focus");
+    if (
+      raw === "summary" ||
+      raw === "assignments" ||
+      raw === "quizzes" ||
+      raw === "standards" ||
+      raw === "smart_insight" ||
+      raw === "evaluation" ||
+      raw === "rankings"
+    ) {
+      return raw;
+    }
+    return null;
+  }, [searchParams]);
+
+  const profileHighlight = useMemo((): StudentProfileHighlight => {
+    const raw = searchParams.get("highlight");
+    if (raw === "overdue" || raw === "missing") {
+      return raw;
+    }
+    return null;
+  }, [searchParams]);
+
+  // F-047 — deep-link from Alerts Show Details (?student=&focus=&highlight=)
+  useEffect(() => {
+    const studentRaw = searchParams.get("student");
+    if (!studentRaw) {
+      return;
+    }
+    const studentId = Number(studentRaw);
+    if (Number.isFinite(studentId) && studentId > 0) {
+      setSelectedStudentId(studentId);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -277,6 +318,8 @@ const ClassDetailsView = () => {
           timeRange={timeRange}
           selectedStudentId={selectedStudentId}
           onSelectStudent={handleSelectStudent}
+          profileFocus={profileFocus}
+          profileHighlight={profileHighlight}
         />
       ) : activeTab === "assignments" ? (
         <Suspense

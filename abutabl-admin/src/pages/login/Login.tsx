@@ -1,58 +1,40 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useDispatch } from "react-redux";
+import { useNavigate } from "react-router-dom";
+import {
+  clearStaffHandoffStorage,
+  consumeStaffHandoff,
+} from "../../utils/staffHandoff";
+import { setUser } from "../../redux/reducers/loginReducer";
+import { redirectToStudentLogin } from "../../utils/studentAppUrl";
 
-import Box from "@mui/material/Box";
-import Grid from "@mui/material/Grid";
-import "../../styles/login.css";
-import Signin from "../../components/login/Signin";
-import ForgetPassword from "@/components/login/ForgetPassword";
-import ResetPassword from "../../components/login/ResetPassword";
-import { useSelector } from "react-redux";
-import { RootState } from "../../redux/store";
-
+/**
+ * Admin `/` login UI is deprecated. Staff auth is the student SPA Welcome Back form.
+ * Consumes hash handoff (Strict Mode–safe via admin sessionStorage), else redirects.
+ */
 const Login = () => {
-  const loginState = useSelector((state: RootState) => state.login);
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const [checking, setChecking] = useState(true);
 
-  return (
-    <Grid
-      container
-      sx={{
-        height: "100vh",
-        backgroundColor: "#fff",
-      }}
-    >
-      <Grid
-        item
-        xs={12}
-        md={6}
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        {loginState.loginProcess === "signIn" && <Signin />}
-        {loginState.loginProcess === "forgetPassword" && <ForgetPassword />}
-        {loginState.loginProcess === "resetPassword" && <ResetPassword />}
-      </Grid>
-      <Grid item md={6} className="hidden md:block">
-        <Box
-          sx={{
-            margin: "20px",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-          }}
-        >
-          <img
-            className="login-img object-contain"
-            src={require("../../assets/login.png")}
-            alt="login interface"
-          />
-        </Box>
-      </Grid>
-    </Grid>
-  );
+  useEffect(() => {
+    const session = consumeStaffHandoff();
+    if (session) {
+      dispatch(setUser(session.user));
+      // Keep stash briefly so React Strict Mode remount can re-read it.
+      navigate("/dashboard", { replace: true });
+      window.setTimeout(() => clearStaffHandoffStorage(), 500);
+      return;
+    }
+    setChecking(false);
+    redirectToStudentLogin();
+  }, [dispatch, navigate]);
+
+  if (checking) {
+    return null;
+  }
+
+  return null;
 };
 
 export default Login;

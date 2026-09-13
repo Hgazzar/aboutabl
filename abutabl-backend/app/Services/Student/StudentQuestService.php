@@ -11,11 +11,19 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Syncs unit-lesson quests from real lesson completion data (not assignments).
+ * Syncs dashboard quests from real student activity (weekly XP + unit lessons).
  */
 class StudentQuestService
 {
     private const MAX_SYNC_DEPTH = 8;
+
+    /** @var StudentXpService */
+    private $xp;
+
+    public function __construct(StudentXpService $xp)
+    {
+        $this->xp = $xp;
+    }
 
     /**
      * @param  int[]  $subjectIds
@@ -50,28 +58,35 @@ class StudentQuestService
             return $this->emptyPayload();
         }
 
-        if ($subjectIds === []) {
+        $limit = max(1, (int) config('student_quests.dashboard_quest_limit', 2));
+        $items = [];
+        $activeQuestIds = [];
+
+        $weeklyCandidate = $this->resolveWeeklyXpQuest($studentId);
+        if ($weeklyCandidate !== null) {
+            $weeklyQuest = $this->upsertQuest($studentId, $schoolId, $weeklyCandidate);
+            $activeQuestIds[] = (int) $weeklyQuest->id;
+            $items[] = $this->mapQuestRow($weeklyQuest);
+        }
+
+        if ($subjectIds !== []) {
+            $unitCandidate = $this->resolvePrimaryUnitQuest($studentId, $subjectIds);
+            if ($unitCandidate !== null) {
+                $unitQuest = $this->upsertQuest($studentId, $schoolId, $unitCandidate);
+                if ($unitQuest->status === StudentQuest::STATUS_COMPLETED) {
+                    return $this->buildDashboardPayloadInternal($studentId, $schoolId, $subjectIds, $depth + 1);
+                }
+
+                $activeQuestIds[] = (int) $unitQuest->id;
+                $items[] = $this->mapQuestRow($unitQuest);
+            }
+        }
+
+        $this->completeObsoleteQuests($studentId, $activeQuestIds);
+
+        if ($items === []) {
             return $this->emptyPayload();
         }
-
-        $candidate = $this->resolvePrimaryUnitQuest($studentId, $subjectIds);
-        if ($candidate === null) {
-            $this->completeStaleActiveQuests($studentId);
-
-            return $this->emptyPayload();
-        }
-
-        $quest = $this->upsertQuest($studentId, $schoolId, $candidate);
-        if ($quest->status === StudentQuest::STATUS_COMPLETED) {
-            $this->completeStaleActiveQuests($studentId);
-
-            return $this->buildDashboardPayloadInternal($studentId, $schoolId, $subjectIds, $depth + 1);
-        }
-
-        $this->completeStaleActiveQuests($studentId, (int) $quest->id);
-
-        $limit = max(1, (int) config('student_quests.dashboard_quest_limit', 1));
-        $items = [$this->mapQuestRow($quest)];
 
         return [
             'available' => true,
@@ -88,7 +103,7 @@ class StudentQuestService
         return [
             'available' => false,
             'items' => [],
-            'limit' => max(1, (int) config('student_quests.dashboard_quest_limit', 1)),
+            'limit' => max(1, (int) config('student_quests.dashboard_quest_limit', 2)),
         ];
     }
 
@@ -98,6 +113,29 @@ class StudentQuestService
     public function buildCtaPath(int $subjectId, int $unitId): string
     {
         return sprintf('/learn/%d?focusUnit=%d', $subjectId, $unitId);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function resolveWeeklyXpQuest(int $studentId): array
+    {
+        $target = max(1, (int) config('student_quests.weekly_xp_target', 50));
+        $earned = max(0, $this->xp->weeklyXpEarned($studentId));
+        $current = min($target, $earned);
+        $weekKey = Carbon::now()->format('o-\WW');
+
+        return [
+            'quest_key' => 'weekly_xp:'.$weekKey,
+            'quest_type' => StudentQuest::TYPE_WEEKLY_XP,
+            'subject_id' => 0,
+            'unit_id' => 0,
+            'unit_label' => (string) $target,
+            'subject_name' => 'XP',
+            'progress_current' => $current,
+            'progress_target' => $target,
+            'cta_path' => '/learn',
+        ];
     }
 
     /**
@@ -196,7 +234,9 @@ class StudentQuestService
      */
     private function upsertQuest(int $studentId, ?int $schoolId, array $candidate): StudentQuest
     {
-        $isComplete = $candidate['progress_current'] >= $candidate['progress_target'];
+        $target = max(1, (int) $candidate['progress_target']);
+        $current = min((int) $candidate['progress_current'], $target);
+        $isComplete = $current >= $target;
         $status = $isComplete ? StudentQuest::STATUS_COMPLETED : StudentQuest::STATUS_ACTIVE;
 
         /** @var StudentQuest $quest */
@@ -213,8 +253,8 @@ class StudentQuestService
                 'unit_label'       => (string) $candidate['unit_label'],
                 'subject_name'     => (string) $candidate['subject_name'],
                 'reward_label'     => null,
-                'progress_current' => (int) $candidate['progress_current'],
-                'progress_target'  => (int) $candidate['progress_target'],
+                'progress_current' => $current,
+                'progress_target'  => $target,
                 'status'           => $status,
                 'cta_path'         => (string) $candidate['cta_path'],
                 'completed_at'     => $isComplete ? Carbon::now() : null,
@@ -224,14 +264,29 @@ class StudentQuestService
         return $quest->refresh();
     }
 
-    private function completeStaleActiveQuests(int $studentId, ?int $exceptQuestId = null): void
+    /**
+     * @param  int[]  $keepQuestIds
+     */
+    private function completeObsoleteQuests(int $studentId, array $keepQuestIds): void
     {
+        $currentWeekKey = 'weekly_xp:'.Carbon::now()->format('o-\WW');
+
+        StudentQuest::query()
+            ->where('student_id', $studentId)
+            ->where('status', StudentQuest::STATUS_ACTIVE)
+            ->where('quest_type', StudentQuest::TYPE_WEEKLY_XP)
+            ->where('quest_key', '!=', $currentWeekKey)
+            ->update([
+                'status' => StudentQuest::STATUS_COMPLETED,
+                'completed_at' => Carbon::now(),
+            ]);
+
         $query = StudentQuest::query()
             ->where('student_id', $studentId)
             ->where('status', StudentQuest::STATUS_ACTIVE);
 
-        if ($exceptQuestId !== null) {
-            $query->where('id', '!=', $exceptQuestId);
+        if ($keepQuestIds !== []) {
+            $query->whereNotIn('id', $keepQuestIds);
         }
 
         $query->update([

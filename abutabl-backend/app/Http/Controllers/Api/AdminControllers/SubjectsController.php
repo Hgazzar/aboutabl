@@ -74,7 +74,7 @@ class SubjectsController extends Controller
 
                 $subjects = $subjects
                     ->orderBy('created_at',$request->order ?? 'desc')
-                    ->select('id',DB::raw("CASE WHEN lang = 'ar' THEN name_ar ELSE name END as name"),'photo')
+                    ->select('id',DB::raw(app()->getLocale() === 'ar' ? 'name_ar as name' : 'name as name'),'photo')
                     ->with([
                     'subjectschool' => function ($query) {
                         $query->where('school_id', '=', request('school_id'));
@@ -157,7 +157,7 @@ class SubjectsController extends Controller
 
            return response()->json([
             'status'  => true ,
-            'subject' => $subject->select('id',DB::raw("CASE WHEN lang = 'ar' THEN name_ar ELSE name END as name"),'status')->get(),
+            'subject' => $subject->select('id',DB::raw(app()->getLocale() === 'ar' ? 'name_ar as name' : 'name as name'),'status')->get(),
             'grade'  => $grade,
             ] , 200);
           
@@ -196,7 +196,23 @@ class SubjectsController extends Controller
        try {
 
                   $subject = Subject::where('id',$id)
-                    ->select('id',DB::raw("CASE WHEN lang = 'ar' THEN name_ar ELSE name END as name"),'name as name_en','name_ar as name_ar',DB::raw("CASE WHEN lang = 'ar' THEN des_ar ELSE des END as des"),'des as des_en','lang as lang','des_ar as des_ar',DB::raw("CASE WHEN lang = 'ar' THEN pass_ar ELSE pass END as pass"),'pass as pass_en','pass_ar as pass_ar','photo','status',DB::raw('0 as videos_hours'),DB::raw('0 as articles_count'))
+                    ->select(
+                        'id',
+                        DB::raw(app()->getLocale() === 'ar' ? 'name_ar as name' : 'name as name'),
+                        'name as name_en',
+                        'name_ar as name_ar',
+                        DB::raw(app()->getLocale() === 'ar' ? 'des_ar as des' : 'des as des'),
+                        'des as des_en',
+                        DB::raw("'".(app()->getLocale() === 'ar' ? 'ar' : 'en')."' as lang"),
+                        'des_ar as des_ar',
+                        DB::raw(app()->getLocale() === 'ar' ? 'pass_ar as pass' : 'pass as pass'),
+                        'pass as pass_en',
+                        'pass_ar as pass_ar',
+                        'photo',
+                        'status',
+                        DB::raw('0 as videos_hours'),
+                        DB::raw('0 as articles_count')
+                    )
                     ->withCount('Lessons')
                     ->withCount('Units')
                     ->withCount('Quizes')
@@ -317,7 +333,7 @@ class SubjectsController extends Controller
 
            return response()->json([
             'status'  => true ,
-            'subject' => $subject->select('id',DB::raw("CASE WHEN lang = 'ar' THEN name_ar ELSE name END as name"),'status')->get(),
+            'subject' => $subject->select('id',DB::raw(app()->getLocale() === 'ar' ? 'name_ar as name' : 'name as name'),'status')->get(),
             'teachers'  => $teachers,
             ] , 200);
           
@@ -375,7 +391,7 @@ class SubjectsController extends Controller
 
          return response()->json([
           'status'  => true ,
-          'subject' => $subject->select('id',DB::raw("CASE WHEN lang = 'ar' THEN name_ar ELSE name END as name"),'status')->get(),
+          'subject' => $subject->select('id',DB::raw(app()->getLocale() === 'ar' ? 'name_ar as name' : 'name as name'),'status')->get(),
           'students'  => $students,
             ] , 200);
           
@@ -442,7 +458,6 @@ class SubjectsController extends Controller
                           'pass'      => $request->pass ?? $request->pass_en ?? null,
                           'pass_ar'   => $request->pass_ar ?? null,
                           'status'    => $request->status ?? 1,
-                          'lang'      => $request->lang ?? 'en',
                           'photo'     => $path.'/'.$hashName,
                        ]);
             
@@ -554,7 +569,6 @@ class SubjectsController extends Controller
                           'pass'      => $request->pass ?? $request->pass_en ?? null,
                           'pass_ar'   => $request->pass_ar ?? null,
                           'status'    => $request->status,
-                          'lang'      => $request->lang ?? $subject->lang ?? 'en',
                           'photo'     => $photoValue,
                        ]);
             

@@ -11,14 +11,16 @@ import {
 export type StartQuizArgs = {
 	quizId: number | string;
 	assignStudentId?: number | null;
+	assignActivityId?: number | null;
 };
 
 export const startQuizRuntime = createAsyncThunk(
 	'quizRuntime/start',
-	async ({ quizId, assignStudentId }: StartQuizArgs) => {
+	async ({ quizId, assignStudentId, assignActivityId }: StartQuizArgs) => {
 		const result = await startQuizAttempt({
 			quiz_id: Number(quizId),
 			assign_student_id: assignStudentId ?? null,
+			assign_activity_id: assignActivityId ?? null,
 		});
 		if (result?.status === false) {
 			throw new Error(result.msg || 'Failed to start quiz attempt');

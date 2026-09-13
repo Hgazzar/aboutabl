@@ -4,6 +4,7 @@ import {
 	activityActionLocked,
 	activityIsComplete,
 	heroCopyKey,
+	insertStudentNameAfterGreatWork,
 	progressLabel,
 	resolveDetailHeroMode,
 	unavailableProductFeatures,
@@ -76,6 +77,7 @@ const sampleDetail = {
 	materials: [],
 	my_work: [],
 	rubric_available: false,
+	rubric: null,
 	assignment_xp: null,
 	redo_allowed: false,
 };
@@ -139,7 +141,20 @@ describe('assignment lifecycle state mapping', () => {
 			assignment_xp: 50,
 			rubric_available: true,
 			redo_allowed: true,
-			materials: [{ fake: true }],
+			materials: [
+				{
+					id: 1,
+					assign_id: 12,
+					kind: 'link',
+					label: 'Ref',
+					url: 'https://example.com',
+					original_filename: null,
+					mime_type: null,
+					size_bytes: null,
+					duration_ms: null,
+					sort_order: 0,
+				},
+			],
 		});
 
 		expect(parsed).not.toBeNull();
@@ -149,6 +164,7 @@ describe('assignment lifecycle state mapping', () => {
 		expect(parsed?.teacher_feedback_items).toHaveLength(1);
 		expect(parsed?.assignment_xp).toBe(50);
 		expect(parsed?.grade).toBeNull();
+		expect(unavailableProductFeatures(parsed!).showMaterials).toBe(true);
 	});
 
 	it('accepts Phase-1 aliases and never invents graded from completed-only payload', () => {
@@ -178,5 +194,31 @@ describe('assignment lifecycle state mapping', () => {
 		expect(hero?.lifecycle.mode).toBe('homework_hero');
 		expect(hero?.rubric_available).toBe(false);
 		expect(hero?.materials).toEqual([]);
+	});
+});
+
+describe('insertStudentNameAfterGreatWork', () => {
+	it('inserts name after Great work then comma and space', () => {
+		expect(
+			insertStudentNameAfterGreatWork(
+				'Great work! Your teacher has graded your assignment.',
+				'Alex'
+			)
+		).toBe('Great work Alex, Your teacher has graded your assignment.');
+	});
+
+	it('handles em-dash after Great work', () => {
+		expect(
+			insertStudentNameAfterGreatWork(
+				'Great work — clear effort and strong understanding.',
+				'Noor'
+			)
+		).toBe('Great work Noor, clear effort and strong understanding.');
+	});
+
+	it('is a no-op when name is missing', () => {
+		expect(insertStudentNameAfterGreatWork('Great work! Keep going.', '')).toBe(
+			'Great work! Keep going.'
+		);
 	});
 });

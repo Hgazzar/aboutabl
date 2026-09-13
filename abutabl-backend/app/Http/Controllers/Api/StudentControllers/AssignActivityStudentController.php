@@ -84,6 +84,32 @@ class AssignActivityStudentController extends Controller
     }
 
     /**
+     * Assignment-level REDO: submitted → active (before deadline).
+     */
+    public function redoAssignment(int $assignId)
+    {
+        try {
+            $studentId = (int) auth()->user()->id;
+            $this->parentSubmissions->redoForStudent($assignId, $studentId);
+
+            $assign = Assigns::with('activities')->find($assignId);
+            if (! $assign) {
+                return $this->returnError('E001', __('api.not_exists_item_for_this_data'));
+            }
+
+            return $this->returnData(
+                'data',
+                $this->submissions->studentDetailPayload($assign, $studentId),
+                __('Successfully')
+            );
+        } catch (InvalidArgumentException $ex) {
+            return $this->returnError('E001', $ex->getMessage());
+        } catch (\Exception $ex) {
+            return $this->returnError($ex->getCode(), $ex->getMessage());
+        }
+    }
+
+    /**
      * Submit / complete one activity.
      */
     public function submit(Request $request, int $assignActivityId)
@@ -95,6 +121,32 @@ class AssignActivityStudentController extends Controller
             $submission = $this->submissions->submit($assignActivityId, $studentId, $payload);
 
             return $this->returnData('data', $submission, __('Successfully'));
+        } catch (InvalidArgumentException $ex) {
+            return $this->returnError('E001', $ex->getMessage());
+        } catch (\Exception $ex) {
+            return $this->returnError($ex->getCode(), $ex->getMessage());
+        }
+    }
+
+    /**
+     * Activity-level REDO — reset one completed activity while parent stays active.
+     */
+    public function redoActivity(int $assignActivityId)
+    {
+        try {
+            $studentId = (int) auth()->user()->id;
+            $this->submissions->redoActivity($assignActivityId, $studentId);
+
+            $activity = AssignActivity::with('assign')->find($assignActivityId);
+            if (! $activity || ! $activity->assign) {
+                return $this->returnError('E001', __('api.not_exists_item_for_this_data'));
+            }
+
+            return $this->returnData(
+                'data',
+                $this->submissions->studentDetailPayload($activity->assign->load('activities'), $studentId),
+                __('Successfully')
+            );
         } catch (InvalidArgumentException $ex) {
             return $this->returnError('E001', $ex->getMessage());
         } catch (\Exception $ex) {

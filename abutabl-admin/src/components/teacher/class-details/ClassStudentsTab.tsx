@@ -25,12 +25,20 @@ import ClassChartsGrid from "@/components/teacher/class-details/ClassChartsGrid"
 import LearningProgressCard from "@/components/teacher/shared/LearningProgressCard";
 import { getRequest } from "@/utils/fetchMethods";
 import { ClassStudentsOverviewResponse } from "@/types/classStudentsOverview";
+import {
+  STUDENT_PROFILE_SECTION_ID,
+  StudentProfileFocusSection,
+  StudentProfileHighlight,
+} from "@/utils/teacherAlertNavigation";
 
 export type ClassStudentsTabProps = {
   classId: number;
   timeRange: ClassDetailsTimeRange;
   selectedStudentId: number | null;
   onSelectStudent: (studentId: number) => void;
+  /** F-047 — deep-link focus from Alerts (existing profile only). */
+  profileFocus?: StudentProfileFocusSection | null;
+  profileHighlight?: StudentProfileHighlight;
 };
 
 const emptyProfile = (classId: number): StudentProfileResponse => ({
@@ -114,6 +122,8 @@ export const ClassStudentsTab = ({
   timeRange,
   selectedStudentId,
   onSelectStudent,
+  profileFocus = null,
+  profileHighlight = null,
 }: ClassStudentsTabProps) => {
   const { t } = useTranslation();
   const [subjectSlug, setSubjectSlug] = useState("letters-explorer");
@@ -201,6 +211,75 @@ export const ClassStudentsTab = ({
     return <StudentProfileSkeleton />;
   }
 
+  // F-047 — scroll to focused section after profile paint
+  // (effect lives below early returns via dedicated component call site — run here)
+  return (
+    <ClassStudentsTabContent
+      classId={classId}
+      timeRange={timeRange}
+      selectedStudentId={selectedStudentId}
+      onSelectStudent={onSelectStudent}
+      profile={profile}
+      setSubjectSlug={setSubjectSlug}
+      classmates={classmates}
+      isFetching={isFetching}
+      isError={isError}
+      errorMessage={error?.message}
+      refetch={refetch}
+      profileFocus={profileFocus}
+      profileHighlight={profileHighlight}
+    />
+  );
+};
+
+type ClassStudentsTabContentProps = {
+  classId: number;
+  timeRange: ClassDetailsTimeRange;
+  selectedStudentId: number;
+  onSelectStudent: (studentId: number) => void;
+  profile: StudentProfileResponse;
+  setSubjectSlug: (slug: string) => void;
+  classmates: Array<{
+    student_id: number;
+    name: string;
+    photo_url: string | null;
+  }>;
+  isFetching: boolean;
+  isError: boolean;
+  errorMessage?: string;
+  refetch: () => Promise<unknown> | void;
+  profileFocus: StudentProfileFocusSection | null;
+  profileHighlight: StudentProfileHighlight;
+};
+
+const ClassStudentsTabContent = ({
+  classId,
+  timeRange,
+  selectedStudentId,
+  onSelectStudent,
+  profile,
+  setSubjectSlug,
+  classmates,
+  isFetching,
+  isError,
+  errorMessage,
+  refetch,
+  profileFocus,
+  profileHighlight,
+}: ClassStudentsTabContentProps) => {
+  useEffect(() => {
+    if (!profileFocus) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      const el = document.getElementById(
+        STUDENT_PROFILE_SECTION_ID(profileFocus)
+      );
+      el?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [profileFocus, selectedStudentId]);
+
   return (
     <div className="space-y-6 px-6 pb-8 pt-6 md:px-8">
       <StudentSelectorToolbar
@@ -215,11 +294,16 @@ export const ClassStudentsTab = ({
         schoolAvailable={profile.rankings.school_available}
       />
 
-      <SummaryCards
-        student={profile.student}
-        analytics={profile.analytics}
-        completion={profile.completion}
-      />
+      <div
+        id={STUDENT_PROFILE_SECTION_ID("summary")}
+        className="scroll-mt-24"
+      >
+        <SummaryCards
+          student={profile.student}
+          analytics={profile.analytics}
+          completion={profile.completion}
+        />
+      </div>
 
       <ClassChartsGrid
         left={
@@ -232,60 +316,95 @@ export const ClassStudentsTab = ({
 
       <StudentActivitiesGrid
         left={
-          <StudentAssignmentsWidget
-            classId={classId}
-            studentId={selectedStudentId}
-            timeRange={timeRange}
-          />
+          <div
+            id={STUDENT_PROFILE_SECTION_ID("assignments")}
+            className={`h-full scroll-mt-24 rounded-2xl transition-shadow ${
+              profileFocus === "assignments"
+                ? "ring-2 ring-[#23B8A2] ring-offset-2"
+                : ""
+            }`}
+          >
+            <StudentAssignmentsWidget
+              classId={classId}
+              studentId={selectedStudentId}
+              timeRange={timeRange}
+              highlight={
+                profileFocus === "assignments" ? profileHighlight : null
+              }
+            />
+          </div>
         }
         right={
-          <StudentQuizzesWidget
-            classId={classId}
-            studentId={selectedStudentId}
-            timeRange={timeRange}
-          />
+          <div
+            id={STUDENT_PROFILE_SECTION_ID("quizzes")}
+            className="h-full scroll-mt-24"
+          >
+            <StudentQuizzesWidget
+              classId={classId}
+              studentId={selectedStudentId}
+              timeRange={timeRange}
+            />
+          </div>
         }
       />
 
-      {/* Standards | Learning Progress — Smart Insight is full-width below (once only). */}
-      <StudentStandardsInsightsGrid
-        left={
-          <StandardsCard
-            standards={profile.standards}
-            onSubjectChange={setSubjectSlug}
-          />
-        }
-        right={
-          <LearningProgressCard
-            data={profile.learning_progress}
-            fillHeight
-          />
-        }
-      />
+      <div
+        id={STUDENT_PROFILE_SECTION_ID("standards")}
+        className="scroll-mt-24"
+      >
+        <StudentStandardsInsightsGrid
+          left={
+            <StandardsCard
+              standards={profile.standards}
+              onSubjectChange={setSubjectSlug}
+            />
+          }
+          right={
+            <LearningProgressCard
+              data={profile.learning_progress}
+              fillHeight
+            />
+          }
+        />
+      </div>
 
-      <section className="w-full" data-testid="student-smart-insight">
+      <section
+        id={STUDENT_PROFILE_SECTION_ID("smart_insight")}
+        className="w-full scroll-mt-24"
+        data-testid="student-smart-insight"
+      >
         <SmartInsightCard
           key={`smart-insight-${selectedStudentId}`}
           smartInsight={profile.teacher_evaluation.smart_insight}
           isLoading={isFetching}
           isError={isError}
-          errorMessage={error?.message}
+          errorMessage={errorMessage}
         />
       </section>
 
-      <TeacherEvaluationCard
-        key={`teacher-eval-${selectedStudentId}`}
-        classId={classId}
-        studentId={selectedStudentId}
-        evaluation={profile.teacher_evaluation}
-        onMutated={() => refetch()}
-      />
+      <div
+        id={STUDENT_PROFILE_SECTION_ID("evaluation")}
+        className="scroll-mt-24"
+      >
+        <TeacherEvaluationCard
+          key={`teacher-eval-${selectedStudentId}`}
+          classId={classId}
+          studentId={selectedStudentId}
+          evaluation={profile.teacher_evaluation}
+          onMutated={() => refetch()}
+        />
+      </div>
 
-      <StudentRankingsWidget
-        classId={classId}
-        studentId={selectedStudentId}
-        timeRange={timeRange}
-      />
+      <div
+        id={STUDENT_PROFILE_SECTION_ID("rankings")}
+        className="scroll-mt-24"
+      >
+        <StudentRankingsWidget
+          classId={classId}
+          studentId={selectedStudentId}
+          timeRange={timeRange}
+        />
+      </div>
     </div>
   );
 };

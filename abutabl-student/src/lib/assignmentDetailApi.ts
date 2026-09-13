@@ -1,4 +1,4 @@
-import { getRequest, postRequest } from 'lib/requests';
+import { deleteRequest, getBlobRequest, getRequest, postFormDataRequest, postRequest } from 'lib/requests';
 import { parseStudentApiPayload } from 'lib/studentApiResponse';
 
 export type AssignmentActivitySubmission = {
@@ -24,6 +24,8 @@ export type AssignmentActivityRow = {
 	sort_order: number;
 	subject_id: number;
 	path: string | null;
+	/** Activity-level REDO — distinct from assignment redo_allowed. */
+	redo_allowed: boolean;
 	submission: AssignmentActivitySubmission | null;
 };
 
@@ -62,9 +64,43 @@ export type AssignmentGradePayload = {
 	badge: AssignmentGradeBadge | null;
 	teacher_feedback: string | null;
 	graded_by: number | null;
+	/** Resolved grading teacher or assignment creator. */
+	teacher_id: number | null;
+	teacher_name: string | null;
+	/** Real teacher photo URL when uploaded; null → UI placeholder. */
+	teacher_photo_url: string | null;
 	finalized_at: string | null;
 	/** Preserved for Phase 4D Rubric View — do not invent labels/weights. */
 	criteria: AssignmentGradeCriterion[];
+};
+
+export type AssignmentMaterialItem = {
+	id: number;
+	assign_id: number;
+	kind: string;
+	label: string | null;
+	original_filename: string | null;
+	url: string | null;
+	mime_type: string | null;
+	size_bytes: number | null;
+	duration_ms: number | null;
+	sort_order: number;
+};
+
+export type AssignmentStudentWorkKind = 'image' | 'document' | 'voice';
+
+export type AssignmentStudentWorkItem = {
+	id: number;
+	assign_id: number;
+	assign_student_id: number;
+	student_id: number;
+	kind: AssignmentStudentWorkKind;
+	original_filename: string | null;
+	url: string | null;
+	mime_type: string | null;
+	size_bytes: number | null;
+	duration_ms: number | null;
+	sort_order: number;
 };
 
 export type AssignmentDetailPayload = {
@@ -74,6 +110,14 @@ export type AssignmentDetailPayload = {
 	due_at: string | null;
 	type: string;
 	subject_id: number;
+	/** Authoritative subjects.name / name_ar — never parse from title. */
+	subject_name: string | null;
+	unit_id: number | null;
+	unit_name: string | null;
+	lesson_id: number | null;
+	lesson_name: string | null;
+	/** Shared Lesson/Unit label when all activities agree; null when mixed/missing. */
+	context_label: string | null;
 	progress: {
 		tasks_completed: number;
 		tasks_total: number;
@@ -90,21 +134,54 @@ export type AssignmentDetailPayload = {
 		is_overdue: boolean;
 		source: string;
 		can_submit: boolean;
+		/** Assignment-level REDO (submitted + before deadline). */
+		redo_allowed: boolean;
 	};
 	teacher_feedback_items: AssignmentTeacherFeedbackItem[];
 	grade: AssignmentGradePayload | null;
 	activities: AssignmentActivityRow[];
-	materials: unknown[];
-	my_work: unknown[];
+	materials: AssignmentMaterialItem[];
+	my_work: AssignmentStudentWorkItem[];
 	rubric_available: boolean;
+	/** Phase 4D student-safe rubric definition (null when unavailable). */
+	rubric: AssignmentRubricDefinition | null;
 	assignment_xp: number | null;
 	redo_allowed: boolean;
+};
+
+/** Generic criterion performance level from API (labels localized server-side). */
+export type AssignmentRubricLevel = {
+	points: number;
+	key: string;
+	label: string;
+	descriptor: string | null;
+};
+
+export type AssignmentRubricCriterionDefinition = {
+	id: number;
+	label: string;
+	weight: number;
+	max_points: number;
+	sort_order: number;
+};
+
+export type AssignmentRubricDefinition = {
+	id: number;
+	title: string;
+	points_possible: number | null;
+	criteria: AssignmentRubricCriterionDefinition[];
+	levels: AssignmentRubricLevel[];
 };
 
 function asNullableNumber(value: unknown): number | null {
 	if (value == null || value === '') return null;
 	const n = Number(value);
 	return Number.isFinite(n) ? n : null;
+}
+
+/** Authoritative API boolean flags (accept JSON true / 1 / "true"). */
+export function apiFlagTrue(value: unknown): boolean {
+	return value === true || value === 1 || value === '1' || value === 'true';
 }
 
 function asStringOrNull(value: unknown): string | null {
@@ -149,6 +226,7 @@ function parseActivity(raw: unknown): AssignmentActivityRow | null {
 		sort_order: asNullableNumber(row.sort_order) ?? 0,
 		subject_id: asNullableNumber(row.subject_id) ?? 0,
 		path: asStringOrNull(row.path),
+		redo_allowed: apiFlagTrue(row.redo_allowed),
 		submission: parseSubmission(row.submission),
 	};
 }
@@ -215,9 +293,171 @@ export function parseAssignmentGradePayload(raw: unknown): AssignmentGradePayloa
 		badge: parseGradeBadge(row.badge),
 		teacher_feedback: asStringOrNull(row.teacher_feedback),
 		graded_by: asNullableNumber(row.graded_by),
+		teacher_id: asNullableNumber(row.teacher_id) ?? asNullableNumber(row.graded_by),
+		teacher_name: asStringOrNull(row.teacher_name),
+		teacher_photo_url: asStringOrNull(row.teacher_photo_url),
 		finalized_at: asStringOrNull(row.finalized_at),
 		criteria: parseGradeCriteria(row.criteria),
 	};
+}
+
+function parseRubricLevel(raw: unknown): AssignmentRubricLevel | null {
+	if (!raw || typeof raw !== 'object') return null;
+	const row = raw as Record<string, unknown>;
+	const points = asNullableNumber(row.points);
+	const key = asStringOrNull(row.key);
+	const label = asStringOrNull(row.label);
+	if (points == null || !key || !label) return null;
+	return {
+		points,
+		key,
+		label,
+		descriptor: asStringOrNull(row.descriptor),
+	};
+}
+
+function parseRubricCriterionDefinition(
+	raw: unknown
+): AssignmentRubricCriterionDefinition | null {
+	if (!raw || typeof raw !== 'object') return null;
+	const row = raw as Record<string, unknown>;
+	const id = asNullableNumber(row.id);
+	const label = asStringOrNull(row.label);
+	const weight = asNullableNumber(row.weight);
+	if (id == null || !label || weight == null) return null;
+	return {
+		id,
+		label,
+		weight,
+		max_points: asNullableNumber(row.max_points) ?? 0,
+		sort_order: asNullableNumber(row.sort_order) ?? 0,
+	};
+}
+
+/** Parse Phase 4D student rubric definition; null when absent. */
+export function parseAssignmentRubricDefinition(
+	raw: unknown
+): AssignmentRubricDefinition | null {
+	if (!raw || typeof raw !== 'object') return null;
+	const row = raw as Record<string, unknown>;
+	const id = asNullableNumber(row.id);
+	if (id == null) return null;
+
+	const criteria = Array.isArray(row.criteria)
+		? row.criteria
+				.map(parseRubricCriterionDefinition)
+				.filter((c): c is AssignmentRubricCriterionDefinition => c != null)
+		: [];
+
+	const levels = Array.isArray(row.levels)
+		? row.levels
+				.map(parseRubricLevel)
+				.filter((l): l is AssignmentRubricLevel => l != null)
+		: [];
+
+	return {
+		id,
+		title: String(row.title ?? ''),
+		points_possible: asNullableNumber(row.points_possible),
+		criteria,
+		levels,
+	};
+}
+
+/** Parse Phase 4 student My Work item; null when invalid. */
+export function parseAssignmentStudentWorkItem(
+	raw: unknown
+): AssignmentStudentWorkItem | null {
+	if (!raw || typeof raw !== 'object') return null;
+	const row = raw as Record<string, unknown>;
+	const id = asNullableNumber(row.id);
+	const assignId = asNullableNumber(row.assign_id);
+	const kindRaw = asStringOrNull(row.kind);
+	if (id == null || assignId == null || !kindRaw) return null;
+	if (kindRaw !== 'image' && kindRaw !== 'document' && kindRaw !== 'voice') {
+		return null;
+	}
+	return {
+		id,
+		assign_id: assignId,
+		assign_student_id: asNullableNumber(row.assign_student_id) ?? 0,
+		student_id: asNullableNumber(row.student_id) ?? 0,
+		kind: kindRaw,
+		original_filename: asStringOrNull(row.original_filename),
+		url: asStringOrNull(row.url),
+		mime_type: asStringOrNull(row.mime_type),
+		size_bytes: asNullableNumber(row.size_bytes),
+		duration_ms: asNullableNumber(row.duration_ms),
+		sort_order: asNullableNumber(row.sort_order) ?? 0,
+	};
+}
+
+function parseAssignmentMaterialItem(raw: unknown): AssignmentMaterialItem | null {
+	if (!raw || typeof raw !== 'object') return null;
+	const row = raw as Record<string, unknown>;
+	const id = asNullableNumber(row.id);
+	const assignId = asNullableNumber(row.assign_id);
+	const kind = asStringOrNull(row.kind);
+	if (id == null || assignId == null || !kind) return null;
+	return {
+		id,
+		assign_id: assignId,
+		kind,
+		label: asStringOrNull(row.label),
+		original_filename: asStringOrNull(row.original_filename),
+		url: asStringOrNull(row.url),
+		mime_type: asStringOrNull(row.mime_type),
+		size_bytes: asNullableNumber(row.size_bytes),
+		duration_ms: asNullableNumber(row.duration_ms),
+		sort_order: asNullableNumber(row.sort_order) ?? 0,
+	};
+}
+
+export type AssignmentMyWorkListPayload = {
+	assign_id: number;
+	assign_student_id: number | null;
+	my_work: AssignmentStudentWorkItem[];
+	my_work_locked: boolean;
+};
+
+export function parseAssignmentMyWorkListPayload(
+	raw: unknown
+): AssignmentMyWorkListPayload | null {
+	if (!raw || typeof raw !== 'object') return null;
+	const row = raw as Record<string, unknown>;
+	const assignId = asNullableNumber(row.assign_id);
+	if (assignId == null) return null;
+	const myWork = Array.isArray(row.my_work)
+		? row.my_work
+				.map(parseAssignmentStudentWorkItem)
+				.filter((w): w is AssignmentStudentWorkItem => w != null)
+		: [];
+	return {
+		assign_id: assignId,
+		assign_student_id: asNullableNumber(row.assign_student_id),
+		my_work: myWork,
+		my_work_locked: row.my_work_locked === true,
+	};
+}
+
+/** Build multipart body for POST /assigns/{id}/my-work. */
+export function buildMyWorkUploadFormData(
+	kind: AssignmentStudentWorkKind,
+	file: File,
+	durationMs?: number | null
+): FormData {
+	const form = new FormData();
+	form.append('kind', kind);
+	form.append('file', file);
+	if (
+		kind === 'voice' &&
+		durationMs != null &&
+		Number.isFinite(durationMs) &&
+		durationMs > 0
+	) {
+		form.append('duration_ms', String(Math.round(durationMs)));
+	}
+	return form;
 }
 
 export function parseAssignmentDetailPayload(raw: unknown): AssignmentDetailPayload | null {
@@ -276,6 +516,12 @@ export function parseAssignmentDetailPayload(raw: unknown): AssignmentDetailPayl
 		due_at: asStringOrNull(row.due_at),
 		type: String(row.type ?? ''),
 		subject_id: asNullableNumber(row.subject_id) ?? 0,
+		subject_name: asStringOrNull(row.subject_name),
+		unit_id: asNullableNumber(row.unit_id),
+		unit_name: asStringOrNull(row.unit_name),
+		lesson_id: asNullableNumber(row.lesson_id),
+		lesson_name: asStringOrNull(row.lesson_name),
+		context_label: asStringOrNull(row.context_label),
 		progress: {
 			tasks_completed: asNullableNumber(progressRaw.tasks_completed) ?? 0,
 			tasks_total: asNullableNumber(progressRaw.tasks_total) ?? 0,
@@ -294,16 +540,29 @@ export function parseAssignmentDetailPayload(raw: unknown): AssignmentDetailPayl
 				typeof lifecycleRaw.source === 'string' && lifecycleRaw.source
 					? lifecycleRaw.source
 					: 'assigns_students',
-			can_submit: lifecycleRaw.can_submit === true,
+			can_submit: apiFlagTrue(lifecycleRaw.can_submit),
+			redo_allowed:
+				apiFlagTrue(lifecycleRaw.redo_allowed) || apiFlagTrue(row.redo_allowed),
 		},
 		teacher_feedback_items: feedbackItems,
 		grade: parseAssignmentGradePayload(row.grade),
 		activities,
-		materials: Array.isArray(row.materials) ? row.materials : [],
-		my_work: Array.isArray(row.my_work) ? row.my_work : [],
+		materials: Array.isArray(row.materials)
+			? row.materials
+					.map(parseAssignmentMaterialItem)
+					.filter((m): m is AssignmentMaterialItem => m != null)
+			: [],
+		my_work: Array.isArray(row.my_work)
+			? row.my_work
+					.map(parseAssignmentStudentWorkItem)
+					.filter((w): w is AssignmentStudentWorkItem => w != null)
+			: [],
 		rubric_available: row.rubric_available === true,
+		rubric:
+			row.rubric_available === true ? parseAssignmentRubricDefinition(row.rubric) : null,
 		assignment_xp: asNullableNumber(row.assignment_xp),
-		redo_allowed: row.redo_allowed === true,
+		redo_allowed:
+			apiFlagTrue(row.redo_allowed) || apiFlagTrue(lifecycleRaw.redo_allowed),
 	};
 }
 
@@ -334,4 +593,75 @@ export async function submitAssignmentParent(
 		throw new Error(String(response?.msg || 'Assignment submit failed'));
 	}
 	return parsed;
+}
+
+export async function redoAssignmentParent(
+	assignId: number
+): Promise<AssignmentDetailPayload> {
+	const response = await postRequest(`assigns/${assignId}/redo`, {});
+	const payload = parseStudentApiPayload<unknown>(response, 'data');
+	const parsed = parseAssignmentDetailPayload(payload);
+	if (!parsed) {
+		throw new Error(String(response?.msg || 'Assignment redo failed'));
+	}
+	return parsed;
+}
+
+export async function redoAssignActivity(
+	assignActivityId: number
+): Promise<AssignmentDetailPayload> {
+	const response = await postRequest(`assign-activities/${assignActivityId}/redo`, {});
+	const payload = parseStudentApiPayload<unknown>(response, 'data');
+	const parsed = parseAssignmentDetailPayload(payload);
+	if (!parsed) {
+		throw new Error(String(response?.msg || 'Activity redo failed'));
+	}
+	return parsed;
+}
+
+export async function fetchAssignmentMyWork(
+	assignId: number
+): Promise<AssignmentMyWorkListPayload> {
+	const response = await getRequest(`assigns/${assignId}/my-work`);
+	const payload = parseStudentApiPayload<unknown>(response, 'data');
+	const parsed = parseAssignmentMyWorkListPayload(payload);
+	if (!parsed) {
+		throw new Error('Invalid my work payload');
+	}
+	return parsed;
+}
+
+export async function uploadAssignmentMyWork(
+	assignId: number,
+	kind: AssignmentStudentWorkKind,
+	file: File,
+	durationMs?: number | null
+): Promise<AssignmentStudentWorkItem> {
+	const formData = buildMyWorkUploadFormData(kind, file, durationMs);
+	const response = await postFormDataRequest(`assigns/${assignId}/my-work`, formData);
+	const payload = parseStudentApiPayload<unknown>(response, 'data');
+	const parsed = parseAssignmentStudentWorkItem(payload);
+	if (!parsed) {
+		throw new Error(String(response?.msg || 'Invalid upload response'));
+	}
+	return parsed;
+}
+
+export async function deleteAssignmentMyWork(
+	assignId: number,
+	workId: number
+): Promise<void> {
+	const response = await deleteRequest(`assigns/${assignId}/my-work/${workId}`);
+	if (!response || response.status !== true) {
+		throw new Error(String(response?.msg || 'Delete failed'));
+	}
+}
+
+/** Authenticated binary stream for a My Work file (image / document / voice). */
+export async function fetchAssignmentMyWorkFileBlob(
+	assignId: number,
+	workId: number,
+	signal?: AbortSignal
+): Promise<Blob> {
+	return getBlobRequest(`assigns/${assignId}/my-work/${workId}/file`, signal);
 }
