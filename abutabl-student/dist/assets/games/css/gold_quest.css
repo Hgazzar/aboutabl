@@ -1,0 +1,1155 @@
+:root {
+    --main-color: #2196f3;
+    --main-color-alt: #1787E0;
+}
+
+* {
+    --webkit-box-sizing: border-box;
+    --moz-box-sizing: border-box;
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+
+}
+
+body {
+    background-image: url('/assets/games/images/gold-bg.jpg');
+    background-color: #0f1a2c; /* Fallback color if image fails to load */
+    font-family: "Raleway", sans-serif; /* Changed serif to sans-serif (common for Raleway) */
+    margin: 0; /* Remove default body margin */
+    overflow-x: auto; /* Prevent horizontal scrolling */
+    background-position: center center;
+    background-repeat: no-repeat; /* Uncommented to prevent image tiling */
+    background-size: cover; /* Better than 100% 100% (prevents stretching) */
+    background-attachment: fixed; /* Optional: Keep background fixed during scrolling */
+    min-height: 100vh;
+}.question
+
+ .container {
+     margin-left: auto;
+     margin-right: auto;
+     padding-left: 15px;
+     padding-right: 15px;
+     /* margin: 0; */
+     /* padding: 0; */
+ }
+
+/* small */
+@media (min-width: 768px) {
+    .container {
+        width: 750px;
+    }
+}
+
+/* medium */
+@media (min-width: 992px) {
+    .container {
+        width: 970px;
+    }
+}
+
+/* large */
+@media (min-width: 1200px) {
+    .container {
+        width: 1170px
+    }
+}
+
+ul {
+    list-style: none;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+.header {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 15px 0;
+    color: #fff;
+    border-bottom: 0.5px solid rgba(255, 255, 255, 0.20);
+    background: rgba(0, 0, 0, 0.01);
+    backdrop-filter: blur(18px);
+}
+
+.contentHeader {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+}
+
+.contentHeader h1 {
+    font-size: 40px;
+    font-weight: 800;
+    text-transform: uppercase;
+    text-align: center;
+    color: #fff;
+}
+
+.contentHeader span {
+    font-size: 15px;
+    text-align: center;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+main {
+    width: 100%;
+    min-height: calc(100vh - 120px);
+    display: flex !important;
+    /* justify-content: center; */
+    align-items: center;
+    flex-direction: column;
+    padding-top: 20px;
+}
+
+.mainGames {
+    width: 100%;
+    min-height: calc(100vh - 130px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.boxGame {
+    text-decoration: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    padding: 30px 16px;
+    background-color: #ebd0c7;
+    border-radius: 16px;
+    border: 2px solid #bb857f;
+    cursor: pointer;
+    transition: transform 0.3s ease;
+}
+
+.boxGame img {
+    width: 142px;
+    height: 97px;
+}
+
+.boxGame span {
+    color: #662F19;
+    font-size: 17px;
+    font-weight: 700;
+    text-align: center;
+}
+
+.bounce-animation {
+    animation: bounce 1s ease;
+}
+
+/* Keyframes for bounce effect */
+@keyframes bounce {
+    0% {
+        transform: translateY(0);
+    }
+
+    30% {
+        transform: translateY(-50px);
+    }
+
+    100% {
+        transform: translateY(100vh);
+    }
+}
+
+/* start wait page */
+.headerWait {
+    padding: 0;
+}
+
+.headerWait .container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+}
+
+.headerWait .logo {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+}
+
+.headerWait .logo img {
+    width: 42px;
+    height: 29px;
+}
+
+.startButton {
+    position: relative;
+}
+
+.startButton a {
+    text-decoration: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 261px;
+    height: 78px;
+    background: url('/assets/games/images/bgbtn.png');
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+
+    color: #008024;
+    font-size: 32px;
+    font-weight: 600;
+    text-align: center;
+}
+
+.beforeLine,
+.afterLine {
+    content: '';
+    position: absolute;
+    top: 0;
+
+}
+
+.beforeLine {
+    left: -10px;
+}
+
+.afterLine {
+    right: -10px;
+}
+
+.endBtn {
+    border-radius: 3px;
+    background: #EC0B43;
+    padding: 5px 20px;
+    outline: none;
+    border: none;
+    color: #fff;
+    text-align: center;
+    font-size: 15px;
+    font-weight: 400;
+    cursor: pointer;
+}
+
+.mainWaiting {
+    border: 0px solid #C3C3C3;
+    background: rgba(255, 255, 255, 0.10);
+    backdrop-filter: blur(17.5px);
+    padding: 15px;
+    width: 511px;
+    color: #fff;
+    margin: auto;
+}
+
+.joinBox {
+    border: 0px solid #C3C3C3;
+    background: rgba(255, 255, 255, 0.10);
+    backdrop-filter: blur(17.5px);
+    padding: 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+}
+
+.joinBox div:not(:last-child) {
+    padding-bottom: 25px;
+    border-bottom: 1px solid #fff;
+}
+
+.roomLink,
+.roomCode {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.roomLink span,
+.roomCode span {
+    color: #B4B4B4;
+    font-family: "Poppins", serif;
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 400;
+}
+
+.roomLink input,
+.roomCode input {
+    color: #FFF;
+    text-align: center;
+    font-size: 20px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+    background: transparent;
+    border: none;
+    outline: none;
+}
+
+.roomCode input {
+    font-family: "Poppins", serif;
+    letter-spacing: 20px;
+    font-size: 20px;
+}
+
+.copyBtn {
+    border: none;
+    outline: none;
+    padding: 8px;
+    border-radius: 3px;
+    opacity: 0.52;
+    background: #919191;
+    cursor: pointer;
+    color: #fff;
+}
+
+.waitTitle {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.waitTitle h4 {
+    color: #FFF;
+    text-align: center;
+    font-size: 25.94px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+}
+
+.studentNameCardList {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}
+
+.studentNameCard {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    border: 1px solid #C3C3C3;
+    background: rgba(255, 255, 255, 0.10);
+    backdrop-filter: blur(17.5px);
+    border-radius: 12px;
+    padding: 10px 16px;
+    margin-top: 20px;
+}
+
+.studentNameCard h5 {
+    color: #FFF;
+    text-align: center;
+    font-size: 12px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+    text-transform: uppercase;
+}
+
+/* end wait page */
+.person-icon {
+    width: 28.31px;
+    height: 28.31px;
+    flex-shrink: 0;
+    object-fit: cover;
+    border-radius: 50px;
+}
+
+/* start statistics list */
+.timer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}
+
+.timer .time span {
+    color: #FFF;
+    font-variant-numeric: lining-nums tabular-nums;
+    font-feature-settings: 'case' on;
+    font-family: "Poppins", serif;
+    font-size: 18.37px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: 140%;
+    /* 25.719px */
+}
+
+.headerStatistics {
+    padding: 16px 0;
+}
+
+.listpracticipants {
+    border-radius: 8.072px;
+    border: 0px solid #C3C3C3;
+    background: rgba(255, 255, 255, 0.10);
+    backdrop-filter: blur(23px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 0;
+    width: 600px;
+}
+
+
+
+.ListStudents {
+    padding: 30px;
+    width: 100%;
+}
+
+.ListStudents table {
+    width: 100%;
+}
+
+.ListStudents table tr {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.ListStudents table thead td {
+    color: #FFF;
+    text-align: center;
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: normal;
+    text-transform: uppercase;
+}
+
+.ListStudents table tbody tr {
+    border-radius: 8px;
+    border: 0px solid #C3C3C3;
+    background: rgba(255, 255, 255, 0.10);
+    backdrop-filter: blur(21px);
+    padding: 16px;
+    margin: 20px 0;
+}
+
+.ListStudents table tbody tr .personData {
+    display: flex !important;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+}
+
+.ListStudents table tbody tr td {
+    text-transform: uppercase;
+    color: #FFF;
+    text-align: center;
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+    text-transform: uppercase;
+}
+
+.personScore span {
+    font-family: "Poppins";
+}
+
+/* end statistics list */
+
+/* start facts style */
+.header-facts {
+    padding: 20px 0 !important;
+}
+
+.mainFacts {
+    /* border: 0.5px solid rgba(255, 255, 255, 0.20); */
+    /*background: rgba(0, 0, 0, 0.01);*/
+    /*backdrop-filter: blur(18px);*/
+}
+
+.titleFactHeader {
+    color: #FFF;
+    text-align: center;
+    font-family: "Poppins";
+    font-size: 24;
+    font-style: normal;
+    font-weight: 400;
+    line-height: normal;
+}
+
+.mainDegrees {
+    position: fixed !important;
+    bottom: 0;
+    padding: 0 !important;
+    min-height: auto;
+}
+
+.studentsRateList {
+    display: flex;
+    justify-content: center;
+    align-items: end;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.studentRatecard {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+}
+
+.studentInfo {
+    position: relative;
+    width: 169px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.studentInfo .person-facts-icon {
+    width: 120px;
+    height: 130px;
+    flex-shrink: 0;
+}
+
+.studentInfo h2 {
+    border-radius: 41px;
+    background: #15E0F6;
+    padding: 10px 15px !important;
+    color: #FFF;
+    text-align: center;
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+    position: absolute;
+    bottom: 0;
+}
+
+.studentDegree {
+    background: rgb(217 217 217 / 78%);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 30px;
+    width: 260px;
+    padding: 20px 0 80px;
+}
+
+.studentDegree h3 {
+    color: #15E0F6;
+    text-align: center;
+    font-family: "Poppins";
+    font-size: 39.983px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+}
+
+.studentDegree .Accuracy {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: #FFF;
+    text-align: center;
+    font-family: "Poppins";
+    font-size: 22px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: normal;
+}
+
+.st .studentInfo h2 {
+    background: #FF9B00 !important;
+}
+
+.rd .studentInfo h2 {
+    background: #2B2 !important;
+}
+
+.st .studentDegree h3 {
+    color: #FF9B00 !important;
+}
+
+.rd .studentDegree h3 {
+    color: #2B2 !important;
+}
+
+.nd .studentDegree {
+    gap: 50px !important;
+    padding-bottom: 100px !important;
+}
+
+.st .studentDegree {
+    gap: 115px !important;
+    padding-bottom: 160px !important;
+}
+
+.stTag {
+    position: absolute;
+    top: -50px;
+}
+
+.stTag img {
+    width: 70px;
+    cursor: pointer;
+}
+
+/* style.css */
+
+/* تحديد الأنيميشن */
+@keyframes slideUp {
+    0% {
+        transform: translateY(100%);
+        /* يبدأ العنصر من أسفل */
+        opacity: 0;
+        /* يبدأ العنصر شفاف */
+    }
+
+    100% {
+        transform: translateY(0);
+        /* يصل العنصر إلى مكانه الطبيعي */
+        opacity: 1;
+        /* يصبح العنصر غير شفاف */
+    }
+}
+
+/* تطبيق الأنيميشن على العناصر */
+.st,
+.nd,
+.rd {
+    animation: slideUp 1s ease-out forwards;
+    /* مدة الأنيميشن، نوع التوقيت، والحفاظ على الحالة النهائية */
+    opacity: 0;
+    /* التأكد من أن العنصر يبدأ بشفافية */
+}
+
+.musicBtn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 24px;
+    color: #000;
+    transition: transform 0.3s ease;
+}
+
+.musicBtn:hover {
+    transform: scale(1.1);
+}
+
+/* end facts style */
+
+
+/* header student */
+.student_numpracticipants {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 0;
+}
+
+.student_numpracticipants span {
+    color: #FFF;
+    text-align: center;
+    font-family: "Poppins";
+    font-size: 20px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: normal;
+}
+
+.studentList {
+    min-height: calc(100vh - 140px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.studentList .studentCard {
+    border-radius: 9.994px;
+    border: 0.384px solid #C3C3C3;
+    background: rgba(255, 255, 255, 0.10);
+    backdrop-filter: blur(13.453757286071777px);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 436px;
+    padding: 20px 30px;
+}
+
+.studentPerson {
+    width: 40px;
+    height: 40px;
+}
+
+.studentCard span {
+    color: #FFF;
+    text-align: center;
+    font-size: 14px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+    text-transform: uppercase;
+}
+
+.studentTimerContainer {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.studentTimer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 139px;
+    width: 100vw;
+    font-weight: bold;
+    background: rgba(255, 255, 255, 0.15);
+    font-family: "Poppins";
+    color: #fff;
+    text-align: center;
+    font-size: 85px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+}
+
+.btnsgroup {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.questionImg {
+    width: 150px;
+    height: 150px;
+}
+
+
+/* questions */
+.Questions {
+    /*min-height: 105vh;*/
+    /*max-height: 110vh;*/
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    gap: 50px;
+    position: relative;
+    overflow: hidden;
+}
+
+.question {
+    position: relative;
+    display: flex;
+    align-items: end;
+    justify-content: start;
+    gap: 10px;
+    border-radius: 14px;
+    border: 0.5px solid rgba(255, 255, 255, 0.20);
+    background: rgba(0, 0, 0, 0.01);
+    backdrop-filter: blur(18px);
+    /*max-width: 554px;*/
+    height: 106px;
+    padding: 0 50px;
+
+    animation: slideDown 0.8s ease-in-out;
+    transform: translateY(-100%);
+    opacity: 0;
+    animation-fill-mode: forwards;
+}
+
+.question h1 {
+    color: #FFF;
+    font-size: 27px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+    text-transform: uppercase;
+    align-self: center;
+}
+
+.questionNumber {
+    color: #FFF;
+    font-size: 13px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
+    text-transform: uppercase;
+    padding: 1px 8px;
+}
+
+.questionNumber {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-radius: 37px;
+    border: 0.5px solid rgba(255, 255, 255, 0.20);
+    background: rgba(14, 19, 18, 0.59);
+    backdrop-filter: blur(2px);
+}
+
+.questionImg {
+    position: relative;
+    bottom: 0;
+}
+
+.answers {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 40px;
+
+    animation: slideUp 0.8s ease-in-out 0.4s;
+    transform: translateY(100%);
+    opacity: 0;
+    animation-fill-mode: forwards;
+}
+
+.answerCard {
+    border-radius: 14px;
+    border: 0.5px solid rgba(255, 255, 255, 0.27);
+    background: rgba(120, 120, 120, 0.6);
+    backdrop-filter: blur(18px);
+    width: 231px;
+    height: 202px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+
+    color: #FFF;
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
+    text-transform: uppercase;
+
+    transition: all .6s;
+    position: relative;
+    flex: 1;
+
+    transition: background 0.3s, transform 0.3s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.answerCard:hover {
+    transform: scale(1.05);
+}
+
+.successAnswer {
+    z-index: 1000;
+    transform: scale(1.2);
+    background: #1BDE76;
+}
+
+.wrongAnswer {
+    background: #FD3D40;
+}
+
+.winnerStudent {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 30px;
+}
+
+.winnerStudent h1 {
+    color: #FFF;
+    text-align: center;
+    font-size: 49px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+}
+
+.winnerStudent .studentInfo {
+    margin: 30px 0;
+}
+
+.winnerStudent .studentInfo h2 {
+    background: #FF9B00;
+}
+
+.numpracticipants_student {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8.072px 8.072px 0px 0px;
+    border: 0px solid #C3C3C3;
+    background: rgba(255, 255, 255, 0.10);
+    backdrop-filter: blur(23.542600631713867px);
+    width: 100%;
+    height: 57px;
+}
+
+.mainWaiting_student {
+    margin: 20px auto;
+}
+
+.numpracticipants_student span {
+    font-family: "Poppins";
+}
+
+.ACCURACY {
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.97);
+    padding: 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 60px;
+    max-width: 600px;
+    margin: 20px auto;
+
+}
+
+.accuracyTitle h3 {
+    color: #262626;
+    text-align: center;
+    font-size: 34.461px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+}
+
+.accuracyTitle span {
+    color: #262626;
+    text-align: center;
+    font-size: 38.461px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+}
+
+.accuracyPercentage {
+    color: #FF9B00;
+    text-align: center;
+    font-size: 95.004px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+}
+
+.Viewdetails {
+    color: #FFF;
+    text-align: center;
+    font-size: 34.056px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+    text-decoration-line: underline;
+    text-decoration-style: solid;
+    text-decoration-skip-ink: auto;
+    text-decoration-thickness: auto;
+    text-underline-offset: auto;
+    margin: auto;
+    display: block;
+    margin: 40px auto;
+}
+
+.answerList {
+    background: #fff;
+    padding: 30px;
+    max-width: 743px;
+    margin: auto;
+    border-radius: 27px;
+    background: #FFF;
+}
+
+.answerList ul {
+    list-style: none !important;
+    color: #383838;
+}
+
+.answerList ul li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    color: #383838;
+    font-size: 17.9px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+    text-transform: uppercase;
+    margin: 15px 0;
+}
+
+.correct .wrong {
+    width: 27px;
+    height: 26px;
+}
+
+
+
+/* Keyframes for animations */
+@keyframes slideDown {
+    0% {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+
+    100% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideUp {
+    0% {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+
+    100% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* ******************************************** */
+
+/* .answerList ol {
+    list-style: none;
+    padding-left: 20px;
+}
+
+.answerList ol li {
+    position: relative;
+    padding-left: 30px;
+}
+
+.answerList ol li::before {
+    content: counter(li) ". ";
+    counter-increment: li;
+    position: absolute;
+    left: 0;
+    color: #383838;
+    font-weight: bold;
+} */
+
+
+.hackterminal{
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+.terminal {
+    white-space: pre-line;
+    font-size: 16px;
+    overflow: hidden;
+    /* height: 90vh; */
+}
+
+.cursor {
+    display: inline-block;
+    width: 10px;
+    height: 18px;
+    background: #00ff00;
+    animation: blink 0.8s infinite;
+}
+
+.buttons {
+    display: none;
+    margin-top: 20px;
+}
+.buttons button {
+    color: white;
+    background: transparent;
+    border: 1px solid white;
+    padding: 10px 20px;
+    margin: 5px;
+    font-size: 16px;
+    cursor: pointer;
+}
+.buttons a {
+    text-decoration-line: none;
+    color: white;
+    background: transparent;
+    border: 1px solid white;
+    padding: 10px 20px;
+    margin: 5px;
+    font-size: 16px;
+    cursor: pointer;
+}
+.chooseBox .chooseBoxcard{
+    font-size: 40px !important;
+}
+
+.Questions {
+    text-align: center;
+}
+
+.question h1 {
+    font-size: 28px;
+    color: #fff;
+    margin-bottom: 20px;
+}
+
+.chooseBox {
+    display: flex;
+    gap: 40px;
+    justify-content: center;
+    flex-wrap: wrap;
+    max-width: 800px;
+    margin: auto;
+    /*margin-top: 60px;*/
+}
+
+.chooseBoxcard {
+    border-radius: 14px;
+    border: none;
+    background: rgba(0, 0, 0, 0.19);
+    backdrop-filter:initial;
+    width: auto;
+    height: auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: background 0.3s, transform 0.3s, box-shadow 0.3s;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    flex: 1;
+}
+
+.chooseBoxcard:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 12px rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.chooseBoxcard img {
+    width: 180px;
+    height: 180px;
+}
+
+.chooseBox .chooseBoxcard {
+    font-size: 40px !important;
+    padding: 10px;
+}

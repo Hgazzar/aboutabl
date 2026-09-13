@@ -1,0 +1,1 @@
+import{f as e,h as t}from"./jsx-runtime-BFsvmiJY.js";var n=t(e(),1);function r(e){(0,n.useEffect)(()=>{if(e)return document.body.classList.add(e),()=>{document.body.classList.remove(e)}},[e])}export{r as t};

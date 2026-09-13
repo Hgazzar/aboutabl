@@ -1,0 +1,1 @@
+function e(e,t=`/assets/games/images/animalTestImg.png`){return e?e.startsWith(`http://`)||e.startsWith(`https://`)||e.startsWith(`/`)?e:`/${e}`:t}export{e as t};

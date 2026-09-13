@@ -1,0 +1,117 @@
+body {
+    background-color: black;
+    color: #00ff00;
+    font-family: monospace;
+    padding: 20px;
+    /*overflow: hidden;*/
+    /* text-align: center; */
+        background: rgb(0, 28, 0);
+}
+  .background {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background:green;
+      opacity: 0.2;
+      z-index: -1;
+  }
+.hackterminal{
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+.terminal {
+    white-space: pre-line;
+    font-size: 16px;
+    overflow: hidden;
+    /* height: 90vh; */
+}
+
+.cursor {
+    display: inline-block;
+    width: 10px;
+    height: 18px;
+    background: #00ff00;
+    animation: blink 0.8s infinite;
+}
+
+.buttons {
+    display: none;
+    margin-top: 20px;
+}
+.buttons button {
+    color: white;
+    background: transparent;
+    border: 1px solid white;
+    padding: 10px 20px;
+    margin: 5px;
+    font-size: 16px;
+    cursor: pointer;
+}
+.buttons a {
+    text-decoration-line: none;
+    color: white;
+    background: transparent;
+    border: 1px solid white;
+    padding: 10px 20px;
+    margin: 5px;
+    font-size: 16px;
+    cursor: pointer;
+}
+.chooseBox .chooseBoxcard{
+    font-size: 40px !important;
+}
+
+.Questions {
+    text-align: center;
+}
+
+.question h1 {
+    font-size: 28px;
+    color: #fff;
+    margin-bottom: 20px;
+}
+
+.chooseBox {
+    display: flex;
+    gap: 40px;
+    justify-content: center;
+    flex-wrap: wrap;
+    max-width: 800px;
+    margin: auto;
+    margin-top: 60px;
+}
+
+.chooseBoxcard {
+    border-radius: 14px;
+    border: none;
+    background: rgba(0, 0, 0, 0.19);
+    backdrop-filter:initial;
+    width: auto;
+    height: auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: background 0.3s, transform 0.3s, box-shadow 0.3s;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    flex: 1;
+}
+
+.chooseBoxcard:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 12px rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.chooseBoxcard img {
+    width: 180px;
+    height: 180px;
+}
+
+.chooseBox .chooseBoxcard {
+    font-size: 40px !important;
+    padding: 10px;
+}
