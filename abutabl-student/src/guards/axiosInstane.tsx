@@ -56,7 +56,19 @@ axiosInstance.interceptors.response.use(
 	},
 	function (error) {
 		const status = error.response?.status;
-		const apiMsg = error.response?.data?.msg;
+		const data = error.response?.data;
+		const errorsBag =
+			data?.errors && typeof data.errors === 'object'
+				? Object.values(data.errors as Record<string, string[]>)
+						.flat()
+						.find((v) => typeof v === 'string' && v.trim())
+				: undefined;
+		const apiMsg =
+			(typeof data?.msg === 'string' && data.msg) ||
+			(typeof errorsBag === 'string' && errorsBag) ||
+			(typeof data?.message === 'string' && data.message && !/^Server Error$/i.test(data.message)
+				? data.message
+				: undefined);
 		const method = (error.config?.method ?? 'get').toLowerCase();
 		const isGet = method === 'get';
 		const isNetworkFailure =
@@ -79,7 +91,7 @@ axiosInstance.interceptors.response.use(
 			clearStudentSession();
 			window.location.href = '/login';
 		} else if (!isGet) {
-			if (status === 400 || status === 500) {
+			if (status === 400 || status === 422 || status === 500) {
 				toast.error(typeof apiMsg === 'string' ? apiMsg : message);
 			} else if (typeof apiMsg === 'string' && apiMsg) {
 				toast.error(apiMsg);
