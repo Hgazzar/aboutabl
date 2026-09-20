@@ -323,6 +323,41 @@ class TeacherClassesController extends Controller
     }
 
     /**
+     * Assignment Details — remind missing students (in-app notification).
+     */
+    public function remindMissing(int $classId, int $assignmentId)
+    {
+        try {
+            $user = auth()->user();
+
+            if ($user->type === 'admin') {
+                return $this->returnError('E403', __('This endpoint is for teachers only.'), 403);
+            }
+
+            $schoolIds = $this->SchoolsIDs();
+            $result = $this->assignmentService->remindMissingForClass(
+                (int) $user->id,
+                $schoolIds,
+                $classId,
+                $assignmentId
+            );
+
+            return $this->returnData('data', $result, __('Reminders sent successfully.'));
+        } catch (\InvalidArgumentException $ex) {
+            $message = $ex->getMessage();
+            $status = $message === 'assignment_not_found' ? 404 : 403;
+            $code = $status === 404 ? 'E404' : 'E403';
+            $text = $message === 'assignment_not_found'
+                ? __('Assignment not found for this class.')
+                : $message;
+
+            return $this->returnError($code, $text, $status);
+        } catch (\Exception $ex) {
+            return $this->returnError($ex->getCode() ?: 'E000', $ex->getMessage());
+        }
+    }
+
+    /**
      * Class Details — full student overview table (performance, score, status, rank).
      */
     public function studentsOverview(Request $request, int $classId)
