@@ -31,6 +31,10 @@ return [
             'https://www.aboutabl.com',
             'https://api.aboutabl.com',
             'https://student.aboutabl.com',
+            // Staging (new.aboutabl.com)
+            'https://new.aboutabl.com',
+            'https://admin-new.aboutabl.com',
+            'https://api-new.aboutabl.com',
         ],
         env('APP_ENV') === 'local' ? [
             'http://localhost:3000',
