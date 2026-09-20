@@ -26,16 +26,36 @@ class LearningActivitiesBrowserService
             return [];
         }
 
+        $hasNameEn = $this->tableHasColumn('subjects', 'name_en');
+        $hasName = $this->tableHasColumn('subjects', 'name');
+        $hasNameAr = $this->tableHasColumn('subjects', 'name_ar');
+
+        $select = ['id'];
+        if ($hasNameEn) {
+            $select[] = 'name_en';
+        }
+        if ($hasName) {
+            $select[] = 'name';
+        }
+        if ($hasNameAr) {
+            $select[] = 'name_ar';
+        }
+
+        $orderColumn = $hasNameEn ? 'name_en' : ($hasName ? 'name' : 'id');
+
         return DB::table('subjects')
             ->whereIn('id', $subjectIds)
-            ->orderBy('name_en')
-            ->get(['id', 'name_en', 'name_ar'])
+            ->orderBy($orderColumn)
+            ->get($select)
             ->map(function ($row) {
+                $nameEn = (string) ($row->name_en ?? $row->name ?? '');
+                $nameAr = (string) ($row->name_ar ?? '');
+
                 return [
                     'id' => (int) $row->id,
-                    'name' => (string) ($row->name_en ?: $row->name_ar ?: ('Subject #'.$row->id)),
-                    'name_ar' => (string) ($row->name_ar ?? ''),
-                    'name_en' => (string) ($row->name_en ?? ''),
+                    'name' => $nameEn !== '' ? $nameEn : ($nameAr !== '' ? $nameAr : ('Subject #'.$row->id)),
+                    'name_ar' => $nameAr,
+                    'name_en' => $nameEn,
                 ];
             })
             ->values()
@@ -170,6 +190,14 @@ class LearningActivitiesBrowserService
     private function listActivities(int $subjectId, string $activityType): array
     {
         $table = LearningActivityMap::sourceTable($activityType);
+        if (! \Illuminate\Support\Facades\Schema::hasTable($table)) {
+            return [];
+        }
+
+        if (! $this->tableHasColumn($table, 'subject_id')) {
+            return [];
+        }
+
         $query = DB::table($table)->where('subject_id', $subjectId);
 
         if ($activityType === LearningActivityMap::TYPE_EBOOK) {
@@ -184,11 +212,21 @@ class LearningActivitiesBrowserService
 
         $nameColumn = $activityType === LearningActivityMap::TYPE_QUIZ ? 'title_ar' : 'name_ar';
         $enColumn = $activityType === LearningActivityMap::TYPE_QUIZ ? 'title_en' : 'name_en';
+        $legacyName = $activityType === LearningActivityMap::TYPE_QUIZ ? 'title' : 'name';
 
-        $select = ['id', 'subject_id', $nameColumn.' as name_ar'];
+        $select = ['id', 'subject_id'];
+        if ($this->tableHasColumn($table, $nameColumn)) {
+            $select[] = $nameColumn.' as name_ar';
+        } elseif ($this->tableHasColumn($table, $legacyName)) {
+            $select[] = $legacyName.' as name_ar';
+        }
+
         if ($this->tableHasColumn($table, $enColumn)) {
             $select[] = $enColumn.' as name_en';
+        } elseif ($this->tableHasColumn($table, $legacyName) && ! in_array($legacyName.' as name_ar', $select, true)) {
+            $select[] = $legacyName.' as name_en';
         }
+
         if ($activityType === LearningActivityMap::TYPE_EBOOK && $this->tableHasColumn($table, 'type')) {
             $select[] = 'type';
         }
