@@ -78,8 +78,22 @@ return [
     |--------------------------------------------------------------------------
     | Allowed headers
     |--------------------------------------------------------------------------
+    |
+    | Explicit list required: wildcard "*" is unreliable with credentials, and
+    | the admin SPA sends Authorizations + apiSecret on every API call.
+    |
     */
-    'allowed_headers' => ['*'],
+    'allowed_headers' => [
+        'Authorizations',
+        'Authorization',
+        'apiSecret',
+        'Content-Type',
+        'Accept',
+        'Origin',
+        'X-Requested-With',
+        'X-CSRF-TOKEN',
+        'X-Socket-Id',
+    ],
 
     /*
     |--------------------------------------------------------------------------
