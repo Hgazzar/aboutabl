@@ -9,6 +9,7 @@ use App\Models\AssignActivity;
 use App\Models\AssignActivitySubmission;
 use App\Models\Assigns;
 use App\Models\AssignsStudents;
+use App\Models\Notification;
 use App\Models\Student;
 use App\Services\StudentMetricsService;
 use App\Services\TeacherDashboardService;
@@ -365,6 +366,57 @@ class AssignmentService
             'materials'     => $this->bucketMaterials(
                 $this->materials->resolveForAssign((int) $assign->id)
             ),
+        ];
+    }
+
+    /**
+     * Send in-app reminder notifications to students still missing this assignment.
+     *
+     * @param  array<int, int>  $schoolIds
+     * @return array{sent: int, student_ids: array<int, int>}
+     */
+    public function remindMissingForClass(
+        int $teacherId,
+        array $schoolIds,
+        int $classId,
+        int $assignmentId
+    ): array {
+        $details = $this->getForClass($teacherId, $schoolIds, $classId, $assignmentId);
+        $title = (string) ($details['assignment']['title'] ?? 'Assignment');
+        $missingIds = [];
+
+        foreach ($details['students'] as $row) {
+            if (($row['status'] ?? '') === 'missing') {
+                $missingIds[] = (int) $row['student_id'];
+            }
+        }
+
+        $missingIds = array_values(array_unique(array_filter($missingIds)));
+        if ($missingIds === []) {
+            return [
+                'sent' => 0,
+                'student_ids' => [],
+            ];
+        }
+
+        foreach ($missingIds as $studentId) {
+            Notification::create([
+                'title' => 'Reminder: '.$title,
+                'description' => 'Please complete your assignment "'.$title.'". Open To Do to continue.',
+                'from_user_type' => 'teacher',
+                'from_user_id' => $teacherId,
+                'to_user_type' => 'student',
+                'to_user_id' => $studentId,
+                'url' => '/todo/assign/'.$assignmentId,
+                'type' => 'assign_reminder',
+                'type_id' => $assignmentId,
+                'is_read' => 0,
+            ]);
+        }
+
+        return [
+            'sent' => count($missingIds),
+            'student_ids' => $missingIds,
         ];
     }
 
@@ -837,6 +889,334 @@ class AssignmentService
     private function learningActivitiesBrowser(): LearningActivitiesBrowserService
     {
         return app(LearningActivitiesBrowserService::class);
+    }
+
+    /**
+     * ASSIGN-EDIT-001 V1 — update assignment title only, before any parent submission.
+     *
+     * @param  array{title: string}  $input
+     * @return array{assign: Assigns, title: string}
+     */
+    public function update(int $assignId, array $input, ?object $user = null): array
+    {
+        $assign = Assigns::query()->find($assignId);
+
+        if ($assign === null) {
+            throw new \InvalidArgumentException('assign_not_found');
+        }
+
+        if ($user !== null && ! $this->permissions->canUpdate($user, $assign)) {
+            throw new \InvalidArgumentException('forbidden');
+        }
+
+        if ($this->hasParentSubmission($assignId)) {
+            throw new \InvalidArgumentException('assignment_edit_locked');
+        }
+
+        $title = trim((string) ($input['title'] ?? ''));
+        if ($title === '') {
+            throw new \InvalidArgumentException('title_required');
+        }
+
+        if (mb_strlen($title) > 255) {
+            throw new \InvalidArgumentException('title_too_long');
+        }
+
+        $assign->assigned_name = $title;
+        $assign->save();
+
+        $this->analytics->record('assign.title_updated', [
+            'assign_id' => (int) $assign->id,
+        ]);
+
+        return [
+            'assign' => $assign->fresh(),
+            'title' => (string) $assign->assigned_name,
+        ];
+    }
+
+    /**
+     * True when any student has parent status submitted or graded.
+     * Does not treat opened_at as submission authority.
+     */
+    public function hasParentSubmission(int $assignId): bool
+    {
+        if (! class_exists(AssignsStudents::class)) {
+            return false;
+        }
+
+        if (! \Illuminate\Support\Facades\Schema::hasColumn('assigns_students', 'submission_status')) {
+            return false;
+        }
+
+        return AssignsStudents::query()
+            ->where('assign_id', $assignId)
+            ->whereIn('submission_status', [
+                AssignsStudents::SUBMISSION_SUBMITTED,
+                AssignsStudents::SUBMISSION_GRADED,
+            ])
+            ->exists();
+    }
+
+    /**
+     * ASSIGN-EXTEND-001 — update assigns.due_at only (extend deadline).
+     * Allowed after submissions; does not touch roster/activities/grades.
+     *
+     * @param  array{due_at: string}  $input
+     * @return array{assign: Assigns, due_at: string}
+     */
+    public function extendDueAt(int $assignId, array $input, ?object $user = null): array
+    {
+        $assign = Assigns::query()->find($assignId);
+
+        if ($assign === null) {
+            throw new \InvalidArgumentException('assign_not_found');
+        }
+
+        if ($user !== null && ! $this->permissions->canUpdate($user, $assign)) {
+            throw new \InvalidArgumentException('forbidden');
+        }
+
+        $raw = $input['due_at'] ?? null;
+        if ($raw === null || $raw === '') {
+            throw new \InvalidArgumentException('due_at_required');
+        }
+
+        try {
+            $newDueAt = Carbon::parse($raw);
+        } catch (\Throwable $e) {
+            throw new \InvalidArgumentException('due_at_invalid');
+        }
+
+        if ($newDueAt->lessThanOrEqualTo(Carbon::now())) {
+            throw new \InvalidArgumentException('due_at_must_be_future');
+        }
+
+        $assign->due_at = $newDueAt;
+        $assign->save();
+
+        $fresh = $assign->fresh();
+        $resolved = $this->resolveDueAt($fresh);
+        $dueAtIso = $resolved ? $resolved->toIso8601String() : $newDueAt->toIso8601String();
+
+        $teacherId = $user !== null && isset($user->id)
+            ? (int) $user->id
+            : (int) ($assign->created_by ?? 0);
+
+        $this->notifyStudentsOfExtendedDeadline(
+            (int) $assign->id,
+            (string) ($assign->assigned_name ?: 'Assignment'),
+            $dueAtIso,
+            $teacherId
+        );
+
+        $this->analytics->record('assign.due_at_extended', [
+            'assign_id' => (int) $assign->id,
+        ]);
+
+        return [
+            'assign' => $fresh,
+            'due_at' => $dueAtIso,
+        ];
+    }
+
+    /**
+     * ASSIGN-REASSIGN-001 — teacher reopens assignment for selected roster students.
+     *
+     * @param  array{student_ids: array<int, int>}  $input
+     * @return array{assign_id: int, reassigned_student_ids: array<int, int>, notified: int}
+     */
+    public function reassign(int $assignId, array $input, ?object $user = null): array
+    {
+        $assign = Assigns::query()->find($assignId);
+
+        if ($assign === null) {
+            throw new \InvalidArgumentException('assign_not_found');
+        }
+
+        if ($user !== null && ! $this->permissions->canUpdate($user, $assign)) {
+            throw new \InvalidArgumentException('forbidden');
+        }
+
+        $requested = array_values(array_unique(array_filter(array_map(
+            static fn ($id) => (int) $id,
+            $input['student_ids'] ?? []
+        ), static fn ($id) => $id > 0)));
+
+        if ($requested === []) {
+            throw new \InvalidArgumentException('student_ids_required');
+        }
+
+        $rosterIds = AssignsStudents::query()
+            ->where('assign_id', $assignId)
+            ->pluck('student_id')
+            ->map(static fn ($id) => (int) $id)
+            ->all();
+        $rosterSet = array_fill_keys($rosterIds, true);
+
+        foreach ($requested as $studentId) {
+            if (! isset($rosterSet[$studentId])) {
+                throw new \InvalidArgumentException('student_not_on_roster');
+            }
+        }
+
+        /** @var AssignmentParentSubmissionService $parentLifecycle */
+        $parentLifecycle = app(AssignmentParentSubmissionService::class);
+
+        $reassigned = [];
+        foreach ($requested as $studentId) {
+            $parentLifecycle->teacherReassignForStudent($assignId, $studentId);
+            $reassigned[] = $studentId;
+        }
+
+        $teacherId = $user !== null && isset($user->id)
+            ? (int) $user->id
+            : (int) ($assign->created_by ?? 0);
+
+        $notified = $this->notifyStudentsOfReassign(
+            $assignId,
+            (string) ($assign->assigned_name ?: 'Assignment'),
+            $reassigned,
+            $teacherId
+        );
+
+        $this->analytics->record('assign.reassigned', [
+            'assign_id' => $assignId,
+            'student_ids' => $reassigned,
+        ]);
+
+        return [
+            'assign_id' => $assignId,
+            'reassigned_student_ids' => $reassigned,
+            'notified' => $notified,
+        ];
+    }
+
+    /**
+     * Notify selected students that the assignment was reassigned / reopened.
+     *
+     * @param  array<int, int>  $studentIds
+     */
+    private function notifyStudentsOfReassign(
+        int $assignId,
+        string $title,
+        array $studentIds,
+        int $teacherId
+    ): int {
+        if ($teacherId <= 0 || $studentIds === []) {
+            return 0;
+        }
+
+        $fkDisabled = false;
+        try {
+            \Illuminate\Support\Facades\Schema::disableForeignKeyConstraints();
+            $fkDisabled = true;
+        } catch (\Throwable $e) {
+            $fkDisabled = false;
+        }
+
+        $sent = 0;
+        try {
+            foreach ($studentIds as $studentId) {
+                try {
+                    Notification::create([
+                        'title' => 'Assignment reassigned: '.$title,
+                        'description' => 'Your teacher reassigned "'.$title.'". Open To Do to continue.',
+                        'from_user_type' => 'teacher',
+                        'from_user_id' => $teacherId,
+                        'to_user_type' => 'student',
+                        'to_user_id' => (int) $studentId,
+                        'url' => '/todo/assign/'.$assignId,
+                        'type' => 'assign_reassigned',
+                        'type_id' => $assignId,
+                        'is_read' => 0,
+                    ]);
+                    $sent++;
+                } catch (\Throwable $e) {
+                    continue;
+                }
+            }
+        } finally {
+            if ($fkDisabled) {
+                try {
+                    \Illuminate\Support\Facades\Schema::enableForeignKeyConstraints();
+                } catch (\Throwable $e) {
+                    // ignore
+                }
+            }
+        }
+
+        return $sent;
+    }
+
+    /**
+     * Notify every student on the assignment roster that the deadline was extended.
+     * Matches existing assign notification shape (to_user_type=student, url=/todo/assign/{id}).
+     */
+    private function notifyStudentsOfExtendedDeadline(
+        int $assignId,
+        string $title,
+        string $dueAtIso,
+        int $teacherId
+    ): void {
+        if ($teacherId <= 0 || ! class_exists(AssignsStudents::class)) {
+            return;
+        }
+
+        $studentIds = AssignsStudents::query()
+            ->where('assign_id', $assignId)
+            ->pluck('student_id')
+            ->map(static fn ($id) => (int) $id)
+            ->unique()
+            ->filter(static fn ($id) => $id > 0)
+            ->values()
+            ->all();
+
+        if ($studentIds === []) {
+            return;
+        }
+
+        $dueLabel = Carbon::parse($dueAtIso)->timezone(config('app.timezone'))->format('M j, Y g:i A');
+
+        // notifications.to_user_id still FKs → users.id while student recipients use students.id
+        // (same deferred schema quirk as NOTIF-001 / assign_reminder). Disable only for this batch.
+        $fkDisabled = false;
+        try {
+            \Illuminate\Support\Facades\Schema::disableForeignKeyConstraints();
+            $fkDisabled = true;
+        } catch (\Throwable $e) {
+            $fkDisabled = false;
+        }
+
+        try {
+            foreach ($studentIds as $studentId) {
+                try {
+                    Notification::create([
+                        'title' => 'Deadline extended: '.$title,
+                        'description' => 'The deadline for "'.$title.'" was extended to '.$dueLabel.'. Open To Do to continue.',
+                        'from_user_type' => 'teacher',
+                        'from_user_id' => $teacherId,
+                        'to_user_type' => 'student',
+                        'to_user_id' => $studentId,
+                        'url' => '/todo/assign/'.$assignId,
+                        'type' => 'assign_deadline_extended',
+                        'type_id' => $assignId,
+                        'is_read' => 0,
+                    ]);
+                } catch (\Throwable $e) {
+                    // Deadline is already saved; skip a single recipient failure.
+                    continue;
+                }
+            }
+        } finally {
+            if ($fkDisabled) {
+                try {
+                    \Illuminate\Support\Facades\Schema::enableForeignKeyConstraints();
+                } catch (\Throwable $e) {
+                    // ignore
+                }
+            }
+        }
     }
 
     /**

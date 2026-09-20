@@ -44,6 +44,7 @@ Route::group([ 'middleware' => ['api' , 'checkSecretApi' , 'changeLanguage','che
     Route::get('/dashboard/teacher/classes/{classId}/activities-tasks', 'TeacherClassesController@activitiesTasks');
     Route::get('/dashboard/teacher/classes/{classId}/assignments', 'TeacherClassesController@assignments');
     Route::get('/dashboard/teacher/classes/{classId}/assignments/{assignmentId}', 'TeacherClassesController@assignmentShow');
+    Route::post('/dashboard/teacher/classes/{classId}/assignments/{assignmentId}/remind-missing', 'TeacherClassesController@remindMissing');
     Route::get('/dashboard/teacher/classes/{classId}/students-overview', 'TeacherClassesController@studentsOverview');
     Route::get('/dashboard/teacher/classes/{classId}/students/{studentId}/profile', 'TeacherClassesController@studentProfile');
     Route::get('/dashboard/teacher/classes/{classId}/students/{studentId}/evaluations', 'TeacherEvaluationsController@index');
@@ -241,6 +242,9 @@ Route::group([ 'middleware' => ['api' , 'checkSecretApi' , 'changeLanguage','che
     Route::put('/assigns/{assignId}/rubric','AssignsController@upsertRubric');
     Route::delete('/assigns/{assignId}/rubric','AssignsController@destroyRubric');
     Route::put('/assigns/{assignId}/possible_xp','AssignsController@updatePossibleXp');
+    Route::put('/assigns/{assignId}/due_at','AssignsController@extendDueAt');
+    Route::post('/assigns/{assignId}/reassign','AssignsController@reassign');
+    Route::put('/assigns/{assignId}','AssignsController@update');
     Route::get('/assigns/{assignId}/learning_activities/review','AssignActivityTeacherController@review');
     Route::get('/assigns/{assignId}/my-work/{workId}/file','AssignActivityTeacherController@downloadMyWork');
     Route::post('/assigns/learning_activities/{assignActivityId}/manual_grade','AssignActivityTeacherController@manualGrade');

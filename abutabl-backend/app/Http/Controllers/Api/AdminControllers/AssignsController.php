@@ -9,7 +9,10 @@ use App\Http\Requests\Assignment\DeleteAssignRequest;
 use App\Http\Requests\Assignment\ListAssignsRequest;
 use App\Http\Requests\Assignment\ModuleDataAssignRequest;
 use App\Http\Requests\Assignment\StoreAssignRequest;
+use App\Http\Requests\Assignment\ExtendAssignDueAtRequest;
+use App\Http\Requests\Assignment\ReassignAssignRequest;
 use App\Http\Requests\Assignment\UpdateAssignPossibleXpRequest;
+use App\Http\Requests\Assignment\UpdateAssignTitleRequest;
 use App\Http\Requests\Assignment\UpsertAssignmentRubricRequest;
 use App\Services\Assignment\AssignmentRubricService;
 use App\Services\Assignment\AssignmentService;
@@ -295,6 +298,149 @@ class AssignsController extends Controller
         } catch (InvalidArgumentException $ex) {
             if ($ex->getMessage() === 'forbidden_school') {
                 return $this->returnError('E403', __('Forbidden.'), 403);
+            }
+
+            return $this->returnError('E001', $ex->getMessage());
+        } catch (\Exception $ex) {
+            return $this->returnError($ex->getCode(), $ex->getMessage());
+        }
+    }
+
+    /**
+     * ASSIGN-EDIT-001 V1 — PUT /api/assigns/{assignId} (title only).
+     */
+    public function update(UpdateAssignTitleRequest $request, int $assignId)
+    {
+        try {
+            $assign = Assigns::find($assignId);
+            if ($assign === null) {
+                return $this->returnError('E001', __('api.not_exists_item_for_this_data'));
+            }
+
+            $this->authorize('update', $assign);
+            $this->assertTeacherSchoolAccess($assign);
+
+            $result = $this->assignments->update(
+                $assignId,
+                $request->validated(),
+                auth()->user()
+            );
+
+            return $this->returnData('data', [
+                'assign_id' => (int) $result['assign']->id,
+                'title' => $result['title'],
+            ], __('Successfully'));
+        } catch (AuthorizationException $ex) {
+            return $this->returnError('E403', __('Forbidden.'), 403);
+        } catch (InvalidArgumentException $ex) {
+            if ($ex->getMessage() === 'forbidden_school' || $ex->getMessage() === 'forbidden') {
+                return $this->returnError('E403', __('Forbidden.'), 403);
+            }
+            if ($ex->getMessage() === 'assignment_edit_locked') {
+                return $this->returnError(
+                    'E409',
+                    __('Assignment can no longer be edited because a student has submitted it.'),
+                    409
+                );
+            }
+            if ($ex->getMessage() === 'assign_not_found') {
+                return $this->returnError('E001', __('api.not_exists_item_for_this_data'));
+            }
+
+            return $this->returnError('E001', $ex->getMessage());
+        } catch (\Exception $ex) {
+            return $this->returnError($ex->getCode(), $ex->getMessage());
+        }
+    }
+
+    /**
+     * ASSIGN-EXTEND-001 — PUT /api/assigns/{assignId}/due_at (extend deadline only).
+     */
+    public function extendDueAt(ExtendAssignDueAtRequest $request, int $assignId)
+    {
+        try {
+            $assign = Assigns::find($assignId);
+            if ($assign === null) {
+                return $this->returnError('E001', __('api.not_exists_item_for_this_data'));
+            }
+
+            $this->authorize('update', $assign);
+            $this->assertTeacherSchoolAccess($assign);
+
+            $result = $this->assignments->extendDueAt(
+                $assignId,
+                $request->validated(),
+                auth()->user()
+            );
+
+            return $this->returnData('data', [
+                'assign_id' => (int) $result['assign']->id,
+                'due_at' => $result['due_at'],
+            ], __('Successfully'));
+        } catch (AuthorizationException $ex) {
+            return $this->returnError('E403', __('Forbidden.'), 403);
+        } catch (InvalidArgumentException $ex) {
+            if ($ex->getMessage() === 'forbidden_school' || $ex->getMessage() === 'forbidden') {
+                return $this->returnError('E403', __('Forbidden.'), 403);
+            }
+            if ($ex->getMessage() === 'assign_not_found') {
+                return $this->returnError('E001', __('api.not_exists_item_for_this_data'));
+            }
+            if ($ex->getMessage() === 'due_at_must_be_future') {
+                return $this->returnError('E001', __('The due date must be a future date.'), 400);
+            }
+
+            return $this->returnError('E001', $ex->getMessage());
+        } catch (\Exception $ex) {
+            return $this->returnError($ex->getCode(), $ex->getMessage());
+        }
+    }
+
+    /**
+     * ASSIGN-REASSIGN-001 — POST /api/assigns/{assignId}/reassign
+     */
+    public function reassign(ReassignAssignRequest $request, int $assignId)
+    {
+        try {
+            $assign = Assigns::find($assignId);
+            if ($assign === null) {
+                return $this->returnError('E001', __('api.not_exists_item_for_this_data'));
+            }
+
+            $this->authorize('update', $assign);
+            $this->assertTeacherSchoolAccess($assign);
+
+            $result = $this->assignments->reassign(
+                $assignId,
+                $request->validated(),
+                auth()->user()
+            );
+
+            return $this->returnData('data', $result, __('Successfully'));
+        } catch (AuthorizationException $ex) {
+            return $this->returnError('E403', __('Forbidden.'), 403);
+        } catch (InvalidArgumentException $ex) {
+            if ($ex->getMessage() === 'forbidden_school' || $ex->getMessage() === 'forbidden') {
+                return $this->returnError('E403', __('Forbidden.'), 403);
+            }
+            if ($ex->getMessage() === 'assign_not_found') {
+                return $this->returnError('E001', __('api.not_exists_item_for_this_data'));
+            }
+            if ($ex->getMessage() === 'student_ids_required') {
+                return $this->returnError('E001', __('Select at least one student.'), 400);
+            }
+            if ($ex->getMessage() === 'student_not_on_roster') {
+                return $this->returnError('E001', __('One or more students are not on this assignment.'), 400);
+            }
+            if ($ex->getMessage() === 'assignment_graded_locked') {
+                return $this->returnError(
+                    'E409',
+                    __('Cannot reassign a graded student.'),
+                    409
+                );
+            }
+            if ($ex->getMessage() === 'assign_student_not_found') {
+                return $this->returnError('E001', __('One or more students are not on this assignment.'), 400);
             }
 
             return $this->returnError('E001', $ex->getMessage());

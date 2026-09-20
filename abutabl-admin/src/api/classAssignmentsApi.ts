@@ -1,4 +1,4 @@
-import { getRequest, postRequest } from "@/utils/fetchMethods";
+import { getRequest, postRequest, putRequest } from "@/utils/fetchMethods";
 import { AssignmentDetailsResponse } from "@/types/classAssignments";
 
 export type AssignModuleType =
@@ -175,6 +175,80 @@ export const fetchAssignmentDetails = async (
   ) as Promise<AssignmentDetailsResponse>;
 };
 
+/** ASSIGN-EDIT-001 V1 — PUT /api/assigns/{assignId} (title only). */
+export const updateAssignmentTitle = async (
+  assignId: number,
+  title: string
+): Promise<{
+  status?: boolean;
+  msg?: string;
+  data?: { assign_id?: number; title?: string };
+}> => {
+  return putRequest({ title }, `/api/assigns/${assignId}`) as Promise<{
+    status?: boolean;
+    msg?: string;
+    data?: { assign_id?: number; title?: string };
+  }>;
+};
+
+/** ASSIGN-EXTEND-001 — PUT /api/assigns/{assignId}/due_at (extend deadline). */
+export const extendAssignmentDueAt = async (
+  assignId: number,
+  dueAtIso: string
+): Promise<{
+  status?: boolean;
+  msg?: string;
+  data?: { assign_id?: number; due_at?: string };
+}> => {
+  return putRequest({ due_at: dueAtIso }, `/api/assigns/${assignId}/due_at`) as Promise<{
+    status?: boolean;
+    msg?: string;
+    data?: { assign_id?: number; due_at?: string };
+  }>;
+};
+
+/** ASSIGN-REASSIGN-001 — POST /api/assigns/{assignId}/reassign */
+export const reassignAssignment = async (
+  assignId: number,
+  studentIds: number[]
+): Promise<{
+  status?: boolean;
+  msg?: string;
+  data?: {
+    assign_id?: number;
+    reassigned_student_ids?: number[];
+    notified?: number;
+  };
+}> => {
+  return postRequest(
+    { student_ids: studentIds },
+    `/api/assigns/${assignId}/reassign`
+  ) as Promise<{
+    status?: boolean;
+    msg?: string;
+    data?: {
+      assign_id?: number;
+      reassigned_student_ids?: number[];
+      notified?: number;
+    };
+  }>;
+};
+
+/** Remind missing students — POST .../assignments/{assignmentId}/remind-missing */
+export const sendMissingAssignmentReminders = async (
+  classId: number,
+  assignmentId: number
+): Promise<{ status?: boolean; data?: { sent?: number; student_ids?: number[] }; msg?: string }> => {
+  return postRequest(
+    {},
+    `/api/dashboard/teacher/classes/${classId}/assignments/${assignmentId}/remind-missing`
+  ) as Promise<{
+    status?: boolean;
+    data?: { sent?: number; student_ids?: number[] };
+    msg?: string;
+  }>;
+};
+
 /** Multi-Activity teacher review — GET /api/assigns/{assignId}/learning_activities/review */
 export const fetchLearningActivitiesReview = async (
   assignId: number
@@ -222,6 +296,7 @@ export const finalizeParentAssignment = async (
     submitted_at: string | null;
     graded_at: string | null;
     lifecycle?: { mode: string; status: string };
+    grade?: AssignmentGradePayload;
   };
   msg?: string;
 }> => {
@@ -238,7 +313,143 @@ export const finalizeParentAssignment = async (
       submitted_at: string | null;
       graded_at: string | null;
       lifecycle?: { mode: string; status: string };
+      grade?: AssignmentGradePayload;
     };
+    msg?: string;
+  }>;
+};
+
+/** Backend VALID_POINTS for rubric criterion scores. */
+export const ASSIGNMENT_RUBRIC_POINTS = [1, 2, 3, 4] as const;
+
+export type AssignmentRubricCriterion = {
+  id: number;
+  label: string;
+  weight: number;
+  max_points: number;
+  sort_order: number;
+};
+
+export type AssignmentRubricDefinition = {
+  id: number;
+  title: string;
+  criteria: AssignmentRubricCriterion[];
+};
+
+/** GET/PUT /api/assigns/{assignId}/rubric — teacher payload */
+export type AssignmentRubricPayload = {
+  assign_id: number;
+  possible_xp: number | null;
+  rubric: AssignmentRubricDefinition | null;
+  rubric_locked: boolean;
+};
+
+export type AssignmentGradeCriterionScore = {
+  criterion_id: number;
+  points: number;
+};
+
+export type AssignmentGradePayload = {
+  id: number;
+  assign_id: number;
+  assign_student_id: number;
+  status: "draft" | "finalized" | string;
+  final_percent: number;
+  possible_xp: number | null;
+  earned_xp: number | null;
+  badge: { key: string; label: string } | null;
+  teacher_feedback: string | null;
+  graded_by: number | null;
+  teacher_id?: number | null;
+  teacher_name?: string | null;
+  teacher_photo_url?: string | null;
+  finalized_at: string | null;
+  criteria: AssignmentGradeCriterionScore[];
+};
+
+export type UpsertAssignmentRubricBody = {
+  title?: string | null;
+  criteria: Array<{ label: string; weight: number }>;
+};
+
+export type UpsertAssignmentGradeDraftBody = {
+  criteria: Array<{ criterion_id: number; points: number }>;
+  teacher_feedback?: string | null;
+};
+
+/** GET /api/assigns/{assignId}/rubric */
+export const fetchAssignmentRubric = async (
+  assignId: number
+): Promise<AssignmentRubricPayload | null> => {
+  const response = (await getRequest(
+    {},
+    `/api/assigns/${assignId}/rubric`
+  )) as { status?: boolean; data?: AssignmentRubricPayload; msg?: string };
+
+  if (!response?.status || !response.data) {
+    return null;
+  }
+
+  return response.data;
+};
+
+/** PUT /api/assigns/{assignId}/rubric */
+export const upsertAssignmentRubric = async (
+  assignId: number,
+  body: UpsertAssignmentRubricBody
+): Promise<{
+  status?: boolean;
+  data?: AssignmentRubricPayload;
+  msg?: string;
+}> => {
+  return putRequest(body, `/api/assigns/${assignId}/rubric`) as Promise<{
+    status?: boolean;
+    data?: AssignmentRubricPayload;
+    msg?: string;
+  }>;
+};
+
+/** GET /api/assigns/{assignId}/students/{studentId}/grade */
+export const fetchAssignmentStudentGrade = async (
+  assignId: number,
+  studentId: number
+): Promise<AssignmentGradePayload | null> => {
+  const response = (await getRequest(
+    {},
+    `/api/assigns/${assignId}/students/${studentId}/grade`
+  )) as {
+    status?: boolean;
+    data?: {
+      assign_id: number;
+      student_id: number;
+      grade: AssignmentGradePayload | null;
+    };
+    msg?: string;
+  };
+
+  if (!response?.status || !response.data) {
+    return null;
+  }
+
+  return response.data.grade ?? null;
+};
+
+/** PUT /api/assigns/{assignId}/students/{studentId}/grade */
+export const upsertAssignmentStudentGrade = async (
+  assignId: number,
+  studentId: number,
+  body: UpsertAssignmentGradeDraftBody
+): Promise<{
+  status?: boolean;
+  data?: AssignmentGradePayload;
+  msg?: string;
+}> => {
+  return putRequest(
+    body,
+    `/api/assigns/${assignId}/students/${studentId}/grade`
+  ) as Promise<{
+    status?: boolean;
+    data?: AssignmentGradePayload;
     msg?: string;
   }>;
 };
@@ -313,4 +524,76 @@ export type LearningActivitiesReviewPayload = {
   due_at: string | null;
   activities: LearningActivityReviewRow[];
   students: LearningActivitiesReviewStudent[];
+};
+
+/** Serialized material row from GET/POST /api/assigns/{assignId}/materials */
+export type AssignmentMaterialApiItem = {
+  id: number;
+  assign_id: number;
+  kind: "file" | "voice" | "link" | string;
+  label: string | null;
+  url: string | null;
+  original_filename?: string | null;
+  mime_type?: string | null;
+  size_bytes?: number | null;
+  duration_ms?: number | null;
+  sort_order?: number;
+};
+
+/** POST /api/assigns/{assignId}/materials — file upload */
+export const storeAssignmentMaterialFile = async (
+  assignId: number,
+  file: File,
+  label?: string | null
+): Promise<{ status?: boolean; data?: AssignmentMaterialApiItem; msg?: string }> => {
+  const body = new FormData();
+  body.append("kind", "file");
+  body.append("file", file);
+  if (label && label.trim() !== "") {
+    body.append("label", label.trim());
+  }
+  return postRequest(
+    body,
+    `/api/assigns/${assignId}/materials`
+  ) as Promise<{ status?: boolean; data?: AssignmentMaterialApiItem; msg?: string }>;
+};
+
+/** POST /api/assigns/{assignId}/materials — voice upload */
+export const storeAssignmentMaterialVoice = async (
+  assignId: number,
+  file: File,
+  label?: string | null,
+  durationMs?: number | null
+): Promise<{ status?: boolean; data?: AssignmentMaterialApiItem; msg?: string }> => {
+  const body = new FormData();
+  body.append("kind", "voice");
+  body.append("file", file);
+  if (label && label.trim() !== "") {
+    body.append("label", label.trim());
+  }
+  if (durationMs != null && Number.isFinite(durationMs) && durationMs > 0) {
+    body.append("duration_ms", String(Math.round(durationMs)));
+  }
+  return postRequest(
+    body,
+    `/api/assigns/${assignId}/materials`
+  ) as Promise<{ status?: boolean; data?: AssignmentMaterialApiItem; msg?: string }>;
+};
+
+/** POST /api/assigns/{assignId}/materials — external link */
+export const storeAssignmentMaterialLink = async (
+  assignId: number,
+  url: string,
+  label?: string | null
+): Promise<{ status?: boolean; data?: AssignmentMaterialApiItem; msg?: string }> => {
+  const body = new FormData();
+  body.append("kind", "link");
+  body.append("url", url.trim());
+  if (label && label.trim() !== "") {
+    body.append("label", label.trim());
+  }
+  return postRequest(
+    body,
+    `/api/assigns/${assignId}/materials`
+  ) as Promise<{ status?: boolean; data?: AssignmentMaterialApiItem; msg?: string }>;
 };

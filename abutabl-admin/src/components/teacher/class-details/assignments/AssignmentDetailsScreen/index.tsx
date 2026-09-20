@@ -16,8 +16,15 @@ import {
   AssignmentDetailsStudentRow,
   AssignmentStudentCompletionStatus,
 } from "@/types/classAssignments";
+import { sendMissingAssignmentReminders, updateAssignmentTitle, extendAssignmentDueAt, reassignAssignment } from "@/api/classAssignmentsApi";
 import { teacherEvaluationsApi } from "@/api/teacherEvaluationsApi";
 import { EvaluationFormModal } from "@/components/teacher/student-profile/evaluation/EvaluationFormModal";
+import { EditAssignmentTitleModal } from "@/components/teacher/class-details/assignments/EditAssignmentTitleModal";
+import { ExtendAssignmentDueAtModal } from "@/components/teacher/class-details/assignments/ExtendAssignmentDueAtModal";
+import {
+  isReassignEligible,
+  ReassignAssignmentModal,
+} from "@/components/teacher/class-details/assignments/ReassignAssignmentModal";
 import { notify } from "@/utils/notify";
 
 /**
@@ -36,6 +43,9 @@ export type AssignmentDetailsScreenProps = {
   classLabel: string;
   onBack: () => void;
   onReview: (studentId: number) => void;
+  onTitleUpdated?: (title: string) => void;
+  onDueAtUpdated?: (dueAt: string) => void;
+  onReassigned?: (studentIds: number[]) => void;
 };
 
 type SortKey = "name" | "status" | "score" | "date";
@@ -107,6 +117,9 @@ export const AssignmentDetailsScreen = ({
   students,
   onBack,
   onReview,
+  onTitleUpdated,
+  onDueAtUpdated,
+  onReassigned,
 }: AssignmentDetailsScreenProps) => {
   const { t, i18n } = useTranslation();
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -115,6 +128,29 @@ export const AssignmentDetailsScreen = ({
   const [evalOpen, setEvalOpen] = useState(false);
   const [evalStudentId, setEvalStudentId] = useState<number | null>(null);
   const [evalSaving, setEvalSaving] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editLocked, setEditLocked] = useState(false);
+  const [extendOpen, setExtendOpen] = useState(false);
+  const [extendSaving, setExtendSaving] = useState(false);
+  const [extendError, setExtendError] = useState<string | null>(null);
+  const [reassignOpen, setReassignOpen] = useState(false);
+  const [reassignSaving, setReassignSaving] = useState(false);
+  const [reassignError, setReassignError] = useState<string | null>(null);
+  const [reassignSeedIds, setReassignSeedIds] = useState<number[]>([]);
+
+  const hasParentSubmission = useMemo(
+    () =>
+      students.some((row) => {
+        const parent = String(row.submission_status ?? "").toLowerCase();
+        if (parent === "submitted" || parent === "graded") {
+          return true;
+        }
+        return row.status === "submitted" || row.status === "late" || row.status === "graded";
+      }),
+    [students]
+  );
 
   const isQuiz =
     assignment.assignment_type === "quiz" ||
@@ -192,8 +228,181 @@ export const AssignmentDetailsScreen = ({
     );
   };
 
-  const notImplemented = () => {
-    notify(t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_NOT_IMPLEMENTED"), "info");
+  const openEditTitle = () => {
+    if (hasParentSubmission || editLocked) {
+      notify(t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_EDIT_LOCKED"), "info");
+      return;
+    }
+    setEditError(null);
+    setEditOpen(true);
+  };
+
+  const handleSaveTitle = async (title: string) => {
+    if (!assignment?.id) {
+      return;
+    }
+    setEditSaving(true);
+    setEditError(null);
+    try {
+      const result = await updateAssignmentTitle(Number(assignment.id), title);
+      if (!result?.status) {
+        const msg =
+          result?.msg || t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_EDIT_ERROR");
+        setEditError(msg);
+        notify(msg, "error");
+        return;
+      }
+      const nextTitle = String(result?.data?.title ?? title);
+      onTitleUpdated?.(nextTitle);
+      setEditOpen(false);
+      notify(t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_EDIT_SUCCESS"), "success");
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_EDIT_ERROR");
+      const locked =
+        /no longer be edited|submitted it|لا يمكن تعديل/i.test(message);
+      if (locked) {
+        setEditLocked(true);
+        setEditOpen(false);
+        notify(t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_EDIT_LOCKED"), "info");
+      } else {
+        setEditError(message);
+        notify(message, "error");
+      }
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const openExtendDueAt = () => {
+    setExtendError(null);
+    setExtendOpen(true);
+  };
+
+  const handleExtendDueAt = async (dueAtIso: string) => {
+    if (!assignment?.id) {
+      return;
+    }
+    setExtendSaving(true);
+    setExtendError(null);
+    try {
+      const result = await extendAssignmentDueAt(Number(assignment.id), dueAtIso);
+      if (!result?.status) {
+        const msg =
+          result?.msg || t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_EXTEND_ERROR");
+        setExtendError(msg);
+        notify(msg, "error");
+        return;
+      }
+      const nextDue = String(result?.data?.due_at ?? dueAtIso);
+      onDueAtUpdated?.(nextDue);
+      setExtendOpen(false);
+      notify(t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_EXTEND_SUCCESS"), "success");
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_EXTEND_ERROR");
+      setExtendError(message);
+      notify(message, "error");
+    } finally {
+      setExtendSaving(false);
+    }
+  };
+
+  const openReassign = (seedIds: number[]) => {
+    setReassignError(null);
+    setReassignSeedIds(seedIds);
+    setReassignOpen(true);
+  };
+
+  const handleReassign = async (studentIds: number[]) => {
+    if (!assignment?.id || studentIds.length === 0) {
+      return;
+    }
+    setReassignSaving(true);
+    setReassignError(null);
+    try {
+      const result = await reassignAssignment(Number(assignment.id), studentIds);
+      if (!result?.status) {
+        const msg =
+          result?.msg || t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_REASSIGN_ERROR");
+        setReassignError(msg);
+        notify(msg, "error");
+        return;
+      }
+      const doneIds = Array.isArray(result?.data?.reassigned_student_ids)
+        ? result.data!.reassigned_student_ids!.map(Number)
+        : studentIds;
+      onReassigned?.(doneIds);
+      setReassignOpen(false);
+      setSelectedIds([]);
+      notify(
+        t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_REASSIGN_SUCCESS", {
+          count: doneIds.length,
+        }),
+        "success"
+      );
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_REASSIGN_ERROR");
+      setReassignError(message);
+      notify(message, "error");
+    } finally {
+      setReassignSaving(false);
+    }
+  };
+
+  const selectedEligibleIds = useMemo(
+    () =>
+      selectedIds.filter((id) => {
+        const row = students.find((s) => s.student_id === id);
+        return row ? isReassignEligible(row) : false;
+      }),
+    [selectedIds, students]
+  );
+
+  const [sendingReminder, setSendingReminder] = useState(false);
+
+  const handleSendReminder = async () => {
+    if (sendingReminder || classId <= 0 || !assignment?.id) {
+      return;
+    }
+    setSendingReminder(true);
+    try {
+      const result = await sendMissingAssignmentReminders(
+        classId,
+        Number(assignment.id)
+      );
+      const sent = Number(result?.data?.sent ?? 0);
+      if (!result?.status) {
+        notify(
+          result?.msg || t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_REMIND_ERROR"),
+          "error"
+        );
+        return;
+      }
+      if (sent <= 0) {
+        notify(t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_REMIND_NONE"), "info");
+        return;
+      }
+      notify(
+        t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_REMIND_SUCCESS", { count: sent }),
+        "success"
+      );
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_REMIND_ERROR");
+      notify(message, "error");
+    } finally {
+      setSendingReminder(false);
+    }
   };
 
   const openAddEvaluation = () => {
@@ -323,11 +532,22 @@ export const AssignmentDetailsScreen = ({
           <button type="button" className={headerBtnTeal} onClick={openAddEvaluation}>
             {t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_ADD_EVALUATION")}
           </button>
-          <button type="button" className={headerBtnGrey} onClick={notImplemented}>
+          <button
+            type="button"
+            className={headerBtnGrey}
+            onClick={openEditTitle}
+            data-testid="assignment-details-edit"
+            disabled={hasParentSubmission || editLocked}
+          >
             <EditOutlinedIcon sx={{ fontSize: 17 }} />
             {t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_EDIT")}
           </button>
-          <button type="button" className={headerBtnGrey} onClick={notImplemented}>
+          <button
+            type="button"
+            className={headerBtnGrey}
+            onClick={openExtendDueAt}
+            data-testid="assignment-details-extend"
+          >
             <EventAvailableOutlinedIcon sx={{ fontSize: 17 }} />
             {t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_EXTEND")}
           </button>
@@ -374,12 +594,15 @@ export const AssignmentDetailsScreen = ({
           <div className="px-4 pb-3.5 sm:pb-0 sm:pr-4">
             <button
               type="button"
-              onClick={notImplemented}
-              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-[10px] px-5 text-[14px] font-bold text-white sm:w-auto"
+              onClick={handleSendReminder}
+              disabled={sendingReminder}
+              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-[10px] px-5 text-[14px] font-bold text-white sm:w-auto disabled:opacity-60"
               style={{ backgroundColor: BRAND }}
             >
               <SendRoundedIcon sx={{ fontSize: 18 }} />
-              {t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_SEND")}
+              {sendingReminder
+                ? t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_SENDING")
+                : t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_SEND")}
             </button>
           </div>
         </div>
@@ -389,6 +612,22 @@ export const AssignmentDetailsScreen = ({
         className="overflow-hidden rounded-[16px] border border-[#EEF0F2] bg-white"
         style={{ boxShadow: SHADOW }}
       >
+        {selectedEligibleIds.length > 0 ? (
+          <div className="flex items-center justify-between gap-3 border-b border-[#F3F4F6] px-5 py-3">
+            <p className="text-[13px] font-medium text-[#6B7280]">
+              {t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_REASSIGN_SELECTED")}
+              {`: ${selectedEligibleIds.length}`}
+            </p>
+            <button
+              type="button"
+              onClick={() => openReassign(selectedEligibleIds)}
+              className="inline-flex h-9 items-center justify-center rounded-[10px] border border-[#FECACA] bg-[#FFF1F2] px-4 text-[13px] font-bold text-[#E11D48] transition hover:bg-[#FFE4E6]"
+              data-testid="assignment-details-reassign-selected"
+            >
+              {t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_REASSIGN")}
+            </button>
+          </div>
+        ) : null}
         <div className="max-h-[560px] overflow-auto">
           <table className="w-full table-fixed border-collapse text-left">
             <colgroup>
@@ -493,7 +732,11 @@ export const AssignmentDetailsScreen = ({
                 sortedStudents.map((row) => {
                   const checked = selectedIds.includes(row.student_id);
                   const badge = STATUS_BADGE[row.status] ?? STATUS_BADGE.missing;
-                  const showReassign = row.status === "missing";
+                  const canReassign = isReassignEligible(row);
+                  const showReview =
+                    row.status === "submitted" ||
+                    row.status === "late" ||
+                    row.status === "graded";
                   const openedLabel = formatDate(row.opened_at, i18n.language);
 
                   return (
@@ -552,24 +795,29 @@ export const AssignmentDetailsScreen = ({
                         )}
                       </td>
                       <td className="h-16 px-5 align-middle text-left">
-                        {showReassign ? (
-                          <button
-                            type="button"
-                            onClick={notImplemented}
-                            className="inline-flex h-9 min-w-[92px] items-center justify-center rounded-[10px] border border-[#FECACA] bg-[#FFF1F2] px-4 text-[13px] font-bold text-[#E11D48] transition hover:bg-[#FFE4E6]"
-                          >
-                            {t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_REASSIGN")}
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => onReview(row.student_id)}
-                            className="inline-flex h-9 min-w-[92px] items-center justify-center rounded-[10px] px-5 text-[13px] font-bold text-white transition hover:opacity-90"
-                            style={{ backgroundColor: BRAND }}
-                          >
-                            {t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_REVIEW")}
-                          </button>
-                        )}
+                        <div className="flex flex-wrap items-center justify-start gap-2">
+                          {canReassign ? (
+                            <button
+                              type="button"
+                              onClick={() => openReassign([row.student_id])}
+                              className="inline-flex h-9 min-w-[92px] items-center justify-center rounded-[10px] border border-[#FECACA] bg-[#FFF1F2] px-4 text-[13px] font-bold text-[#E11D48] transition hover:bg-[#FFE4E6]"
+                              data-testid={`assignment-details-reassign-${row.student_id}`}
+                            >
+                              {t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_REASSIGN")}
+                            </button>
+                          ) : null}
+                          {showReview ? (
+                            <button
+                              type="button"
+                              onClick={() => onReview(row.student_id)}
+                              className="inline-flex h-9 min-w-[92px] items-center justify-center rounded-[10px] px-5 text-[13px] font-bold text-white transition hover:opacity-90"
+                              style={{ backgroundColor: BRAND }}
+                              data-testid={`assignment-details-review-${row.student_id}`}
+                            >
+                              {t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_REVIEW")}
+                            </button>
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -590,6 +838,43 @@ export const AssignmentDetailsScreen = ({
         setEvalStudentId(null);
       }}
       onSave={handleSaveEvaluation}
+    />
+    <EditAssignmentTitleModal
+      open={editOpen}
+      initialTitle={assignment.title}
+      saving={editSaving}
+      error={editError}
+      onClose={() => {
+        if (editSaving) return;
+        setEditOpen(false);
+        setEditError(null);
+      }}
+      onSave={handleSaveTitle}
+    />
+    <ExtendAssignmentDueAtModal
+      open={extendOpen}
+      currentDueAt={assignment.due_at ?? assignment.due_date ?? null}
+      saving={extendSaving}
+      error={extendError}
+      onClose={() => {
+        if (extendSaving) return;
+        setExtendOpen(false);
+        setExtendError(null);
+      }}
+      onSave={handleExtendDueAt}
+    />
+    <ReassignAssignmentModal
+      open={reassignOpen}
+      students={students}
+      initialSelectedIds={reassignSeedIds}
+      saving={reassignSaving}
+      error={reassignError}
+      onClose={() => {
+        if (reassignSaving) return;
+        setReassignOpen(false);
+        setReassignError(null);
+      }}
+      onConfirm={handleReassign}
     />
     </>
   );

@@ -332,6 +332,47 @@ const AssignmentDetailsView = () => {
           classLabel={classLabel}
           onBack={goBackToAssignments}
           onReview={openReview}
+          onTitleUpdated={(title) => {
+            setPayload((prev) =>
+              prev?.assignment
+                ? {
+                    ...prev,
+                    assignment: { ...prev.assignment, title },
+                  }
+                : prev
+            );
+          }}
+          onDueAtUpdated={(dueAt) => {
+            setPayload((prev) =>
+              prev?.assignment
+                ? {
+                    ...prev,
+                    assignment: {
+                      ...prev.assignment,
+                      due_at: dueAt,
+                      due_date: dueAt,
+                    },
+                  }
+                : prev
+            );
+          }}
+          onReassigned={async () => {
+            try {
+              const details = await fetchAssignmentDetails(classId, assignmentId);
+              if (!details?.assignment) {
+                return;
+              }
+              setPayload(details);
+              const rows = Array.isArray(details.students) ? details.students : [];
+              setStudents(
+                rows
+                  .map((row) => normalizeStudentRow(row))
+                  .filter((row): row is AssignmentDetailsStudentRow => row != null)
+              );
+            } catch {
+              // Keep current UI; toast already shown by child on API success.
+            }
+          }}
         />
       )}
     </div>

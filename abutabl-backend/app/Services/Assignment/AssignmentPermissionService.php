@@ -61,6 +61,14 @@ class AssignmentPermissionService
     }
 
     /**
+     * Same ownership gate as delete / AssignmentPolicy::update.
+     */
+    public function canUpdate(?object $user, $assign = null): bool
+    {
+        return $this->canDelete($user, $assign);
+    }
+
+    /**
      * Admin may view all in scope; teachers may view own assignments.
      */
     public function canView(?object $user, Assigns $assign, array $accessibleSchoolIds): bool

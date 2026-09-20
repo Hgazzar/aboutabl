@@ -27,8 +27,11 @@ export type AssignmentMaterialsPanelProps = {
   onRecordVoice?: () => void;
   onAddMore?: () => void;
   onRemove?: (id: string) => void;
+  /** Optional link add — URL + Add button (Wizard). */
+  linkUrl?: string;
+  onLinkUrlChange?: (value: string) => void;
+  onAddLink?: () => void;
 };
-
 type MaterialVisual = {
   label: string;
   Icon: ComponentType<{ sx?: { fontSize?: number } }>;
@@ -116,6 +119,9 @@ const AssignmentMaterialsPanel = (props: AssignmentMaterialsPanelProps) => {
     onRecordVoice,
     onAddMore,
     onRemove,
+    linkUrl,
+    onLinkUrlChange,
+    onAddLink,
   } = props;
 
   const { t } = useTranslation();
@@ -271,6 +277,35 @@ const AssignmentMaterialsPanel = (props: AssignmentMaterialsPanelProps) => {
           </button>
         </div>
       </div>
+
+      {onAddLink ? (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <input
+            type="url"
+            value={linkUrl ?? ""}
+            onChange={(event) => onLinkUrlChange?.(event.target.value)}
+            disabled={disabled}
+            placeholder={t(
+              "TEACHER_CLASS_DETAILS.ASSIGNMENTS_WIZARD_LINK_PLACEHOLDER"
+            )}
+            className="h-10 min-w-0 flex-1 rounded-[10px] border border-[#E5E7EB] px-3 text-sm text-[#111827] outline-none focus:border-[#23B8A2] disabled:bg-[#F9FAFB]"
+            data-testid="wizard-material-link-input"
+          />
+          <button
+            type="button"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onAddLink();
+            }}
+            disabled={disabled}
+            className="inline-flex h-10 shrink-0 items-center justify-center rounded-[10px] border border-[#C7D2FE] bg-[#EEF2FF] px-4 text-sm font-bold text-[#4338CA] disabled:opacity-50"
+            data-testid="wizard-material-link-add"
+          >
+            {t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_WIZARD_ADD_LINK")}
+          </button>
+        </div>
+      ) : null}
 
       {showHint ? (
         <p className="text-xs text-[#9CA3AF]">

@@ -13,7 +13,7 @@ import Box from "@mui/material/Box";
 import CircularProgress from "@mui/material/CircularProgress";
 import Modal from "@mui/material/Modal";
 import { useTranslation } from "react-i18next";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import {
   LearningActivitySelection,
   storeLearningActivitiesAssignment,
@@ -21,9 +21,18 @@ import {
 import AssignmentMaterialsPanel from "@/components/teacher/class-details/assignments/AssignmentMaterialsPanel";
 import LearningActivitiesPicker from "@/components/teacher/class-details/assignments/LearningActivitiesPicker";
 import { WizardSelect } from "@/components/teacher/class-details/assignments/WizardSelect";
+import {
+  isValidMaterialLinkUrl,
+  persistWizardMaterials,
+} from "@/components/teacher/class-details/assignments/wizardMaterialsPersist";
 import { RootState } from "@/redux/store";
+import { setUser } from "@/redux/reducers/loginReducer";
 import { getRequest } from "@/utils/fetchMethods";
 import { notify } from "@/utils/notify";
+import {
+  hydrateLoginUserSchool,
+  resolveSchoolId,
+} from "@/utils/schoolContext";
 import {
   AssignmentMaterialItem,
   AssignmentMaterialKind,
@@ -31,7 +40,7 @@ import {
 import { WizardClassOption } from "@/types/classAssignments";
 import { ClassStudentsOverviewResponse } from "@/types/classStudentsOverview";
 
-/** Local preview label only — materials are not persisted yet. */
+/** Display label for local material cards. */
 const resolveMaterialLabel = (
   fileName: string,
   kind: AssignmentMaterialKind
@@ -83,35 +92,6 @@ export type CreateAssignmentWizardModalProps = {
 const fieldClassName =
   "w-full rounded-[12px] border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm text-[#111827] outline-none shadow-[0_1px_2px_rgba(16,24,40,0.04)] focus:border-[#23B8A2]";
 
-/**
- * LoginAdminResource exposes `school` (array), not always `school_id`.
- * Teachers resolve school from that list; fall back to school_id when present.
- */
-const resolveSchoolId = (user: Record<string, unknown> | null | undefined): number => {
-  const direct = Number(user?.school_id ?? 0);
-  if (direct > 0) {
-    return direct;
-  }
-
-  const schools = user?.school;
-  if (Array.isArray(schools) && schools.length > 0) {
-    const first = schools[0] as { id?: number | string };
-    const fromList = Number(first?.id ?? 0);
-    if (fromList > 0) {
-      return fromList;
-    }
-  }
-
-  if (schools && typeof schools === "object" && !Array.isArray(schools)) {
-    const single = Number((schools as { id?: number | string }).id ?? 0);
-    if (single > 0) {
-      return single;
-    }
-  }
-
-  return 0;
-};
-
 export const CreateAssignmentWizardModal = ({
   open,
   classId,
@@ -120,6 +100,7 @@ export const CreateAssignmentWizardModal = ({
   onCreated,
 }: CreateAssignmentWizardModalProps) => {
   const { t } = useTranslation();
+  const dispatch = useDispatch();
   const loginUser = useSelector((state: RootState) => state.login?.user);
   const schoolId = resolveSchoolId(loginUser as Record<string, unknown> | null);
   const teacherId = Number(loginUser?.id ?? 0);
@@ -145,11 +126,32 @@ export const CreateAssignmentWizardModal = ({
   const [selectedStudentIds, setSelectedStudentIds] = useState<number[]>([]);
   const [studentSearch, setStudentSearch] = useState("");
   const [materials, setMaterials] = useState<AssignmentMaterialItem[]>([]);
+  const [linkDraft, setLinkDraft] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const voiceChunksRef = useRef<Blob[]>([]);
+
+  useEffect(() => {
+    if (!open || schoolId > 0 || !loginUser?.id) {
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      const hydrated = await hydrateLoginUserSchool(
+        loginUser as Record<string, unknown>
+      );
+      if (!cancelled && resolveSchoolId(hydrated) > 0) {
+        dispatch(setUser(hydrated));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, schoolId, loginUser, dispatch]);
 
   const classOptions = useMemo(
     () =>
@@ -190,8 +192,9 @@ export const CreateAssignmentWizardModal = ({
     ? students.length
     : selectedStudentIds.length;
 
-  const filesCount = materials.filter((item) => item.kind !== "voice").length;
+  const filesCount = materials.filter((item) => item.kind === "file").length;
   const voiceCount = materials.filter((item) => item.kind === "voice").length;
+  const linksCount = materials.filter((item) => item.kind === "link").length;
 
   const stopMediaTracks = useCallback(() => {
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -231,6 +234,7 @@ export const CreateAssignmentWizardModal = ({
       revokeMaterialUrls(current);
       return [];
     });
+    setLinkDraft("");
 
     setStep(0);
     setSubmitting(false);
@@ -360,6 +364,8 @@ export const CreateAssignmentWizardModal = ({
         name: string;
         label?: string;
         previewUrl?: string;
+        file?: File;
+        url?: string;
       }>
     ) => {
       if (items.length === 0) {
@@ -379,6 +385,8 @@ export const CreateAssignmentWizardModal = ({
             label: item.label || resolveMaterialLabel(item.name, item.kind),
             name: item.name,
             previewUrl: item.previewUrl,
+            file: item.file,
+            url: item.url,
           });
         });
 
@@ -409,6 +417,7 @@ export const CreateAssignmentWizardModal = ({
         selected.map((file) => ({
           kind: "file" as const,
           name: file.name,
+          file,
         }))
       );
     },
@@ -477,17 +486,20 @@ export const CreateAssignmentWizardModal = ({
         setMaterials((current) => {
           const index =
             current.filter((item) => item.kind === "voice").length + 1;
+          const name = t(
+            "TEACHER_CLASS_DETAILS.ASSIGNMENTS_WIZARD_MATERIAL_VOICE_FILE",
+            { index, extension }
+          );
+          const file = new File([blob], name, { type: blobType });
           return [
             ...current,
             {
               id: `voice-${Date.now()}-${index}`,
-              kind: "voice",
+              kind: "voice" as const,
               label: t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_WIZARD_MATERIAL_VOICE"),
-              name: t(
-                "TEACHER_CLASS_DETAILS.ASSIGNMENTS_WIZARD_MATERIAL_VOICE_FILE",
-                { index, extension }
-              ),
+              name,
               previewUrl: URL.createObjectURL(blob),
+              file,
             },
           ];
         });
@@ -515,6 +527,32 @@ export const CreateAssignmentWizardModal = ({
       }
       return current.filter((item) => item.id !== id);
     });
+  };
+
+  const handleAddLink = () => {
+    if (!isValidMaterialLinkUrl(linkDraft)) {
+      notify(
+        t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_WIZARD_LINK_INVALID"),
+        "error"
+      );
+      return;
+    }
+    const url = linkDraft.trim();
+    let displayName = url;
+    try {
+      displayName = new URL(url).hostname || url;
+    } catch {
+      displayName = url;
+    }
+    appendMaterials([
+      {
+        kind: "link",
+        name: displayName,
+        label: t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_WIZARD_MATERIAL_LINK"),
+        url,
+      },
+    ]);
+    setLinkDraft("");
   };
 
   const validateInfoStep = (): boolean => {
@@ -610,6 +648,29 @@ export const CreateAssignmentWizardModal = ({
           response?.msg ||
             t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_WIZARD_CREATE_ERROR")
         );
+      }
+
+      const assignId = Number(response.data?.assign_id ?? 0);
+      if (!Number.isFinite(assignId) || assignId <= 0) {
+        throw new Error(
+          t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_WIZARD_CREATE_ERROR")
+        );
+      }
+
+      if (materials.length > 0) {
+        const persist = await persistWizardMaterials(assignId, materials);
+        if (persist.failed.length > 0) {
+          notify(
+            t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_WIZARD_MATERIALS_PARTIAL", {
+              ok: persist.succeeded,
+              fail: persist.failed.length,
+            }),
+            "error"
+          );
+          onCreated();
+          onClose();
+          return;
+        }
       }
 
       notify(t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_WIZARD_CREATE_SUCCESS"), "success");
@@ -973,6 +1034,9 @@ export const CreateAssignmentWizardModal = ({
             onRecordVoice={handleRecordVoice}
             onAddMore={openFilePicker}
             onRemove={removeMaterial}
+            linkUrl={linkDraft}
+            onLinkUrlChange={setLinkDraft}
+            onAddLink={handleAddLink}
           />
         ) : null}
 
@@ -1032,6 +1096,10 @@ export const CreateAssignmentWizardModal = ({
               <ReviewRow
                 label={t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_WIZARD_REVIEW_VOICE")}
                 value={String(voiceCount)}
+              />
+              <ReviewRow
+                label={t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_WIZARD_REVIEW_LINKS")}
+                value={String(linksCount)}
               />
             </div>
           </div>

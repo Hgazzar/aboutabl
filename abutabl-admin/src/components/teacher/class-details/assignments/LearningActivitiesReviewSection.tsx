@@ -13,6 +13,10 @@ import {
   submitLearningActivityManualGrade,
 } from "@/api/classAssignmentsApi";
 import AssignmentRuntimeReviewSection from "@/components/teacher/class-details/assignments/AssignmentRuntimeReviewSection";
+import {
+  TeacherRubricGradingPanel,
+  TeacherRubricReadiness,
+} from "@/components/teacher/class-details/assignments/TeacherRubricGradingPanel";
 import { StudentMyWorkReviewPanel } from "./StudentMyWorkReviewPanel";
 import { myWorkFromReviewStudentRow } from "./studentMyWorkReviewUtils";
 import { notify } from "@/utils/notify";
@@ -84,6 +88,8 @@ export const LearningActivitiesReviewSection = ({
   >({});
   const [savingId, setSavingId] = useState<number | null>(null);
   const [finalizing, setFinalizing] = useState(false);
+  const [rubricReadiness, setRubricReadiness] =
+    useState<TeacherRubricReadiness | null>(null);
 
   const load = useCallback(async () => {
     if (!assignId) {
@@ -277,8 +283,40 @@ export const LearningActivitiesReviewSection = ({
     }
   };
 
+  const finalizeBlockedReason = useMemo(() => {
+    if (!canFinalizeParent) {
+      return null;
+    }
+    if (!rubricReadiness) {
+      return t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S9_RETURN_NEED_DRAFT");
+    }
+    if (rubricReadiness.ready) {
+      return null;
+    }
+    if (rubricReadiness.reason === "no_rubric") {
+      return t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S9_RETURN_NEED_RUBRIC");
+    }
+    if (
+      rubricReadiness.reason === "no_draft" ||
+      rubricReadiness.reason === "incomplete_draft"
+    ) {
+      return t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S9_RETURN_NEED_DRAFT");
+    }
+    return t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S9_LA_FINALIZE_ERROR");
+  }, [canFinalizeParent, rubricReadiness, t]);
+
+  const canReturnAssignment =
+    canFinalizeParent && Boolean(rubricReadiness?.ready);
+
   const handleFinalizeParent = async () => {
-    if (!canFinalizeParent || finalizing) {
+    if (!canReturnAssignment || finalizing) {
+      if (canFinalizeParent && !rubricReadiness?.ready) {
+        notify(
+          finalizeBlockedReason ||
+            t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S9_RETURN_NEED_DRAFT"),
+          "error"
+        );
+      }
       return;
     }
     setFinalizing(true);
@@ -329,17 +367,6 @@ export const LearningActivitiesReviewSection = ({
     );
   }
 
-  if (activities.length === 0 && studentMyWork.length === 0) {
-    return (
-      <div
-        className="mb-4 rounded-[16px] border border-dashed border-[#E5E7EB] bg-white px-5 py-8 text-center text-sm font-semibold text-[#6B7280]"
-        style={{ boxShadow: CARD_SHADOW }}
-      >
-        {t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S9_LA_EMPTY")}
-      </div>
-    );
-  }
-
   return (
     <div className="mb-4 space-y-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -362,10 +389,11 @@ export const LearningActivitiesReviewSection = ({
         {canFinalizeParent ? (
           <button
             type="button"
-            disabled={finalizing}
+            disabled={finalizing || !canReturnAssignment}
             onClick={() => void handleFinalizeParent()}
             className="inline-flex h-10 shrink-0 items-center justify-center rounded-[10px] px-4 text-[14px] font-bold text-white disabled:opacity-60"
             style={{ backgroundColor: BRAND }}
+            data-testid="teacher-return-assignment"
           >
             {finalizing
               ? t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S9_RUNTIME_SAVING")
@@ -373,6 +401,22 @@ export const LearningActivitiesReviewSection = ({
           </button>
         ) : null}
       </div>
+
+      {canFinalizeParent && finalizeBlockedReason ? (
+        <div
+          className="rounded-[12px] border border-[#FDBA74] bg-[#FFF7ED] px-4 py-3 text-[13px] font-semibold text-[#C2410C]"
+          data-testid="teacher-return-blocked-hint"
+        >
+          {finalizeBlockedReason}
+        </div>
+      ) : null}
+
+      <TeacherRubricGradingPanel
+        assignId={assignId}
+        studentId={studentId}
+        parentSubmissionStatus={parentSubmissionStatus}
+        onReadinessChange={setRubricReadiness}
+      />
 
       <StudentMyWorkReviewPanel items={studentMyWork} />
 

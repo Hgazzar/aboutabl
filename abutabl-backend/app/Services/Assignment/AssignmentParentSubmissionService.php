@@ -140,6 +140,55 @@ class AssignmentParentSubmissionService
     }
 
     /**
+     * Teacher Reassign V1: reopen assignment for a roster student.
+     * - submitted → active (teacher override; ignores student deadline gate)
+     * - active → no-op on parent status (already open)
+     * - graded → rejected
+     * Does not wipe activity submissions / My Work (same as student assignment REDO).
+     */
+    public function teacherReassignForStudent(int $assignId, int $studentId): AssignsStudents
+    {
+        return DB::transaction(function () use ($assignId, $studentId) {
+            $assign = Assigns::query()->where('id', $assignId)->lockForUpdate()->first();
+            if (! $assign) {
+                throw new InvalidArgumentException('assignment_not_found');
+            }
+
+            /** @var AssignsStudents|null $assignStudent */
+            $assignStudent = AssignsStudents::query()
+                ->where('assign_id', $assignId)
+                ->where('student_id', $studentId)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $assignStudent) {
+                throw new InvalidArgumentException('assign_student_not_found');
+            }
+
+            $status = $this->resolveParentStatus($assignStudent);
+
+            if ($status === self::STATUS_GRADED) {
+                throw new InvalidArgumentException('assignment_graded_locked');
+            }
+
+            if ($status === self::STATUS_ACTIVE) {
+                return $assignStudent->fresh();
+            }
+
+            // submitted → active (teacher-forced reopen)
+            $assignStudent->submission_status = self::STATUS_ACTIVE;
+            if ($this->hasSubmittedAtColumn()) {
+                $assignStudent->submitted_at = null;
+            }
+            $assignStudent->save();
+
+            $this->discardUnfinalizedGradeDraft((int) $assign->id, (int) $assignStudent->id);
+
+            return $assignStudent->fresh();
+        });
+    }
+
+    /**
      * Assignment REDO availability (authoritative).
      * submitted + not past due_at + not graded.
      */
