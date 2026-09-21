@@ -25,6 +25,7 @@ const STATUSES: AssignmentStudentCompletionStatus[] = [
   "submitted",
   "late",
   "missing",
+  "graded",
 ];
 
 const normalizeStudentRow = (
@@ -36,12 +37,17 @@ const normalizeStudentRow = (
   }
   const statusRaw = String(raw.status ?? "missing") as AssignmentStudentCompletionStatus;
   const status = STATUSES.includes(statusRaw) ? statusRaw : "missing";
+  const assignStudentId = Number(raw.assign_student_id ?? 0);
 
   return {
     student_id: studentId,
+    assign_student_id: assignStudentId > 0 ? assignStudentId : undefined,
     name: String(raw.name ?? ""),
     photo_url: raw.photo_url ?? null,
     status,
+    submission_status: raw.submission_status,
+    submitted_at: raw.submitted_at ?? null,
+    graded_at: raw.graded_at ?? null,
     opened_at: raw.opened_at ?? null,
     score_percent:
       raw.score_percent === null || raw.score_percent === undefined
