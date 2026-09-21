@@ -168,6 +168,7 @@ export const ExtendAssignmentDueAtModal = ({
       onClose={saving ? undefined : onClose}
       data-testid="extend-assignment-due-at-modal"
       sx={{
+        zIndex: (theme) => theme.zIndex.modal + 2,
         display: "flex",
         alignItems: "flex-start",
         justifyContent: "center",

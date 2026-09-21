@@ -328,6 +328,30 @@ const AssignmentDetailsView = () => {
           classLabel={classLabel}
           onBack={closeReview}
           onStudentChange={openReview}
+          onTitleUpdated={(title) => {
+            setPayload((prev) =>
+              prev?.assignment
+                ? {
+                    ...prev,
+                    assignment: { ...prev.assignment, title },
+                  }
+                : prev
+            );
+          }}
+          onDueAtUpdated={(dueAt) => {
+            setPayload((prev) =>
+              prev?.assignment
+                ? {
+                    ...prev,
+                    assignment: {
+                      ...prev.assignment,
+                      due_at: dueAt,
+                      due_date: dueAt,
+                    },
+                  }
+                : prev
+            );
+          }}
         />
       ) : (
         <AssignmentDetailsScreen

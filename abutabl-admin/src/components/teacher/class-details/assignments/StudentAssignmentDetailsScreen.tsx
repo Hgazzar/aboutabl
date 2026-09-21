@@ -5,19 +5,26 @@ import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import EventAvailableOutlinedIcon from "@mui/icons-material/EventAvailableOutlined";
 import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import MenuBookOutlinedIcon from "@mui/icons-material/MenuBookOutlined";
 import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined";
 import ShowChartOutlinedIcon from "@mui/icons-material/ShowChartOutlined";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import {
+  extendAssignmentDueAt,
+  updateAssignmentTitle,
+} from "@/api/classAssignmentsApi";
 import {
   AssignmentDetailsAssignment,
   AssignmentDetailsStudentRow,
   AssignmentStudentCompletionStatus,
 } from "@/types/classAssignments";
 import AssignmentRuntimeReviewSection from "@/components/teacher/class-details/assignments/AssignmentRuntimeReviewSection";
+import { EditAssignmentTitleModal } from "@/components/teacher/class-details/assignments/EditAssignmentTitleModal";
+import { ExtendAssignmentDueAtModal } from "@/components/teacher/class-details/assignments/ExtendAssignmentDueAtModal";
 import LearningActivitiesReviewSection from "@/components/teacher/class-details/assignments/LearningActivitiesReviewSection";
 import TeacherEvaluationCard from "@/components/teacher/student-profile/TeacherEvaluationCard";
 import { useStudentProfile } from "@/hooks/useStudentProfile";
@@ -36,6 +43,8 @@ export type StudentAssignmentDetailsScreenProps = {
   classLabel: string;
   onBack: () => void;
   onStudentChange: (studentId: number) => void;
+  onTitleUpdated?: (title: string) => void;
+  onDueAtUpdated?: (dueAt: string) => void;
 };
 
 const formatDueDate = (value: string | null, locale: string): string => {
@@ -119,13 +128,118 @@ export const StudentAssignmentDetailsScreen = ({
   classLabel,
   onBack,
   onStudentChange,
+  onTitleUpdated,
+  onDueAtUpdated,
 }: StudentAssignmentDetailsScreenProps) => {
   const { t, i18n } = useTranslation();
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [evalOpenSignal, setEvalOpenSignal] = useState(0);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editLocked, setEditLocked] = useState(false);
+  const [extendOpen, setExtendOpen] = useState(false);
+  const [extendSaving, setExtendSaving] = useState(false);
+  const [extendError, setExtendError] = useState<string | null>(null);
 
-  const notImplemented = () => {
-    notify(t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_NOT_IMPLEMENTED"), "info");
+  const hasParentSubmission = useMemo(
+    () =>
+      students.some((row) => {
+        const parent = String(row.submission_status ?? "").toLowerCase();
+        if (parent === "submitted" || parent === "graded") {
+          return true;
+        }
+        return (
+          row.status === "submitted" ||
+          row.status === "late" ||
+          row.status === "graded"
+        );
+      }),
+    [students]
+  );
+
+  const openEditTitle = () => {
+    if (hasParentSubmission || editLocked) {
+      notify(t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_EDIT_LOCKED"), "info");
+      return;
+    }
+    setEditError(null);
+    setEditOpen(true);
+  };
+
+  const handleSaveTitle = async (titleValue: string) => {
+    if (!assignment?.id) {
+      return;
+    }
+    setEditSaving(true);
+    setEditError(null);
+    try {
+      const result = await updateAssignmentTitle(Number(assignment.id), titleValue);
+      if (!result?.status) {
+        const msg =
+          result?.msg || t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_EDIT_ERROR");
+        setEditError(msg);
+        notify(msg, "error");
+        return;
+      }
+      const nextTitle = String(result?.data?.title ?? titleValue);
+      onTitleUpdated?.(nextTitle);
+      setEditOpen(false);
+      notify(t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_EDIT_SUCCESS"), "success");
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_EDIT_ERROR");
+      const locked =
+        /no longer be edited|submitted it|لا يمكن تعديل/i.test(message);
+      if (locked) {
+        setEditLocked(true);
+        setEditOpen(false);
+        notify(t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_EDIT_LOCKED"), "info");
+      } else {
+        setEditError(message);
+        notify(message, "error");
+      }
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const openExtendDueAt = () => {
+    setExtendError(null);
+    setExtendOpen(true);
+  };
+
+  const handleExtendDueAt = async (dueAtIso: string) => {
+    if (!assignment?.id) {
+      return;
+    }
+    setExtendSaving(true);
+    setExtendError(null);
+    try {
+      const result = await extendAssignmentDueAt(Number(assignment.id), dueAtIso);
+      if (!result?.status) {
+        const msg =
+          result?.msg || t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_EXTEND_ERROR");
+        setExtendError(msg);
+        notify(msg, "error");
+        return;
+      }
+      const nextDue = String(result?.data?.due_at ?? dueAtIso);
+      onDueAtUpdated?.(nextDue);
+      setExtendOpen(false);
+      notify(t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_EXTEND_SUCCESS"), "success");
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_EXTEND_ERROR");
+      setExtendError(message);
+      notify(message, "error");
+    } finally {
+      setExtendSaving(false);
+    }
   };
 
   const {
@@ -335,18 +449,21 @@ export const StudentAssignmentDetailsScreen = ({
           </button>
           <button
             type="button"
-            onClick={notImplemented}
-            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] border border-[#D6D6D6] bg-white px-4 text-[14px] font-semibold text-[#111827]"
+            onClick={openEditTitle}
+            disabled={hasParentSubmission || editLocked}
+            data-testid="student-assignment-details-edit"
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] border border-[#D6D6D6] bg-white px-4 text-[14px] font-semibold text-[#111827] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <EditOutlinedIcon sx={{ fontSize: 18, color: "#6B7280" }} />
             {t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_EDIT")}
           </button>
           <button
             type="button"
-            onClick={notImplemented}
+            onClick={openExtendDueAt}
+            data-testid="student-assignment-details-extend"
             className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] border border-[#D6D6D6] bg-white px-4 text-[14px] font-semibold text-[#111827]"
           >
-            <EditOutlinedIcon sx={{ fontSize: 18, color: "#6B7280" }} />
+            <EventAvailableOutlinedIcon sx={{ fontSize: 18, color: "#6B7280" }} />
             {t("TEACHER_CLASS_DETAILS.ASSIGNMENTS_S8_EXTEND")}
           </button>
         </div>
@@ -546,6 +663,31 @@ export const StudentAssignmentDetailsScreen = ({
           onMutated={() => refetchProfile()}
         />
       </div>
+
+      <EditAssignmentTitleModal
+        open={editOpen}
+        initialTitle={assignment.title}
+        saving={editSaving}
+        error={editError}
+        onClose={() => {
+          if (editSaving) return;
+          setEditOpen(false);
+          setEditError(null);
+        }}
+        onSave={handleSaveTitle}
+      />
+      <ExtendAssignmentDueAtModal
+        open={extendOpen}
+        currentDueAt={assignment.due_at ?? assignment.due_date ?? null}
+        saving={extendSaving}
+        error={extendError}
+        onClose={() => {
+          if (extendSaving) return;
+          setExtendOpen(false);
+          setExtendError(null);
+        }}
+        onSave={handleExtendDueAt}
+      />
     </div>
   );
 };
