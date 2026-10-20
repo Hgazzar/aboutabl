@@ -274,7 +274,7 @@ class StudentDashboardServiceTest extends TestCase
         $this->assertArrayHasKey('has_more', $payload['recent_activities']);
     }
 
-    public function test_rankings_items_include_weekly_xp_without_changing_rank_order(): void
+    public function test_rankings_use_class_weekly_xp_order(): void
     {
         /** @var StudentDashboardService $service */
         $service = $this->app->make(StudentDashboardService::class);
@@ -287,18 +287,25 @@ class StudentDashboardServiceTest extends TestCase
         $payload = $service->build($student->id, 'week');
         $rankings = $payload['rankings'] ?? [];
 
+        $this->assertSame('class', $rankings['rank_scope'] ?? null);
+        $this->assertSame('week', $rankings['rank_range'] ?? null);
+
         if (($rankings['available'] ?? false) !== true || empty($rankings['items'])) {
             $this->markTestSkipped('No ranking data for seeded student.');
         }
 
+        $previousXp = null;
         $previousRank = 0;
         foreach ($rankings['items'] as $item) {
             $this->assertArrayHasKey('weekly_xp', $item);
             $this->assertIsInt($item['weekly_xp']);
             $this->assertGreaterThanOrEqual(0, $item['weekly_xp']);
             $this->assertArrayHasKey('rank', $item);
-            $this->assertArrayHasKey('score_percent', $item);
-            $this->assertGreaterThan($previousRank, (int) $item['rank']);
+            $this->assertGreaterThanOrEqual($previousRank, (int) $item['rank']);
+            if ($previousXp !== null) {
+                $this->assertLessThanOrEqual($previousXp, (int) $item['weekly_xp']);
+            }
+            $previousXp = (int) $item['weekly_xp'];
             $previousRank = (int) $item['rank'];
         }
 

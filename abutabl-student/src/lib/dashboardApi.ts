@@ -139,6 +139,8 @@ export type DashboardRankingsPayload = {
 	class_rank?: number | null;
 	score_percent?: number | null;
 	performance_percent?: number | null;
+	rank_scope?: 'class' | 'school' | string;
+	rank_range?: 'week' | 'month' | 'all_time' | string;
 	items: DashboardRankingItem[];
 };
 
@@ -169,20 +171,7 @@ export type DashboardPayload = {
 		learning?: Record<string, unknown>;
 	};
 	xp: DashboardXpPayload;
-	rankings: {
-		available: boolean;
-		class_rank?: number | null;
-		score_percent?: number | null;
-		performance_percent?: number | null;
-		items: Array<{
-			student_id: number;
-			name: string;
-			photo_url?: string | null;
-			rank: number;
-			score_percent: number;
-			is_current: boolean;
-		}>;
-	};
+	rankings: DashboardRankingsPayload;
 	weekly_activity: {
 		range: string;
 		event_count: number;
@@ -346,6 +335,8 @@ function normalizeDashboardPayload(raw: Partial<DashboardPayload>): DashboardPay
 			class_rank: raw.rankings?.class_rank ?? null,
 			score_percent: raw.rankings?.score_percent ?? null,
 			performance_percent: raw.rankings?.performance_percent ?? null,
+			rank_scope: raw.rankings?.rank_scope ?? 'class',
+			rank_range: raw.rankings?.rank_range ?? 'week',
 			items: normalizeRankingItems(raw.rankings?.items),
 		},
 		weekly_activity: {

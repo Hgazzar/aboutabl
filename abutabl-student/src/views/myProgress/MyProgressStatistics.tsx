@@ -2,7 +2,6 @@ import { useIntl } from 'react-intl';
 import { figmaDashboardAssetUrl } from 'config/figmaAssets';
 import type { MyProgressStatistics as Stats } from 'lib/myProgressApi';
 import {
-	formatStatSchoolRank,
 	formatStatStreakDays,
 	formatStatTotalXp,
 } from './myProgressUtils';
@@ -40,7 +39,10 @@ export default function MyProgressStatistics({ statistics }: Props) {
 									{formatMessage({ id: 'my-progress-school-rank-label' })}
 								</span>
 								<strong className="value">
-									{formatStatSchoolRank(statistics.current_rank)}
+									{formatMessage(
+										{ id: 'my-progress-school-rank-value' },
+										{ rank: statistics.current_rank }
+									)}
 								</strong>
 							</div>
 						</StatCard>

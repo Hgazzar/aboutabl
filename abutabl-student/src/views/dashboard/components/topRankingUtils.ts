@@ -30,6 +30,10 @@ export function formatRankingWeeklyXp(xp: number | undefined | null): string {
 	return formatXpCount(xp ?? 0);
 }
 
+export function formatClassXpRank(rank: number): string {
+	return `#${Math.max(0, Math.round(rank))} Class Rank`;
+}
+
 export function rankingCardWaveColor(tier: RankingTier): string {
 	if (tier === 'gold') {
 		return '#e8c84a';

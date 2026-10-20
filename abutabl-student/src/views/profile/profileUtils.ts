@@ -6,6 +6,7 @@ import {
 	stripBakedBarFillFromSvg,
 	TRACK_MARKER_LEVELS,
 } from 'views/dashboard/components/myProgressBarUtils';
+import { formatClassXpRank } from 'views/dashboard/components/topRankingUtils';
 import type { ProfileAchievement } from './types';
 
 export type ProfileIdentity = {
@@ -46,7 +47,7 @@ export function formatClassRankLabel(rank: number | null | undefined): string | 
 		return null;
 	}
 
-	return `#${rank}`;
+	return formatClassXpRank(rank);
 }
 
 export function profileStreakDays(

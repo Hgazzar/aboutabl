@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DashboardRankingItem, DashboardRankingsPayload } from 'lib/dashboardApi';
 import {
+	formatClassXpRank,
 	formatRankingWeeklyXp,
 	isTopRankingVisible,
 	preservesApiRankOrder,
@@ -67,18 +68,21 @@ describe('topRankingUtils', () => {
 		expect(topRankingItems(rankings.items).map((row) => row.rank)).toEqual([1, 2, 3]);
 	});
 
-	it('does not reorder items by weekly_xp', () => {
+	it('preserves API XP rank order without client-side resorting', () => {
 		const items = [
-			sampleRankingItem({ student_id: 1, rank: 1, weekly_xp: 0 }),
-			sampleRankingItem({ student_id: 2, rank: 2, weekly_xp: 500 }),
-			sampleRankingItem({ student_id: 3, rank: 3, weekly_xp: 100 }),
+			sampleRankingItem({ student_id: 1, rank: 1, weekly_xp: 500 }),
+			sampleRankingItem({ student_id: 2, rank: 2, weekly_xp: 100 }),
+			sampleRankingItem({ student_id: 3, rank: 3, weekly_xp: 0 }),
 		];
 
 		const displayed = topRankingItems(items);
-		expect(displayed[0].weekly_xp).toBe(0);
-		expect(displayed[1].weekly_xp).toBe(500);
-		expect(displayed[2].weekly_xp).toBe(100);
+		expect(displayed.map((row) => row.weekly_xp)).toEqual([500, 100, 0]);
 		expect(displayed.map((row) => row.rank)).toEqual([1, 2, 3]);
+	});
+
+	it('formats class XP rank like Progress school rank', () => {
+		expect(formatClassXpRank(1)).toBe('#1 Class Rank');
+		expect(formatClassXpRank(2)).toBe('#2 Class Rank');
 	});
 
 	it('formats weekly_xp from payload values', () => {

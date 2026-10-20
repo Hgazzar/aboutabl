@@ -411,7 +411,12 @@ export default function MyProgressWidget({ xp, classRank }: Props) {
 							<img src={RANKING_TROPHY} alt="" />
 							<div>
 								<span className="label">{formatMessage({ id: 'dashboard-current-ranking' })}</span>
-								<strong className="value">#{classRank}</strong>
+								<strong className="value">
+									{formatMessage(
+										{ id: 'dashboard-class-rank-value' },
+										{ rank: classRank }
+									)}
+								</strong>
 							</div>
 						</StatPill>
 					) : null}

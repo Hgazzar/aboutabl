@@ -131,7 +131,7 @@ describe('profile level track states', () => {
 
 describe('profile statistics', () => {
 	it('formats ranking from class_rank and never defaults to the Figma #4', () => {
-		expect(formatClassRankLabel(1)).toBe('#1');
+		expect(formatClassRankLabel(1)).toBe('#1 Class Rank');
 		expect(formatClassRankLabel(null)).toBeNull();
 		expect(formatClassRankLabel(undefined)).toBeNull();
 		expect(formatClassRankLabel(null)).not.toBe(`#${FIGMA_PROFILE_MOCK.rank}`);

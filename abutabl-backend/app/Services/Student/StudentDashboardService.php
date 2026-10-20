@@ -46,6 +46,9 @@ class StudentDashboardService
     /** @var StudentXpService */
     private $xp;
 
+    /** @var StudentLeaderboardService */
+    private $leaderboard;
+
     /** @var StudentQuestService */
     private $quests;
 
@@ -65,6 +68,7 @@ class StudentDashboardService
         PerformanceComparisonService $comparison,
         LearningProgressService $learningProgress,
         StudentXpService $xp,
+        StudentLeaderboardService $leaderboard,
         StudentQuestService $quests,
         NotificationInboxService $inbox,
         AssignmentParentSubmissionService $parentSubmissions
@@ -78,6 +82,7 @@ class StudentDashboardService
         $this->comparison = $comparison;
         $this->learningProgress = $learningProgress;
         $this->xp = $xp;
+        $this->leaderboard = $leaderboard;
         $this->quests = $quests;
         $this->inbox = $inbox;
         $this->parentSubmissions = $parentSubmissions;
@@ -103,7 +108,7 @@ class StudentDashboardService
         $classId = (int) $student->class_id;
 
         $assignments = $this->buildAssignments($studentId);
-        $rankings = $this->buildClassRankings($student, $subjectIds, $teacherId, $rangeStart);
+        $rankings = $this->buildClassRankings($student);
         $progress = $this->progressOverview->build($studentId, $subjectIds);
 
         if ($teacherId > 0) {
@@ -270,77 +275,60 @@ class StudentDashboardService
     }
 
     /**
-     * @param  int[]  $subjectIds
+     * Class weekly XP ranking — same SSOT as StudentLeaderboardService (class + week).
+     *
      * @return array<string, mixed>
      */
-    private function buildClassRankings(
-        Student $student,
-        array $subjectIds,
-        int $teacherId,
-        Carbon $rangeStart
-    ): array {
-        $classId = (int) $student->class_id;
-        if ($classId <= 0 || $teacherId <= 0) {
-            return [
-                'available'   => false,
-                'class_rank'  => null,
-                'score_percent' => null,
-                'items'       => [],
-            ];
+    private function buildClassRankings(Student $student): array
+    {
+        $empty = [
+            'available' => false,
+            'class_rank' => null,
+            'score_percent' => null,
+            'performance_percent' => null,
+            'rank_scope' => StudentLeaderboardService::SCOPE_CLASS,
+            'rank_range' => StudentLeaderboardService::RANGE_WEEK,
+            'items' => [],
+        ];
+
+        if ((int) $student->class_id <= 0) {
+            return $empty;
         }
 
-        $students = Student::query()
-            ->activeInClasses(collect([$classId]))
-            ->with(['Class:id,name', 'Grade:id,name'])
-            ->get(['id', 'name', 'name_ar', 'photo', 'class_id', 'grade_id']);
-
-        if ($students->isEmpty()) {
-            return [
-                'available'   => false,
-                'class_rank'  => null,
-                'score_percent' => null,
-                'items'       => [],
-            ];
-        }
-
-        $gradeLabel = (string) ($student->grade->name ?? '');
-        $classLabel = (string) ($student->class->name ?? '');
-
-        $rankedRows = $this->metrics->buildRankedStudentRows(
-            $students,
-            $subjectIds,
-            $teacherId,
-            $rangeStart,
-            $classLabel,
-            $gradeLabel
+        $leaderboard = $this->leaderboard->build(
+            (int) $student->id,
+            StudentLeaderboardService::SCOPE_CLASS,
+            StudentLeaderboardService::RANGE_WEEK
         );
 
-        $current = collect($rankedRows)->firstWhere('student_id', (int) $student->id);
-        $items = collect($rankedRows)
-            ->sortBy('rank')
-            ->take(3)
-            ->map(function (array $row) use ($student) {
-                $studentId = (int) $row['student_id'];
+        $rank = $leaderboard['current_user_summary']['rank'] ?? null;
+        $rows = is_array($leaderboard['items'] ?? null) ? $leaderboard['items'] : [];
+        $items = [];
 
-                return [
-                    'student_id'    => $studentId,
-                    'name'          => (string) $row['name'],
-                    'photo_url'     => $row['photo_url'],
-                    'rank'          => (int) $row['rank'],
-                    'score_percent' => (float) ($row['score']['percent'] ?? 0),
-                    'weekly_xp'     => max(0, $this->xp->weeklyXpEarned($studentId)),
-                    'is_current'    => $studentId === (int) $student->id,
-                ];
-            })
-            ->values()
-            ->all();
+        foreach (array_slice($rows, 0, 3) as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $items[] = [
+                'student_id' => (int) ($row['student_id'] ?? 0),
+                'name' => (string) ($row['name'] ?? ''),
+                'photo_url' => $row['photo_url'] ?? null,
+                'rank' => (int) ($row['rank'] ?? 0),
+                'score_percent' => 0.0,
+                'weekly_xp' => max(0, (int) ($row['xp'] ?? 0)),
+                'is_current' => ($row['is_current'] ?? false) === true,
+            ];
+        }
 
         return [
-            'available'     => $current !== null,
-            'class_rank'    => $current ? (int) $current['rank'] : null,
-            'score_percent' => $current ? (float) ($current['score']['percent'] ?? 0) : null,
-            'performance_percent' => $current ? (float) ($current['performance']['percent'] ?? 0) : null,
-            'items'         => $items,
+            'available' => $items !== [],
+            'class_rank' => $rank !== null ? (int) $rank : null,
+            'score_percent' => null,
+            'performance_percent' => null,
+            'rank_scope' => StudentLeaderboardService::SCOPE_CLASS,
+            'rank_range' => StudentLeaderboardService::RANGE_WEEK,
+            'items' => $items,
         ];
     }
 

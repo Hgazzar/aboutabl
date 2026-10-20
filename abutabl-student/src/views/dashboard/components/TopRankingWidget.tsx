@@ -253,7 +253,7 @@ export default function TopRankingWidget({ rankings }: Props) {
 			</RankingList>
 
 			<ViewMoreFooter>
-				<ViewMoreLink to="/leaderboard" aria-label={viewMoreLabel}>
+				<ViewMoreLink to="/leaderboard?scope=class&range=week" aria-label={viewMoreLabel}>
 					<ViewMoreLabel>{viewMoreLabel}</ViewMoreLabel>
 				</ViewMoreLink>
 			</ViewMoreFooter>

@@ -3,7 +3,6 @@ import styled from 'styled-components';
 import { figmaDashboardAssetUrl } from 'config/figmaAssets';
 import { theme } from 'global-styles';
 import { formatXpCount } from 'views/dashboard/components/myProgressBarUtils';
-import { formatClassRankLabel } from '../profileUtils';
 import { PocketCard } from './profileLayout';
 
 const STAR_ICON = figmaDashboardAssetUrl('star-6-1.svg');
@@ -77,7 +76,10 @@ type Props = {
 
 export default function ProfileStatistics({ totalXp, classRank, streakDays }: Props) {
 	const { formatMessage } = useIntl();
-	const rankLabel = formatClassRankLabel(classRank);
+	const rankLabel =
+		classRank != null
+			? formatMessage({ id: 'dashboard-class-rank-value' }, { rank: classRank })
+			: null;
 
 	return (
 		<Section>
