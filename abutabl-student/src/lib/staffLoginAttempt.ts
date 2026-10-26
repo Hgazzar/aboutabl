@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { resolveStudentApiBaseUrl } from 'lib/studentApiBaseUrl';
 
 const apiSecret = import.meta.env.VITE_API_SECRET ?? 'OASzRok654E0AJ20KH';
 
@@ -14,6 +15,26 @@ export type StaffLoginResult =
 	| { kind: 'failed'; message: string };
 
 /**
+ * Student SPA origin has no Laravel `/api/login` (SPA fallback returns index.html).
+ * Reuse the student API host: `/api/student` → `/api/login`.
+ */
+export function staffLoginUrl(studentApiBase = resolveStudentApiBaseUrl()): string {
+	const base = studentApiBase.replace(/\/+$/, '');
+	if (/\/api\/student$/i.test(base)) {
+		return base.replace(/\/api\/student$/i, '/api/login');
+	}
+	if (/^https?:\/\//i.test(base)) {
+		try {
+			const origin = new URL(base).origin;
+			return `${origin}/api/login`;
+		} catch {
+			return '/api/login';
+		}
+	}
+	return '/api/login';
+}
+
+/**
  * Try admin-api login with the same identifier the student form uses as `code`.
  * Admin backend may return `portal: "student"` (existing SSO path) or a staff user.
  */
@@ -24,7 +45,7 @@ export async function attemptStaffOrSsoLogin(args: {
 }): Promise<StaffLoginResult> {
 	try {
 		const { data } = await axios.post(
-			'/api/login',
+			staffLoginUrl(),
 			{
 				username: args.identifier,
 				password: args.password,
@@ -40,7 +61,7 @@ export async function attemptStaffOrSsoLogin(args: {
 			}
 		);
 
-		if (!data?.status) {
+		if (!data || typeof data !== 'object' || !data.status) {
 			return { kind: 'failed', message: data?.msg || 'Login failed' };
 		}
 
@@ -70,7 +91,20 @@ export async function attemptStaffOrSsoLogin(args: {
 }
 
 export function adminAppBaseUrl(): string {
-	return (import.meta.env.VITE_ADMIN_APP_URL || 'http://127.0.0.1:3000').replace(/\/+$/, '');
+	if (typeof window !== 'undefined') {
+		const host = window.location.hostname;
+		if (host === 'new.aboutabl.com') {
+			return 'https://admin-new.aboutabl.com';
+		}
+		if (host === 'student.aboutabl.com') {
+			return 'https://aboutabl.com';
+		}
+	}
+
+	return (import.meta.env.VITE_ADMIN_APP_URL || 'http://127.0.0.1:3000').replace(
+		/\/+$/,
+		''
+	);
 }
 
 /** Redirect staff into the admin SPA with a one-time hash handoff. */
