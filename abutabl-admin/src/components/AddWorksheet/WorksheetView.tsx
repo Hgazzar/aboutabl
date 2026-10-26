@@ -3,21 +3,21 @@ import Box from "@mui/material/Box";
 import { Link, useParams } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { getSheetShow } from "@/redux/reducers/subjectsReducer";
+import { resolveStorageUrl } from "@/utils/subjectPhotoUrl";
 
 const SheetView = () => {
-  // ----------- hooks ------------
   const [data, setData] = useState<any>({});
   const param = useParams();
   const dispatch = useDispatch();
-
-  //   ------------ side effects ------------
+  const fileUrl = resolveStorageUrl(data?.path);
+  const ext = String(data?.ext || "").toLowerCase();
 
   useEffect(() => {
     dispatch(getSheetShow({ id: param.sheet_id })).then((res: any) => {
-      setData(res.payload.sheet);
+      setData(res.payload?.sheet || {});
     });
   }, []);
-  // console.log("Document Path:", data?.path);
+
   return (
     <>
       <Box sx={{ position: "relative", zIndex: 100 }}>
@@ -36,53 +36,46 @@ const SheetView = () => {
             <>
               <div className="p-4 px-10 bg-white flex justify-between items-center flex-row">
                 <div className="flex flex-row gap-10">
-                  <Link to={`/subjects/${param.scormId}`}>
+                  <Link to="/subjects/list">
                     <img src={require("../../assets/Logo.png")} alt="" />
                   </Link>
                   <p className="font-bold text-2xl text-primary">
-                    {data?.name_en}
+                    {data?.name_en || data?.name_ar}
                   </p>
                 </div>
               </div>
-              <div className="w-full h-full flex justify-center items-center">
-                {data.ext === "docx" || data.ext === "xlsx" ? (
+              <div className="w-full h-full flex justify-center items-center bg-[#1b2430]">
+                {!fileUrl ? (
+                  <p className="text-white text-lg">File not found</p>
+                ) : ext === "docx" || ext === "xlsx" || ext === "xls" || ext === "pptx" ? (
                   <iframe
-                    title="Word and excel Viewer"
+                    title="Office Viewer"
                     className="w-full h-full"
                     height={"100%"}
                     width={"100%"}
                     src={
                       "https://view.officeapps.live.com/op/embed.aspx?src=" +
-                      data?.path
+                      encodeURIComponent(fileUrl)
                     }
                   ></iframe>
-                ) : data.ext === "jpg" ? (
+                ) : ext === "jpg" || ext === "jpeg" || ext === "png" || ext === "gif" ? (
                   <img
                     className="w-82 h-full "
                     title="Image Viewer"
-                    src={data?.path}
-                    alt="i"
+                    src={fileUrl}
+                    alt={data?.name_en || "worksheet"}
                   />
-                ) : data.ext === "pdf" ? (
-                  <iframe
-                    title="SCORM Viewer"
-                    className="w-full h-full"
-                    height={"100%"}
-                    width={"100%"}
-                    src={data?.path}
-                  ></iframe>
                 ) : (
                   <iframe
-                    title="SCORM Viewer"
+                    title="Worksheet Viewer"
                     className="w-full h-full"
                     height={"100%"}
                     width={"100%"}
-                    src={data?.path}
+                    src={fileUrl}
                   ></iframe>
                 )}
               </div>
             </>
-            {/* )} */}
           </Box>
         </Box>
       </Box>

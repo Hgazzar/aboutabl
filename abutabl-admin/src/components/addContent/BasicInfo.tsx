@@ -1,5 +1,5 @@
 import { Box, Typography, Divider, TextField, ToggleButtonGroup, ToggleButton } from "@mui/material";
-import React, { useCallback, useRef, useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import "react-datepicker/dist/react-datepicker.css";
 import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
@@ -31,7 +31,6 @@ const BasicInfo = ({
   initialValues,
 }: any) => {
   // ----------- hooks ------------
-  const imageRef: any = useRef(null);
   const [displayImages, setdisplayImages] = useState("");
   const [fileName, setFileName] = useState("");
   const [ddlCurrentPath, setDdlCurrentPath] = useState("");
@@ -128,11 +127,10 @@ const BasicInfo = ({
     // Automatically determine and set file type
     const fileType = getFileTypeFromExtension(fileList[0].name);
     
-    formik.setValues({
-      ...formik.values,
-      file: fileList[0],
-      type: fileType || formik.values.type, // Keep existing type if can't determine
-    });
+    formik.setFieldValue("file", fileList[0]);
+    if (fileType) {
+      formik.setFieldValue("type", fileType);
+    }
   };
 
   const onDrop = useCallback(
@@ -152,18 +150,15 @@ const BasicInfo = ({
         let display = URL.createObjectURL(file);
         setdisplayImages(display);
         setFileName(file.name);
-        
-        // Automatically determine and set file type
+
         const fileType = getFileTypeFromExtension(file.name);
-        
-        formik.setValues({
-          ...formik.values,
-          file: file,
-          type: fileType || formik.values.type, // Keep existing type if can't determine
-        });
+        formik.setFieldValue("file", file);
+        if (fileType) {
+          formik.setFieldValue("type", fileType);
+        }
       }
     },
-    [formik]
+    [formik.setFieldValue]
   );
 
   const { getRootProps, getInputProps } = useDropzone({ onDrop });
@@ -425,6 +420,7 @@ const BasicInfo = ({
             }}
           >
             <Box
+              {...(!displayImages ? getRootProps() : {})}
               sx={{
                 display: "flex",
                 p: 6,
@@ -434,9 +430,7 @@ const BasicInfo = ({
 
                 border: "1px dashed #091E4224",
                 borderRadius: "20px",
-              }}
-              onClick={() => {
-                imageRef?.current?.click();
+                cursor: displayImages ? "default" : "pointer",
               }}
             >
               {displayImages?.length ? (
@@ -466,10 +460,7 @@ const BasicInfo = ({
                         label="Discard"
                         type="bordered"
                         onClick={() => {
-                          formik.setValues({
-                            ...formik.values,
-                            file: null,
-                          });
+                          formik.setFieldValue("file", null);
                           setdisplayImages("");
                           setFileName("");
                         }}
@@ -478,10 +469,7 @@ const BasicInfo = ({
                   )}
                 </>
               ) : (
-                <div
-                  {...getRootProps()}
-                  className="flex flex-col gap-3 justify-center items-center cursor-pointer"
-                >
+                <div className="flex flex-col gap-3 justify-center items-center cursor-pointer">
                   <div className="w-16 h-16 flex justify-center items-center bg-veryLightprimary rounded-full">
                     <UploadFileRoundedIcon
                       style={{
@@ -495,18 +483,7 @@ const BasicInfo = ({
                     or click to browse
                      {/* ({MAX_UPLOAD_SIZE}mb max) */}
                   </p>
-                  <input
-                    {...getInputProps()}
-                    style={{ display: "none" }}
-                    ref={imageRef}
-                    type="file"
-                    id="logo"
-                    name="logo"
-                    accept="*/*"
-                    onChange={(event) => {
-                      handleImageChange(event);
-                    }}
-                  />
+                  <input {...getInputProps()} />
                 </div>
                 // <div className="flex flex-col gap-3 justify-center items-center cursor-pointer">
                 //   <div className="w-16 h-16 flex justify-center items-center bg-veryLightprimary rounded-full">

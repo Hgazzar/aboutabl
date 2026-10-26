@@ -76,8 +76,8 @@ class WorkSheetsController extends Controller
                 "des_en"            => ["nullable","string"],
                 "des_ar"            => ["nullable","string"],
                 "code"              => "nullable",
-                "background"        => "required|mimes:jpg,jpeg,png,gif",
-                "file"              => "required",
+                "background"        => "nullable|mimes:jpg,jpeg,png,gif",
+                "file"              => "required|file",
                 "subject_id"        => "required|exists:subjects,id",
                 // "skills_tags"       => "nullable|array|min:1|max:10",
                 // "skills_tags.*"   => [
@@ -102,44 +102,14 @@ class WorkSheetsController extends Controller
             } 
 
              DB::beginTransaction();
-    
-          if(request()->hasFile('file') and !empty(request('file')))
-           {
-                    $file = request('file');
-                    $arr = ['html','css','js','json','php','sql','gz','exe','phar','txt','c#','py','c++'];
-                    $f_name   = explode('.',$file->getClientOriginalName())[0];
-                    $hashName = $file->hashName();
-                    $size     = $file->getSize();
-                    $ext      = $file->extension();
-                    if($size <= 90000000 and !in_array($ext,$arr))
-                    {
-                       $path     = 'subjects/'.$request->subject_id.'/worksheets/files';
-                       $file->store('public/'.$path); 
-                      
-                       if($ext == 'zip')
-                       {
-                            $zip = new ZipArchive;
-                            $res = $zip->open("storage/".$path.'/'.$hashName);
-                            if ($res === TRUE) {
-                            $zip->extractTo('scrom/worksheets/'.explode('.', $hashName)[0]);
-                              $zip->close();
-                              $path = 'scrom/worksheets/'.explode('.', $hashName)[0].'/index.html';
-                            }
-                       }
-                       else
-                       {
-                          $path = 'storage/'.$path.'/'.$hashName;
-                       }
-                    }
-              }
 
-           if(request()->has('background') and !empty(request('background')))
-           {
-                    $file     = request('background');
-                    $hashName1 = $file->hashName();
-                    $path1     = 'subjects/'.$request->subject_id.'/worksheets/backgrounds';
-                    $file->store('public/'.$path1);
-           }
+            $storedFile = $this->storeWorksheetFile($request, $request->subject_id);
+            if (!$storedFile) {
+                DB::rollBack();
+                return $this->returnError('E001', 'Worksheet file is required.');
+            }
+
+            $backgroundPath = $this->storeWorksheetBackground($request, $request->subject_id);
               
             $sheet =  WorkSheets::create([
                       'name_en'          => $request->name_en,
@@ -150,12 +120,12 @@ class WorkSheetsController extends Controller
                       'status'            => $request->status ?? '1',
                       'subject_id'        => $request->subject_id,
                       'created_by'        => auth()->user()->id,
-                      'path'              => $path,
-                      'file_name'         => $f_name,
-                      'file_hash_name'    => $hashName,
-                      'size'              => $size,
-                      'ext'               => $ext,
-                      'background'        => $path1.'/'.$hashName1,
+                      'path'              => $storedFile['path'],
+                      'file_name'         => $storedFile['file_name'],
+                      'file_hash_name'    => $storedFile['file_hash_name'],
+                      'size'              => $storedFile['size'],
+                      'ext'               => $storedFile['ext'],
+                      'background'        => $backgroundPath,
                       'activity_lesson_id' => $request->activity_lesson_id ?? null,
 
                 ]);
@@ -244,55 +214,26 @@ class WorkSheetsController extends Controller
             } 
 
             $sheet = WorkSheets::find($id);
+            if(!$sheet)
+                return $this->returnError('E001',__('api.not_exists_item_for_this_data'),400);
 
              DB::beginTransaction();
 
-          if(request()->hasFile('file') and !empty(request('file')))
-           {
-                    $file = request('file');
-                    $arr = ['html','css','js','json','php','sql','gz','exe','phar','txt','c#','py','c++'];
-                    $f_name   = explode('.',$file->getClientOriginalName())[0];
-                    $hashName = $file->hashName();
-                    $size     = $file->getSize();
-                    $ext      = $file->extension();
-                    if($size <= 90000000 and !in_array($ext,$arr))
-                    {
-                       $path     = 'subjects/'.$request->subject_id.'/worksheets/files';
-                       $file->store('public/'.$path); 
-                      
-                       if($ext == 'zip')
-                       {
-                            $zip = new ZipArchive;
-                            $res = $zip->open("storage/".$path.'/'.$hashName);
-                            if ($res === TRUE) {
-                            $zip->extractTo('scrom/worksheets/'.explode('.', $hashName)[0]);
-                              $zip->close();
-                              $path = 'scrom/worksheets/'.explode('.', $hashName)[0].'/index.html';
-                            }
-                       }
-                       else
-                       {
-                          $path = 'storage/'.$path.'/'.$hashName;
-                       }
-                    }
+            $storedFile = $this->storeWorksheetFile($request, $request->subject_id ?? $sheet->subject_id);
+            if ($storedFile) {
                    WorkSheets::where('id',$id)->update([  
-                      'path'              => $path  ,
-                      'file_name'         =>  $f_name  ,
-                      'file_hash_name'    =>  $hashName  ,
-                      'size'              =>  $size  ,
-                      'ext'               =>  $ext  ,
+                      'path'              => $storedFile['path'],
+                      'file_name'         =>  $storedFile['file_name'],
+                      'file_hash_name'    =>  $storedFile['file_hash_name'],
+                      'size'              =>  $storedFile['size'],
+                      'ext'               =>  $storedFile['ext'],
                   ]);
               }
 
-           if(request()->hasFile('background') and !empty(request('background')))
-           {
-                    $file     = request('background');
-                    $hashName1 = $file->hashName();
-                    $path1     = 'subjects/'.$request->subject_id.'/worksheets/backgrounds';
-                    $file->store('public/'.$path1);
-
+            $backgroundPath = $this->storeWorksheetBackground($request, $request->subject_id ?? $sheet->subject_id);
+            if ($backgroundPath) {
                    WorkSheets::where('id',$id)->update([  
-                      'background'        =>  $path1.'/'.$hashName1 ,
+                      'background'        =>  $backgroundPath,
                   ]);
            }
                 
@@ -338,10 +279,6 @@ class WorkSheetsController extends Controller
                     ]);
                 }
              }
-             DB::commit();
-
-           return $this->returnData('sheet',$sheet,'WorkSheet Added Successfully',200);
-
              DB::commit();
 
            return $this->returnData('sheet',$sheet,'WorkSheet Updated Successfully',200);
@@ -392,6 +329,61 @@ class WorkSheetsController extends Controller
         }catch (\Exception $ex){
             return $this->returnError($ex->getCode(), $ex->getMessage());
         }
+    }
+
+    private function storeWorksheetFile(Request $request, $subjectId): ?array
+    {
+        if (!$request->hasFile('file')) {
+            return null;
+        }
+
+        $file = $request->file('file');
+        $blocked = ['html','css','js','json','php','sql','gz','exe','phar','txt','c#','py','c++'];
+        $fileName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+        $hashName = $file->hashName();
+        $size = $file->getSize();
+        $ext = strtolower($file->getClientOriginalExtension() ?: $file->extension());
+
+        if ($size > 90000000 || in_array($ext, $blocked, true)) {
+            return null;
+        }
+
+        $dir = 'subjects/'.$subjectId.'/worksheets/files';
+        $file->storeAs('public/'.$dir, $hashName);
+        $path = $dir.'/'.$hashName;
+
+        if ($ext === 'zip') {
+            $zip = new ZipArchive;
+            $res = $zip->open(storage_path('app/public/'.$path));
+            if ($res === TRUE) {
+                $extractDir = 'scrom/worksheets/'.pathinfo($hashName, PATHINFO_FILENAME);
+                $zip->extractTo($extractDir);
+                $zip->close();
+                $path = $extractDir.'/index.html';
+            }
+        }
+
+        return [
+            'path' => $path,
+            'file_name' => $fileName,
+            'file_hash_name' => $hashName,
+            'size' => $size,
+            'ext' => $ext,
+        ];
+    }
+
+    private function storeWorksheetBackground(Request $request, $subjectId): ?string
+    {
+        if (!$request->hasFile('background')) {
+            return null;
+        }
+
+        $file = $request->file('background');
+        $hashName = $file->hashName();
+        $dir = 'subjects/'.$subjectId.'/worksheets/backgrounds';
+        $file->storeAs('public/'.$dir, $hashName);
+
+        return $dir.'/'.$hashName;
     }
 
 }

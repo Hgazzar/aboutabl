@@ -11,6 +11,7 @@ import { addSubject } from "../../redux/reducers/subjectsReducer";
 import { useDispatch } from "react-redux";
 import Dropzone, { useDropzone } from "react-dropzone";
 import SubjectLang from "@/components/shared/SubjectLang";
+import { isSubjectLangEnglish } from "../../utils/subjectLang";
 
 type Props = {};
 
@@ -27,7 +28,7 @@ const AddSubject = (props: Props) => {
       des_ar: "",
       pass_en: "",
       pass_ar: "",
-      lang: "en",
+      lang: true,
       status: true,
     },
     validationSchema: Yup.object({}),
@@ -37,43 +38,39 @@ const AddSubject = (props: Props) => {
   const dispatch = useDispatch();
 
   // ----------- functions --------------
+  const applyPhotoFile = useCallback(
+    (file?: File | null) => {
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === "string") {
+          setdisplayImages(reader.result);
+        }
+      };
+      reader.onerror = () => {
+        console.error("Error reading file");
+      };
+      reader.readAsDataURL(file);
+      // setFieldValue keeps name/description; setValues with a stale closure was wiping them.
+      formik.setFieldValue("photo", file);
+    },
+    [formik.setFieldValue]
+  );
+
   const handleImageChange: any = function (
     e: React.ChangeEvent<HTMLInputElement> | { target: { files: File[] | FileList | null } }
   ) {
     const fileList = e.target.files;
-    if (!fileList || fileList.length === 0) return;
-
-    const file = fileList[0];
-    if (!file) return;
-
-    // Convert file to base64 for preview
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64String = reader.result as string;
-      setdisplayImages(base64String);
-      // Store the original File object for submission
-      formik.setValues({
-        ...formik.values,
-        photo: file,
-      });
-    };
-    reader.onerror = () => {
-      console.error("Error reading file");
-    };
-    reader.readAsDataURL(file);
+    applyPhotoFile(fileList?.[0] ?? null);
   };
 
   const [loading, setLoading] = useState(false);
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
-      if (acceptedFiles && acceptedFiles.length > 0) {
-        // Create a FileList-like object for handleImageChange
-        const dataTransfer = new DataTransfer();
-        acceptedFiles.forEach((file) => dataTransfer.items.add(file));
-        handleImageChange({ target: { files: dataTransfer.files } });
-      }
+      applyPhotoFile(acceptedFiles?.[0] ?? null);
     },
-    []
+    [applyPhotoFile]
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({ 
@@ -134,7 +131,7 @@ const AddSubject = (props: Props) => {
                     addSubject({
                       ...formik.values,
                       status: formik.values.status === true ? 1 : 0,
-                      lang: formik.values.lang === true ? "en" : "ar",
+                      lang: isSubjectLangEnglish(formik.values.lang) ? "en" : "ar",
                     })
                   ).unwrap();
                   navigate("/subjects/list");
@@ -176,6 +173,7 @@ const AddSubject = (props: Props) => {
                 }}
               >
                 <Box
+                  {...(!displayImages ? getRootProps() : {})}
                   sx={{
                     display: "flex",
                     p: 6,
@@ -185,15 +183,19 @@ const AddSubject = (props: Props) => {
 
                     border: "1px dashed #091E4224",
                     borderRadius: "20px",
-                  }}
-                  onClick={() => {
-                    imageRef?.current?.click();
+                    cursor: displayImages ? "default" : "pointer",
                   }}
                 >
                   <div className="image-uploader">
                     {displayImages ? (
                       <>
-                        <div className="image-container">
+                        <div
+                          className="image-container"
+                          onClick={() => {
+                            imageRef?.current?.click();
+                          }}
+                          style={{ cursor: "pointer" }}
+                        >
                           <img
                             width={300}
                             height={300}
@@ -232,10 +234,7 @@ const AddSubject = (props: Props) => {
                         </div>
                       </>
                     ) : (
-                      <div
-                        {...getRootProps()}
-                        className="flex flex-col gap-3 justify-center items-center cursor-pointer"
-                      >
+                      <div className="flex flex-col gap-3 justify-center items-center cursor-pointer">
                         <div className="w-16 h-16 flex justify-center items-center bg-veryLightprimary rounded-full">
                           <UploadFileRoundedIcon
                             style={{
@@ -250,14 +249,7 @@ const AddSubject = (props: Props) => {
                         <p className="text-gray text-sm">
                           or click to browse (4mb max)
                         </p>
-                        <input
-                          {...getInputProps()}
-                          ref={imageRef}
-                          type="file"
-                          id="logo"
-                          name="logo"
-                          accept="image/*"
-                        />
+                        <input {...getInputProps({ accept: "image/*" })} />
                       </div>
                       // <div className="flex flex-col gap-3 justify-center items-center cursor-pointer">
                       //   <div className="w-16 h-16 flex justify-center items-center bg-veryLightprimary rounded-full">

@@ -458,7 +458,7 @@
     "EMPTY_COMPLETION": "لا توجد بيانات إنجاز لهذا الفصل بعد.",
     "COMPLETION_LOAD_ERROR": "تعذر تحميل حالة الإنجاز.",
     "LEARNING_PROGRESS_TITLE": "تقدم التعلم",
-    "LEARNING_PROGRESS_SOURCE": "بناءً على المهام",
+    "LEARNING_PROGRESS_SOURCE": "بناءً على تقدّم المواد",
     "LEARNING_PROGRESS_ACTIVITY": "النشاط",
     "LEARNING_PROGRESS_MISSING": "ناقص",
     "LEARNING_PROGRESS_SCORE": "النتيجة",
@@ -743,8 +743,8 @@
     "unitNameArabic": "اسم الوحدة ] عربي[",
     "discard": "تجاهل",
     "save": "حفظ",
-    "englishPlaceholder": "مثال )الوحدة 1(",
-    "arabicPlaceholder": "مثال )الوحدة الأولى("
+    "englishPlaceholder": "مثال (الوحدة 1)",
+    "arabicPlaceholder": "مثال (الوحدة الأولى)"
   },
   "activity": {
     "addNewActivity": "إضافة نشاط جديد",

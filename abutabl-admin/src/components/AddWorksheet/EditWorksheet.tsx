@@ -48,10 +48,7 @@ const EditWorksheet = () => {
 
     let display = URL.createObjectURL(fileList[0]);
     setdisplayImages(display);
-    formik.setValues({
-      ...formik.values,
-      background: fileList[0],
-    });
+    formik.setFieldValue("background", fileList[0]);
   };
   //   ----------- side effect --------------
   useEffect(() => {
@@ -161,6 +158,7 @@ const EditWorksheet = () => {
                 await dispatch(
                   editSheet({
                     ...formik.values,
+                    id: param.sheet_id,
                     status: formik.values.status === true ? 1 : 0,
                     background:
                       typeof formik.values.background === "string"

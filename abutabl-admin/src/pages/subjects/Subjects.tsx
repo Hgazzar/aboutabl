@@ -14,6 +14,8 @@ import {
 import ActionDropdown from "../../components/shared/ActionDropdown";
 import LoadingWrapper from "@/components/shared/LoadingWrapper";
 import DeleteConfirmationModal from "../../components/modals/DeleteConfirmationModal";
+import { resolveSubjectPhotoUrl } from "../../utils/subjectPhotoUrl";
+import { subjectDisplayName } from "../../utils/subjectLang";
 
 const Subjects = () => {
 
@@ -61,18 +63,6 @@ const Subjects = () => {
     });
   }, [subjectState?.subjectsList]);
 
-  // Check if image URL is valid (not empty, not just a directory path)
-  const isValidImageUrl = (url: string | undefined): boolean => {
-    if (!url) return false;
-    // Check if URL ends with just /storage/ or similar directory paths
-    if (url.endsWith('/storage/') || url.endsWith('/storage') || url.trim() === '') {
-      return false;
-    }
-    // Check if URL has a file extension or contains a filename
-    const hasFilename = url.split('/').pop()?.includes('.') || false;
-    return hasFilename;
-  };
-
   const handleImageError = (subjectId: number) => {
     setImageErrors((prev) => ({
       ...prev,
@@ -81,13 +71,10 @@ const Subjects = () => {
   };
 
   const getImageSrc = (item: any) => {
-    const hasError = imageErrors[item.id];
-    const isValid = isValidImageUrl(item.photo);
-    
-    if (!isValid || hasError || !item.photo) {
+    if (imageErrors[item.id]) {
       return defaultLogo;
     }
-    return item.photo;
+    return resolveSubjectPhotoUrl(item.photo) ?? defaultLogo;
   };
   const [filter, setFilter] = useState({
     search: "",
@@ -261,12 +248,12 @@ const Subjects = () => {
                     <img
                       className="md:w-30 h-72 self-center py-10"
                       src={getImageSrc(item)}
-                      alt={item?.name || "Subject"}
+                      alt={subjectDisplayName(item) || "Subject"}
                       onError={() => handleImageError(item.id)}
                       style={{ objectFit: "contain" }}
                     />
                     <div className="p-2">
-                      <p className="font-bold">{item?.name}</p>
+                      <p className="font-bold">{subjectDisplayName(item)}</p>
                       <p className="text-gray">
                         {item?.units_count} unit - {item?.lessons_count} lessons
                       </p>

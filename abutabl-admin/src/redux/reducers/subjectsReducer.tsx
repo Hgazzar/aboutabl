@@ -1159,54 +1159,34 @@ export const getSheetsDetalis: any = createAsyncThunk(
     }
   }
 );
-export const addSheet: any = createAsyncThunk("addSheet", async (body: any) => {
-  try {
-    // Check if body contains files (background or file)
-    const hasBackgroundFile = body?.background instanceof File;
-    const hasWorksheetFile = body?.file instanceof File;
-    const hasFiles = hasBackgroundFile || hasWorksheetFile;
-    
-    // Convert to FormData if there are files, otherwise prepare regular object
-    let requestBody: any;
-    if (hasFiles) {
-      const formData = new FormData();
-      
-      // Append files
-      if (hasBackgroundFile) {
-        formData.append('background', body.background);
-      }
-      if (hasWorksheetFile) {
-        formData.append('file', body.file);
-      }
-      
-      // Append all other fields to FormData
-      Object.keys(body).forEach((key: string) => {
-        // Skip files as they're already appended
-        if (key === 'background' || key === 'file') {
-          return;
-        }
-        
-        // Handle arrays (like skills_tags)
-        if (Array.isArray(body[key])) {
-          // Only append non-empty array items
-          body[key].forEach((item: any) => {
-            if (item !== null && item !== undefined && item !== '') {
-              formData.append(`${key}[]`, item.toString());
-            }
-          });
-        } else if (body[key] !== null && body[key] !== undefined && body[key] !== '') {
-          formData.append(key, body[key].toString());
+const toWorksheetFormData = (body: any) => {
+  const formData = new FormData();
+  if (body?.background instanceof File) {
+    formData.append("background", body.background);
+  }
+  if (body?.file instanceof File) {
+    formData.append("file", body.file);
+  }
+  Object.keys(body || {}).forEach((key: string) => {
+    if (key === "background" || key === "file") {
+      return;
+    }
+    if (Array.isArray(body[key])) {
+      body[key].forEach((item: any) => {
+        if (item !== null && item !== undefined && item !== "") {
+          formData.append(`${key}[]`, item.toString());
         }
       });
-      
-      requestBody = formData;
-    } else {
-      // Remove file fields if they're not Files (e.g., empty strings or null)
-      const { background, file, ...rest } = body;
-      requestBody = rest;
+    } else if (body[key] !== null && body[key] !== undefined && body[key] !== "") {
+      formData.append(key, body[key].toString());
     }
-    
-    const result = await postRequest(requestBody, "/api/worksheets/store");
+  });
+  return formData;
+};
+
+export const addSheet: any = createAsyncThunk("addSheet", async (body: any) => {
+  try {
+    const result = await postRequest(toWorksheetFormData(body), "/api/worksheets/store");
 
     if (!result.status) {
       throw new Error(result.msg);
@@ -1224,7 +1204,7 @@ export const editSheet: any = createAsyncThunk(
   async (body: any) => {
     try {
       const result = await postRequest(
-        body,
+        toWorksheetFormData(body),
         `/api/worksheets/update/${body?.id}`
       );
 

@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { styled } from "@mui/material/styles";
 import Switch, { SwitchProps } from "@mui/material/Switch";
 import { FormControlLabel } from "@mui/material";
+import { isSubjectLangEnglish } from "../../utils/subjectLang";
 
 const IOSSwitch = styled((props: SwitchProps) => (
   <Switch focusVisibleClassName=".Mui-focusVisible" disableRipple {...props} />
@@ -54,33 +55,30 @@ const IOSSwitch = styled((props: SwitchProps) => (
   },
 }));
 
+function isSwitchOn(id: string, value: unknown): boolean {
+  if (id === "lang") {
+    return isSubjectLangEnglish(value);
+  }
+  return value === true || value === 1 || value === "1";
+}
+
 const SwitchBox = ({ id, formik, onChange, value }: any) => {
-  const [isActive, setIsActive] = useState(+value === 1 ? true : false);
+  const checked = formik
+    ? isSwitchOn(id, formik.values?.[id])
+    : isSwitchOn(id, value);
 
-  useEffect(() => {
-    setIsActive(+value === 1 ? true : false);
-  }, [value]);
-
-  useEffect(() => {
-    formik?.setValues({ ...formik.values, [id]: isActive });
-  }, [isActive]);
-
-  useEffect(() => {
-    if (formik?.values[id]) {
-      setIsActive(+formik?.values[id] === 1 ? true : false);
-    }
-  }, [formik]);
   return (
     <FormControlLabel
       control={
         <IOSSwitch
           sx={{ m: 2 }}
-          checked={isActive}
+          checked={checked}
           onChange={() => {
-            setIsActive(!isActive);
+            if (formik) {
+              formik.setFieldValue(id, !checked);
+            }
             onChange && onChange();
           }}
-          // defaultChecked
         />
       }
       label=""

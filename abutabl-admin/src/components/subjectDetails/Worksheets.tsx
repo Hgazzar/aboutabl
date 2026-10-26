@@ -15,6 +15,7 @@ import {
 import ActionDropdown from "../../components/shared/ActionDropdown";
 import { useTranslation } from "react-i18next";
 import DeleteConfirmationModal from "../modals/DeleteConfirmationModal";
+import { resolveStorageUrl } from "../../utils/subjectPhotoUrl";
 
 const Worksheets = () => {
   const { t, i18n } = useTranslation();
@@ -200,7 +201,7 @@ const Worksheets = () => {
                   className="lesson-card border rounded-lg  border-lightGray cursor-pointer hover:border-green hover:bg-lightGreen flex flex-col items-end   gap-1"
                   onClick={() => {
                     viewworksheets &&
-                      window.open(`SheetView/${item.id}`, "_blank");
+                      window.open(`/subjects/SheetView/${item.id}`, "_blank");
                   }}
                 >
                   <ActionDropdown
@@ -230,9 +231,18 @@ const Worksheets = () => {
                   />
                   <div className="lesson-card__icon rounded-md  flex justify-center items-center">
                     <img
-                      className="w-full h-full"
-                      src={item.background}
-                      alt="bookmark"
+                      className="w-full h-full object-cover"
+                      src={
+                        resolveStorageUrl(item.background) ||
+                        require("../../assets/bookmark.png")
+                      }
+                      alt=""
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = require(
+                          "../../assets/bookmark.png"
+                        );
+                      }}
                     />
                   </div>
                   <p className="font-semibold pt-2 w-full text-center">

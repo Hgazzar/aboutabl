@@ -165,8 +165,8 @@ class EmployessController extends Controller
                 //   'lname_en'   => $request->lname_en,
                 //   'lname_ar'   => $request->lname_ar,
                    'username'   => $request->username,
-                   'phone'      => $request->phone ?? null,
-                   'email'      => $request->email ?? null,
+                   'phone'      => $this->optionalUniqueValue($request->phone),
+                   'email'      => $this->optionalUniqueValue($request->email),
                 //   'birthday'   => $request->birthday ?? null,
                 //   'gender'     => $request->gender ?? null,
                 //   'specialize' => $request->specialization_en ?? null,
@@ -282,8 +282,8 @@ class EmployessController extends Controller
                    'name'       => $nameEn,
                    'name_ar'    => $nameAr,
                    'username'   => $request->username,
-                   'phone'      => $request->phone ?? $user->phone,
-                   'email'      => $request->email ?? $user->email,
+                   'phone'      => $request->filled('phone') ? $this->optionalUniqueValue($request->phone) : $user->phone,
+                   'email'      => $request->filled('email') ? $this->optionalUniqueValue($request->email) : $user->email,
                    'role_id'    => $request->role_id ?? $user->role_id,
                    'status'     => $request->status ?? $user->status,
                    'govern_id'  => $request->govern_id ?? null,
@@ -590,6 +590,18 @@ class EmployessController extends Controller
             ] , 200);
     }
   
+    /**
+     * Empty optional unique fields must be NULL (not "") so MySQL unique indexes allow repeats.
+     */
+    private function optionalUniqueValue($value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        $value = trim((string) $value);
+        return $value === '' ? null : $value;
+    }
+
     public function fileImport(Request $request) 
     {
 

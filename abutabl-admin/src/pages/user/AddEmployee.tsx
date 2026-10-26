@@ -128,6 +128,8 @@ const AddEmployee = () => {
                       ...formik.values,
                       full_name_en,
                       full_name_ar,
+                      phone: formik.values.phone?.trim() || null,
+                      email: formik.values.email?.trim() || null,
                       status: formik.values.status ? 1 : 0,
                     })
                   )

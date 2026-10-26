@@ -15,6 +15,7 @@ import AddGradeToSchoolEmployee from "./AddGradeToSchoolEmployee";
 import AddSubjectToSchoolEmployee from "./AddSubjectToSchoolEmployee";
 import { canOnlyAddTeachers, getTeacherRoleId } from "../../utils/permissionHelpers";
 import { getRoleList } from "../../redux/reducers/roleReducer";
+import { notify } from "@/utils/notify";
 
 const STEPS = ["Employee info", "Grades & classes"];
 const AddEmployee = () => {
@@ -56,7 +57,13 @@ const AddEmployee = () => {
       password: "",
       status: true,
     },
-    validationSchema: Yup.object({}),
+    validationSchema: Yup.object({
+      full_name_en: Yup.string().required("Name in English is required"),
+      username: Yup.string().required("Username is required"),
+      password: Yup.string()
+        .min(8, "Password must be at least 8 characters")
+        .required("Password is required"),
+    }),
     onSubmit: async (values) => {},
   });
 
@@ -111,9 +118,30 @@ const AddEmployee = () => {
           {tap === 0 && (
             <Button
               onClick={async () => {
+                const errors = await formik.validateForm();
+                if (Object.keys(errors).length > 0) {
+                  formik.setTouched(
+                    Object.keys(formik.values).reduce((acc: any, key) => {
+                      acc[key] = true;
+                      return acc;
+                    }, {})
+                  );
+                  notify(String(Object.values(errors)[0]), "error");
+                  return;
+                }
+                const full_name_en =
+                  (formik.values.full_name_en || formik.values.full_name_ar) ??
+                  "";
+                const full_name_ar =
+                  (formik.values.full_name_ar || formik.values.full_name_en) ??
+                  "";
                 await dispatch(
                   addEmployee({
                     ...formik.values,
+                    full_name_en,
+                    full_name_ar,
+                    phone: formik.values.phone?.trim() || null,
+                    email: formik.values.email?.trim() || null,
                     status: formik?.values?.status ? 1 : 0,
                     school_id: param?.id,
                   })

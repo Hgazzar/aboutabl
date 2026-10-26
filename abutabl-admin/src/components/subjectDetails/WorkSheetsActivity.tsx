@@ -28,6 +28,7 @@ import ContentStatusModal from "../modals/ContentStatusModal";
 import DisplayContent from "../modals/DisplayContent";
 import SwitchBox from "../shared/SwitchBox";
 import { useTranslation } from "react-i18next";
+import { resolveStorageUrl } from "../../utils/subjectPhotoUrl";
 import AddActivityModal from "../modals/AddActivityModal";
 import Pagination from "../shared/Pagination";
 
@@ -652,11 +653,16 @@ const WorkSheetsActivity = () => {
                                   // Use setTimeout to ensure window.open is not blocked by file chooser
                                   // Increased delay to 300ms to ensure file chooser dialog is fully closed
                                   setTimeout(() => {
-                                    const newWindow = window.open(`SheetView/${item.id}`, "_blank");
-                                    // Fallback if popup is blocked - try again after a longer delay
+                                    const newWindow = window.open(
+                                      `/subjects/SheetView/${item.id}`,
+                                      "_blank"
+                                    );
                                     if (!newWindow) {
                                       setTimeout(() => {
-                                        window.open(`SheetView/${item.id}`, "_blank");
+                                        window.open(
+                                          `/subjects/SheetView/${item.id}`,
+                                          "_blank"
+                                        );
                                       }, 200);
                                     }
                                   }, 300);
@@ -690,9 +696,18 @@ const WorkSheetsActivity = () => {
                               />
                               <div className="lesson-card__icon rounded-md  flex justify-center items-center">
                                 <img
-                                  className="w-full h-full"
-                                  src={item.background}
-                                  alt="bookmark"
+                                  className="w-full h-full object-cover"
+                                  src={
+                                    resolveStorageUrl(item.background) ||
+                                    require("../../assets/bookmark.png")
+                                  }
+                                  alt=""
+                                  onError={(e) => {
+                                    e.currentTarget.onerror = null;
+                                    e.currentTarget.src = require(
+                                      "../../assets/bookmark.png"
+                                    );
+                                  }}
                                 />
                               </div>
                               <p className="font-semibold pt-2 w-full text-center">

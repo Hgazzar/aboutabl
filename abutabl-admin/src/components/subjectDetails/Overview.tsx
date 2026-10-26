@@ -11,6 +11,12 @@ import {
 } from "../../redux/reducers/subjectsReducer";
 import LoadingWrapper from "../shared/LoadingWrapper";
 import { useTranslation } from "react-i18next";
+import { resolveSubjectPhotoUrl } from "../../utils/subjectPhotoUrl";
+import {
+  subjectDisplayAbout,
+  subjectDisplayName,
+  subjectDisplayPass,
+} from "../../utils/subjectLang";
 
 const Overview = ({ formik }: any) => {
   const param = useParams();
@@ -51,20 +57,10 @@ const Overview = ({ formik }: any) => {
     (permission: any) => permission["activation-subjects"] === "1"
   );
 
-  // Check if image URL is valid (not empty, not just a directory path)
-  const isValidImageUrl = (url: string | undefined): boolean => {
-    if (!url) return false;
-    // Check if URL ends with just /storage/ or similar directory paths
-    if (url.endsWith('/storage/') || url.endsWith('/storage') || url.trim() === '') {
-      return false;
-    }
-    // Check if URL has a file extension or contains a filename
-    const hasFilename = url.split('/').pop()?.includes('.') || false;
-    return hasFilename;
-  };
-
-  const subjectPhoto = subjectOverviewState?.basic_info?.[0]?.photo;
-  const shouldUseDefault = !isValidImageUrl(subjectPhoto) || imageError;
+  const subjectPhoto = resolveSubjectPhotoUrl(
+    subjectOverviewState?.basic_info?.[0]?.photo
+  );
+  const shouldUseDefault = !subjectPhoto || imageError;
   const displayImage = shouldUseDefault ? defaultLogo : subjectPhoto;
 
   return (
@@ -261,9 +257,7 @@ const Overview = ({ formik }: any) => {
                   component={"p"}
                   sx={{ fontSize: "16px", fontWeight: "600", pb: 4 }}
                 >
-                  {i18n.language === "en"
-                    ? subjectOverviewState?.basic_info?.[0]?.name_en
-                    : subjectOverviewState?.basic_info?.[0]?.name_ar}
+                  {subjectDisplayName(subjectOverviewState?.basic_info?.[0] || {})}
                 </Typography>
                 <Typography
                   component={"p"}
@@ -274,10 +268,9 @@ const Overview = ({ formik }: any) => {
                 <Typography component={"p"} sx={{ color: "#8E9AA0", pb: 4 }}>
                   <div
                     dangerouslySetInnerHTML={{
-                      __html:
-                        i18n.language === "en"
-                          ? subjectOverviewState?.basic_info?.[0]?.des_en
-                          : subjectOverviewState?.basic_info?.[0]?.des_ar,
+                      __html: subjectDisplayAbout(
+                        subjectOverviewState?.basic_info?.[0] || {}
+                      ),
                     }}
                   />
                 </Typography>
@@ -290,10 +283,9 @@ const Overview = ({ formik }: any) => {
                 <Typography component={"p"} sx={{ color: "#8E9AA0", pb: 4 }}>
                   <div
                     dangerouslySetInnerHTML={{
-                      __html:
-                        i18n.language === "en"
-                          ? subjectOverviewState?.basic_info?.[0]?.pass_en
-                          : subjectOverviewState?.basic_info?.[0]?.pass_ar,
+                      __html: subjectDisplayPass(
+                        subjectOverviewState?.basic_info?.[0] || {}
+                      ),
                     }}
                   />
                 </Typography>

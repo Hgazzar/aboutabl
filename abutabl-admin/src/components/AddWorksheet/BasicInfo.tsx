@@ -66,10 +66,7 @@ const BasicInfo = ({
       setFilePreview("");
     }
     
-    formik.setValues({
-      ...formik.values,
-      file: file,
-    });
+    formik.setFieldValue("file", file);
   };
 
   // Clean up object URL on unmount or when filePreview changes

@@ -28,6 +28,7 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 use DB ;
 use File ;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use App\Rules\isArabic;
 use App\Rules\isEnglish;
 
@@ -72,9 +73,20 @@ class SubjectsController extends Controller
                 if(!request()->has('school_id') and  request('filter_status') != "")
                 $subjects = $subjects->where('status',$request->filter_status);
 
+                $listSelect = [
+                    'id',
+                    DB::raw(app()->getLocale() === 'ar' ? 'name_ar as name' : 'name as name'),
+                    'name as name_en',
+                    'name_ar',
+                    'photo',
+                ];
+                if (Schema::hasColumn('subjects', 'lang')) {
+                    $listSelect[] = 'lang';
+                }
+
                 $subjects = $subjects
                     ->orderBy('created_at',$request->order ?? 'desc')
-                    ->select('id',DB::raw(app()->getLocale() === 'ar' ? 'name_ar as name' : 'name as name'),'photo')
+                    ->select($listSelect)
                     ->with([
                     'subjectschool' => function ($query) {
                         $query->where('school_id', '=', request('school_id'));
@@ -195,15 +207,13 @@ class SubjectsController extends Controller
      {
        try {
 
-                  $subject = Subject::where('id',$id)
-                    ->select(
+                  $showSelect = [
                         'id',
                         DB::raw(app()->getLocale() === 'ar' ? 'name_ar as name' : 'name as name'),
                         'name as name_en',
                         'name_ar as name_ar',
                         DB::raw(app()->getLocale() === 'ar' ? 'des_ar as des' : 'des as des'),
                         'des as des_en',
-                        DB::raw("'".(app()->getLocale() === 'ar' ? 'ar' : 'en')."' as lang"),
                         'des_ar as des_ar',
                         DB::raw(app()->getLocale() === 'ar' ? 'pass_ar as pass' : 'pass as pass'),
                         'pass as pass_en',
@@ -211,8 +221,16 @@ class SubjectsController extends Controller
                         'photo',
                         'status',
                         DB::raw('0 as videos_hours'),
-                        DB::raw('0 as articles_count')
-                    )
+                        DB::raw('0 as articles_count'),
+                  ];
+                  if (Schema::hasColumn('subjects', 'lang')) {
+                      $showSelect[] = 'lang';
+                  } else {
+                      $showSelect[] = DB::raw("'".(app()->getLocale() === 'ar' ? 'ar' : 'en')."' as lang");
+                  }
+
+                  $subject = Subject::where('id',$id)
+                    ->select($showSelect)
                     ->withCount('Lessons')
                     ->withCount('Units')
                     ->withCount('Quizes')
@@ -439,18 +457,22 @@ class SubjectsController extends Controller
 
           
 
-           if(request()->has('photo') and !empty(request('photo')))
-           {
-                    $file     = request('photo');
-                    $f_name   = $file->getClientOriginalName();
+           $path = null;
+           $hashName = null;
+           if ($request->hasFile('photo')) {
+                    $file     = $request->file('photo');
                     $hashName = $file->hashName();
-                    $size     = $file->getSize();
-                    $ext      = $file->extension();
-                    $path     = 'subjects/'.$this->userInfo()->school_id;
-                    $file->store('public/'.$path);
+                    $schoolId = $this->userInfo()->school_id ?: 'shared';
+                    $path     = 'subjects/'.$schoolId;
+                    $file->storeAs('public/'.$path, $hashName);
            }
-               
-                 $subject  = Subject::create([
+
+                 if ($path === null || $hashName === null) {
+                     DB::rollBack();
+                     return $this->returnError('E001', 'Subject photo is required.');
+                 }
+
+                 $subjectPayload = [
                           'name'      => $request->name_en,
                           'name_ar'   => $request->name_ar,
                           'des'       => $request->des ?? $request->des_en ?? null,
@@ -459,7 +481,12 @@ class SubjectsController extends Controller
                           'pass_ar'   => $request->pass_ar ?? null,
                           'status'    => $request->status ?? 1,
                           'photo'     => $path.'/'.$hashName,
-                       ]);
+                       ];
+                 if (Schema::hasColumn('subjects', 'lang')) {
+                     $subjectPayload['lang'] = $this->normalizeSubjectLang($request->input('lang'));
+                 }
+
+                 $subject  = Subject::create($subjectPayload);
             
                   if(request()->has('school_id') and !empty(request('school_id')))
                      $schools = request('school_id');
@@ -539,15 +566,12 @@ class SubjectsController extends Controller
 
           
 
-           if(request()->has('photo') and !empty(request('photo')))
-           {
-                    $file     = request('photo');
-                    $f_name   = $file->getClientOriginalName();
+           if ($request->hasFile('photo')) {
+                    $file     = $request->file('photo');
                     $hashName = $file->hashName();
-                    $size     = $file->getSize();
-                    $ext      = $file->extension();
-                    $path     = 'subjects/'.$this->userInfo()->school_id;
-                    $file->store('public/'.$path);
+                    $schoolId = $this->userInfo()->school_id ?: 'shared';
+                    $path     = 'subjects/'.$schoolId;
+                    $file->storeAs('public/'.$path, $hashName);
                     $photoValue = $path.'/'.$hashName;
            } else {
                     // Get the raw database value (not the accessor value)
@@ -561,7 +585,7 @@ class SubjectsController extends Controller
                     }
            }
                
-                 Subject::where('id',$id)->update([
+                 $updatePayload = [
                           'name'      => $request->name_en,
                           'name_ar'   => $request->name_ar,
                           'des'       => $request->des ?? $request->des_en ?? null,
@@ -570,7 +594,12 @@ class SubjectsController extends Controller
                           'pass_ar'   => $request->pass_ar ?? null,
                           'status'    => $request->status,
                           'photo'     => $photoValue,
-                       ]);
+                       ];
+                 if (Schema::hasColumn('subjects', 'lang')) {
+                     $updatePayload['lang'] = $this->normalizeSubjectLang($request->input('lang'));
+                 }
+
+                 Subject::where('id',$id)->update($updatePayload);
             
                   // if(request()->has('school_id') and !empty(request('school_id')))
                   //    $schools = request('school_id');
@@ -845,9 +874,14 @@ class SubjectsController extends Controller
 
            return $this -> returnSuccessMessage( __('api.subject_deleted_successfully') ,"200",200);
           
-        }catch (\Exception $ex){
+        }        catch (\Exception $ex){
             return $this->returnError($ex->getCode(), $ex->getMessage());
         }
+    }
+
+    private function normalizeSubjectLang($value): string
+    {
+        return $value === 'ar' || $value === 0 || $value === '0' || $value === false ? 'ar' : 'en';
     }
 
 public function destroyAssignsSchools(Request $request){

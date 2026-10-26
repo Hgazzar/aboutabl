@@ -15,6 +15,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "../../redux/store";
 import Dropzone, { useDropzone } from "react-dropzone";
 import SubjectLang from "@/components/shared/SubjectLang";
+import { isSubjectLangEnglish } from "../../utils/subjectLang";
 
 type Props = {};
 
@@ -33,7 +34,7 @@ const EditSubject = (props: Props) => {
       des_ar: "",
       pass_en: "",
       pass_ar: "",
-      lang: "en",
+      lang: true,
       status: true,
     },
     validationSchema: Yup.object({}),
@@ -61,10 +62,7 @@ const EditSubject = (props: Props) => {
     };
     reader.readAsDataURL(fileList[0]);
 
-    formik.setValues({
-      ...formik.values,
-      photo: fileList[0],
-    });
+    formik.setFieldValue("photo", fileList[0]);
   };
 
   //   ----------- side effect --------------
@@ -110,7 +108,7 @@ const EditSubject = (props: Props) => {
         // "en" = true, "ar" = false
         const formValues = {
           ...basicInfo,
-          lang: basicInfo.lang === "en" ? true : basicInfo.lang === "ar" ? false : true,
+          lang: isSubjectLangEnglish(basicInfo.lang),
         };
         formik.setValues(formValues);
         setInitialValues(basicInfo);
@@ -177,7 +175,7 @@ const EditSubject = (props: Props) => {
                       data: {
                         ...formik.values,
                         status: formik?.values?.status ? 1 : 0,
-                        lang: formik.values.lang === true ? "en" : "ar",
+                        lang: isSubjectLangEnglish(formik.values.lang) ? "en" : "ar",
                         photo:
                           typeof formik.values.photo === "string"
                             ? null
@@ -222,13 +220,6 @@ const EditSubject = (props: Props) => {
                 sx={{
                   p: 3,
                   gap: 4,
-                }}
-                onClick={() => {
-                  // Only trigger when there's no preview (for initial upload)
-                  if (!displayImages?.length && imageRef?.current) {
-                    imageRef.current.value = '';
-                    imageRef.current.click();
-                  }
                 }}
               >
                 <Box
@@ -327,20 +318,7 @@ const EditSubject = (props: Props) => {
                         <p className="text-gray text-sm">
                           or click to browse (4mb max)
                         </p>
-                        <input
-                          {...getInputProps()}
-                          style={{ display: "none" }}
-                          type="file"
-                          id="logo-dropzone"
-                          name="logo"
-                          accept="image/*"
-                          onChange={(event) => {
-                            // Fallback handler for direct file input
-                            if (event.target.files && event.target.files.length > 0) {
-                              handleImageChange(event);
-                            }
-                          }}
-                        />
+                        <input {...getInputProps({ accept: "image/*" })} />
                       </div>
                       // <Dropzone onDrop={handleImageChange}>
                       //   {({ getRootProps, getInputProps }) => (

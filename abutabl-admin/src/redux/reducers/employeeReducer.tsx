@@ -119,7 +119,7 @@ export const addEmployee: any = createAsyncThunk(
       const result = await postRequest(body, "/api/employees/store");
 
       if (!result.status) {
-        throw new Error(result.status);
+        throw new Error(result.msg || "Failed to create employee");
       }
       notify("Employee created successfully", "success");
       return result;

@@ -477,7 +477,7 @@
     "EMPTY_COMPLETION": "No completion data for this class yet.",
     "COMPLETION_LOAD_ERROR": "Failed to load completion status.",
     "LEARNING_PROGRESS_TITLE": "Learning Progress",
-    "LEARNING_PROGRESS_SOURCE": "Based On Assignments",
+    "LEARNING_PROGRESS_SOURCE": "Based on subject progress",
     "LEARNING_PROGRESS_ACTIVITY": "activity",
     "LEARNING_PROGRESS_MISSING": "Missing",
     "LEARNING_PROGRESS_SCORE": "Score",
@@ -764,7 +764,7 @@
     "discard": "Discard",
     "save": "Save",
     "englishPlaceholder": "ex (unit 1)",
-    "arabicPlaceholder": "ex )الوحدة الأولى("
+    "arabicPlaceholder": "ex (الوحدة الأولى)"
   },
   "activity": {
     "addNewActivity": "Add New Activity",

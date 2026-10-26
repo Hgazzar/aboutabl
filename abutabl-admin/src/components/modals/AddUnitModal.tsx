@@ -135,6 +135,7 @@ const AddUnitModal = ({ open, onClose, editUnitState, action }: ModalProps) => {
                   });
                 }}
                 placeholder={t("modalUnit.arabicPlaceholder")}
+                inputProps={{ dir: "rtl" }}
                 sx={{ margin: 0, padding: 0 }}
               />
             </div>

@@ -32,15 +32,26 @@ class WorkSheets extends Model
     }
     public function getBackgroundAttribute($val)
     {
-        if ($val){
-            return asset('/storage')."/".$val;
-        } else {
-            return asset('/')."images/logo/site_logo.png";
-        }
+        return $this->storageUrl($val);
     }
     public function getPathAttribute($val)
     {
-        return asset('/').$val;
+        return $this->storageUrl($val);
+    }
+
+    protected function storageUrl($val): ?string
+    {
+        if (!$val) {
+            return null;
+        }
+        if (preg_match('#^https?://#i', $val) || strpos($val, 'data:') === 0) {
+            return $val;
+        }
+        $val = ltrim($val, '/');
+        if (strpos($val, 'storage/') === 0) {
+            return asset($val);
+        }
+        return asset('storage/'.$val);
     }
     
     public function questions()

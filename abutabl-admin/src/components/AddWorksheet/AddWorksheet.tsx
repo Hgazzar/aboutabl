@@ -77,10 +77,7 @@ const AddWorksheet = () => {
     try {
       let display = URL.createObjectURL(file);
       setdisplayImages(display);
-      formik.setValues({
-        ...formik.values,
-        background: file,
-      });
+      formik.setFieldValue("background", file);
     } catch (error) {
       console.error('Error creating object URL:', error);
       alert('Error loading image preview');
@@ -92,10 +89,7 @@ const AddWorksheet = () => {
       URL.revokeObjectURL(displayImages);
     }
     setdisplayImages("");
-    formik.setValues({
-      ...formik.values,
-      background: "",
-    });
+    formik.setFieldValue("background", null);
     // Reset input value to allow selecting the same file again
     if (imageRef.current) {
       imageRef.current.value = "";
@@ -227,7 +221,10 @@ const AddWorksheet = () => {
               component={"p"}
               sx={{ fontSize: "18px", fontWeight: "600", m: 3 }}
             >
-              WorkSheet thumbnail
+              WorkSheet thumbnail{" "}
+              <span className="text-sm font-normal text-gray">
+                (optional)
+              </span>
             </Typography>{" "}
             <Divider />
             <Box
