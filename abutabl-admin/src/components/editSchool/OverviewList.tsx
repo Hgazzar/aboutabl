@@ -99,14 +99,6 @@ const OverviewList = ({ formik }: any) => {
                   border: "1px dashed #091E4224",
                   borderRadius: "20px",
                 }}
-                onClick={() => {
-                  // Only trigger when there's no preview (initial upload)
-                  // When there's a preview, the image-container handles clicks
-                  if (!displayImages?.length && imageRef?.current) {
-                    imageRef.current.value = '';
-                    imageRef.current.click();
-                  }
-                }}
               >
                 <div className="image-uploader">
                   {displayImages?.length ? (

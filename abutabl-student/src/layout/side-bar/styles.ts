@@ -104,7 +104,7 @@ export const SideBarLinks = styled.nav`
 	padding: ${STUDENT_SHELL_SIDEBAR_PADDING_TOP}px 0 ${STUDENT_SHELL_SIDEBAR_PADDING_BOTTOM}px;
 `;
 
-export const NavItem = styled.div`
+export const NavItem = styled.div<{ activeLink?: boolean }>`
 	width: ${STUDENT_SHELL_SIDEBAR_ITEM_WIDTH}px;
 
 	&:not(:last-child) {

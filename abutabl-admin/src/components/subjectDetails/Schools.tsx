@@ -95,12 +95,22 @@ const SchoolList = () => {
     dispatch(getSchoolList({ paginate: 10, page, subject_id: param.id }));
   };
 
+  const [listReady, setListReady] = useState(false);
+
   // ------------- side effects ---------------
+  // Avoid flashing stale Redux schoolList from other pages (e.g. all schools)
+  // before the subject-scoped /api/school/list?subject_id=… response arrives.
   useEffect(() => {
-    dispatch(getSchoolList({ paginate: 10, page: 1, subject_id: param.id }));
-  }, []);
+    setListReady(false);
+    setRows({ schools: [] });
+    dispatch(getSchoolList({ paginate: 10, page: 1, subject_id: param.id }))
+      .unwrap()
+      .finally(() => setListReady(true));
+  }, [param.id]);
 
   useEffect(() => {
+    if (!listReady) return;
+
     const raw = schoolState?.schoolList?.schools?.data ?? [];
     const scoped =
       loginUser?.type !== "admin" && loginUser?.school_id
@@ -109,8 +119,7 @@ const SchoolList = () => {
           )
         : raw;
 
-    const tableData = scoped.map(
-      (item: any) => {
+    const tableData = scoped.map((item: any) => {
         return {
           id: item.id,
           name: item.name,
@@ -168,7 +177,7 @@ const SchoolList = () => {
       ...schoolState.schoolList,
       schools: tableData,
     });
-  }, [schoolState.schoolList]);
+  }, [schoolState.schoolList, listReady]);
   const [filter, setFilter] = useState({
     search: "",
   });

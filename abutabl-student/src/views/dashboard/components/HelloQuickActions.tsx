@@ -191,6 +191,8 @@ type Props = {
 
 /** Dashboard Quick Action — always opens My Books (`/learn/books`). */
 const START_LEARNING_PATH = '/learn/books';
+/** Dashboard Play Game — opens My Live Games invitation list. */
+const PLAY_GAME_PATH = '/live-games';
 
 export default function HelloQuickActions({
 	studentName,
@@ -229,7 +231,11 @@ export default function HelloQuickActions({
 							{formatMessage({ id: 'dashboard-start-learning' })}
 						</span>
 					</LearningAction>
-					<GameAction type="button" disabled aria-disabled="true">
+					<GameAction
+						type="button"
+						onClick={() => navigate(PLAY_GAME_PATH)}
+						data-testid="dashboard-play-game"
+					>
 						<span className="action-label">
 							{formatMessage({ id: 'dashboard-play-game' })}
 						</span>

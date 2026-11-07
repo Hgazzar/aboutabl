@@ -27,7 +27,7 @@ class ConvertBatch2TablesToInnodb extends Migration
         'skills_sheets',
         'activity_lessons',
         'subject_activities',
-        'games_questions',
+        // SCORM freeze: do NOT convert games_questions (or games) here.
     ];
 
     public function up(): void

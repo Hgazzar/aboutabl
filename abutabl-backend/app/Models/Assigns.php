@@ -13,6 +13,7 @@ protected $guarded = [];
 
     protected $casts = [
         'due_at' => 'datetime',
+        'due_date' => 'date',
         'possible_xp' => 'integer',
     ];
     // protected $fillable =[
@@ -30,6 +31,61 @@ protected $guarded = [];
     public function getCreatedAtAttribute($val)
     {
       return \Carbon\Carbon::parse($val)->format('d F Y');
+    }
+
+    /**
+     * Production compatibility: prefer due_at; fall back to legacy due_date.
+     * due_date is never dropped on the production replacement path.
+     */
+    public function getDueAtAttribute($value)
+    {
+        if ($value !== null && $value !== '') {
+            return $this->asDateTime($value);
+        }
+
+        $legacy = $this->attributes['due_date'] ?? null;
+        if ($legacy === null || $legacy === '') {
+            return null;
+        }
+
+        return \Carbon\Carbon::parse($legacy)->endOfDay();
+    }
+
+    /**
+     * Keep legacy due_date in sync when writers set due_at.
+     */
+    public function setDueAtAttribute($value): void
+    {
+        if ($value === null || $value === '') {
+            $this->attributes['due_at'] = null;
+
+            return;
+        }
+
+        $parsed = $value instanceof \Carbon\Carbon
+            ? $value
+            : \Carbon\Carbon::parse($value);
+
+        $this->attributes['due_at'] = $parsed->format('Y-m-d H:i:s');
+
+        if ($this->legacyDueDateColumnExists()) {
+            $this->attributes['due_date'] = $parsed->toDateString();
+        }
+    }
+
+    private function legacyDueDateColumnExists(): bool
+    {
+        static $exists = null;
+
+        if ($exists === null) {
+            try {
+                $exists = \Illuminate\Support\Facades\Schema::hasColumn($this->getTable(), 'due_date');
+            } catch (\Throwable $e) {
+                $exists = array_key_exists('due_date', $this->attributes);
+            }
+        }
+
+        return (bool) $exists;
     }
     public function Students()
     {

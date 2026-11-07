@@ -225,6 +225,26 @@ class Questions extends Model
     {
       return \Carbon\Carbon::parse($val)->format('d F Y');
     }
+
+    /**
+     * Canonical casing for question-bank UI / validation (MCQ, TF, SHN, Matching).
+     * Legacy rows may store lowercase (e.g. demo seed used "mcq").
+     */
+    public function getTypeAttribute($val)
+    {
+        if ($val === null || $val === '') {
+            return $val;
+        }
+        $map = [
+            'mcq' => 'MCQ',
+            'tf' => 'TF',
+            'shn' => 'SHN',
+            'matching' => 'Matching',
+        ];
+        $key = strtolower((string) $val);
+
+        return $map[$key] ?? $val;
+    }
   
     // public function getQuestionAttribute($val)
     // {

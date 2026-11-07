@@ -22,10 +22,17 @@ export default function Home() {
 		/^\/learn\/[^/]+$/.test(pathname) && pathname !== '/learn/books';
 	const isLeaderboard = pathname === '/leaderboard' || pathname.startsWith('/leaderboard/');
 	const isProgress = pathname === '/progress' || pathname.startsWith('/progress/');
+	const isLiveGames = pathname === '/live-games' || pathname.startsWith('/live-games/');
 	const isProfile = pathname === '/profile' || pathname.startsWith('/profile/');
 	/** Green shell behind rail cards (no cream ShellMain strip). */
 	const useDashboardShell =
-		isDashboard || isTodo || isBooks || isSubjectDetails || isLeaderboard || isProgress;
+		isDashboard ||
+		isTodo ||
+		isBooks ||
+		isSubjectDetails ||
+		isLeaderboard ||
+		isProgress ||
+		isLiveGames;
 
 	if (isProfile) {
 		return (

@@ -1,26 +1,18 @@
-import { useLocation } from "react-router-dom";
 import { isTeacherUser } from "@/utils/authSession";
 import { useLoginUser } from "@/hooks/useLoginUser";
 import { DashboardLayout } from "./DashboardLayout";
 import { TeacherLayout } from "./TeacherLayout";
 
-const TEACHER_PORTAL_ROUTES = ["/dashboard", "/teacher/classes", "/teacher/settings"];
-
-function isTeacherPortalRoute(pathname: string): boolean {
-  return TEACHER_PORTAL_ROUTES.some(
-    (route) => pathname === route || pathname.startsWith(`${route}/`)
-  );
-}
-
+/**
+ * Teachers always use TeacherLayout (Overview / Classes / Settings).
+ * Admin SideNav is admin-only — never show it for teacher sessions,
+ * including deep links like /teacher/classes/... or bare "/" redirects.
+ */
 export const PortalLayout = (props: { children: React.ReactNode }) => {
   const { children } = props;
   const loginUser = useLoginUser();
-  const { pathname } = useLocation();
 
-  const isTeacher = isTeacherUser(loginUser);
-  const useTeacherLayout = isTeacher && isTeacherPortalRoute(pathname);
-
-  if (useTeacherLayout) {
+  if (isTeacherUser(loginUser)) {
     return <TeacherLayout>{children}</TeacherLayout>;
   }
 

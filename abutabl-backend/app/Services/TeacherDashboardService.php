@@ -370,6 +370,22 @@ class TeacherDashboardService
     }
 
     /**
+     * Class membership from resolveClassAccess: active teachers_grades row.
+     * Does not hydrate dashboard metrics.
+     */
+    public function hasClassAccess(int $teacherId, int $classId): bool
+    {
+        if ($teacherId <= 0 || $classId <= 0) {
+            return false;
+        }
+
+        return TeachersGrades::query()
+            ->assignedToTeacher($teacherId)
+            ->where('class_id', $classId)
+            ->exists();
+    }
+
+    /**
      * Dashboard card metrics — single source of truth for the 4 stat cards.
      *
      * @param  array<string, mixed>  $scope

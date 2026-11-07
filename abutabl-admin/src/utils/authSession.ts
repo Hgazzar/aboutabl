@@ -48,3 +48,8 @@ export function getEffectiveLoginUser(
 export function isTeacherUser(user: Record<string, unknown> | null | undefined) {
   return Boolean(user?.type && user.type !== "admin");
 }
+
+/** Matches backend OwnershipGate::isAdminUser — catalog APIs are admin-only. */
+export function isAdminUser(user: Record<string, unknown> | null | undefined) {
+  return Boolean(user?.type && user.type === "admin");
+}

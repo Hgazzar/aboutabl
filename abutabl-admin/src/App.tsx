@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useState } from "react";
+import React, { Suspense, lazy, useEffect, useRef, useState } from "react";
 import TopBarProgress from "./components/shared/TopBarProgress";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { PortalLayout } from "./layout/PortalLayout";
@@ -13,6 +13,10 @@ import { RootState } from "./redux/store";
 import { getPermissions } from "./redux/reducers/permissionReducer";
 import { setUser } from "./redux/reducers/loginReducer";
 import { readPersistedLoginUser } from "./utils/authSession";
+import {
+  hydrateLoginUserSchool,
+  resolveSchoolId,
+} from "./utils/schoolContext";
 import Cookies from "js-cookie";
 import NotFound from "./pages/NotFound/NotFound";
 import { useTranslation } from "react-i18next";
@@ -102,17 +106,25 @@ const FileManagement = lazy(() => import("./pages/user/FileManagment"));
 const Profile = lazy(() => import("./pages/profile/Profile"));
 
 const GamesList = lazy(() => import("./pages/games/GamesList"));
-const GamesWaiting = lazy(() => import("./pages/games/Waiting"));
-const GamesStatistics = lazy(() => import("./pages/games/StatisticsList"));
-const GamesFacts = lazy(() => import("./pages/games/Facts"));
-const GamesStudentAnswers = lazy(
-  () => import("./pages/games/StudentAnswerDetails")
+const GameCatalogDetail = lazy(() => import("./pages/games/GameCatalogDetail"));
+const AvailableLiveGamesPage = lazy(
+  () => import("./pages/liveCompetitions/AvailableLiveGamesPage")
+);
+const CreateLiveSessionPage = lazy(
+  () => import("./pages/liveCompetitions/CreateLiveSessionPage")
+);
+const LiveSessionLobbyPage = lazy(
+  () => import("./pages/liveCompetitions/LiveSessionLobbyPage")
+);
+const LiveSessionHostPage = lazy(
+  () => import("./pages/liveCompetitions/LiveSessionHostPage")
 );
 
 function App() {
   const dispatch = useDispatch();
   const userId = Cookies.get("abotable_id");
   const loginState = useSelector((state: any) => state.login.user);
+  const schoolHydrateAttemptedFor = useRef<string | null>(null);
   
   // Set up SCORM API handler once when app loads
   useEffect(() => {
@@ -129,6 +141,34 @@ function App() {
       dispatch(setUser(persisted));
     }
   }, [dispatch, loginState?.id]);
+
+  // Staff handoff often omits school[] — hydrate once so assignment wizard works.
+  useEffect(() => {
+    if (!loginState?.id || !Cookies.get("token_")) {
+      return;
+    }
+    if (resolveSchoolId(loginState) > 0) {
+      return;
+    }
+
+    const key = String(loginState.id);
+    if (schoolHydrateAttemptedFor.current === key) {
+      return;
+    }
+    schoolHydrateAttemptedFor.current = key;
+
+    let cancelled = false;
+    void (async () => {
+      const hydrated = await hydrateLoginUserSchool(loginState);
+      if (!cancelled && resolveSchoolId(hydrated) > 0) {
+        dispatch(setUser(hydrated));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dispatch, loginState]);
   
   useEffect(() => {
     if (userId) {
@@ -286,13 +326,20 @@ function App() {
             <Route path="teacher/settings" element={<TeacherSettingsPlaceholder />} />
             <Route path="profile" element={<Profile />} />
 
+            {/* Admin Live Competitions catalog only — legacy Interactive Games UI retired */}
             <Route path="games" element={<GamesList />} />
-            <Route path="games/:id/waiting" element={<GamesWaiting />} />
-            <Route path="games/:id/statistics" element={<GamesStatistics />} />
-            <Route path="games/:id/facts" element={<GamesFacts />} />
+            <Route path="games/:id" element={<GameCatalogDetail />} />
+
+            {/* Teacher Live Competitions workflow */}
+            <Route path="live-games" element={<AvailableLiveGamesPage />} />
+            <Route path="live-games/create" element={<CreateLiveSessionPage />} />
             <Route
-              path="games/:id/students/:studentId"
-              element={<GamesStudentAnswers />}
+              path="live-games/sessions/:sessionId/host"
+              element={<LiveSessionHostPage />}
+            />
+            <Route
+              path="live-games/sessions/:sessionId"
+              element={<LiveSessionLobbyPage />}
             />
 
             {/* school routes  */}
@@ -462,6 +509,12 @@ function App() {
                 </PermissionGuard>
               }
             />
+            {/* Legacy menu path mistakenly hit subjects/:id with id="question-bank" */}
+            <Route
+              path="subjects/question-bank"
+              element={<Navigate to="/question-bank" replace />}
+            />
+
             <Route
               path="subjects/:id"
               element={

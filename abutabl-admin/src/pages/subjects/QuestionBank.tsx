@@ -37,6 +37,7 @@ import { dateFormat } from "@/utils/functions";
 import DeleteConfirmationModal from "../../components/modals/DeleteConfirmationModal";
 import { notify } from "../../utils/notify";
 import { questionFieldToPlainLabel } from "@/utils/answerContent";
+import { normalizeQuestionType } from "@/utils/questionType";
 
 const QuestionBank = () => {
   const permissionState = useSelector((state: RootState) => state.permissions);
@@ -235,6 +236,7 @@ const QuestionBank = () => {
           const plainTitle = questionFieldToPlainLabel(item?.question);
           return {
             ...item,
+            type: normalizeQuestionType(item?.type),
             question: !item?.question
               ? "File"
               : plainTitle || "—",
@@ -320,6 +322,13 @@ const QuestionBank = () => {
             alignItems: "center",
           }}
         >
+          {addQuistions && (
+            <Button
+              onClick={() => navigate("/question-bank/add-question")}
+              label="Add Question"
+              className="w-30 m-3"
+            />
+          )}
           <Button
             onClick={async () => {
               window.open(
@@ -327,10 +336,11 @@ const QuestionBank = () => {
               );
             }}
             label="Download Template"
+            type="bordered"
             className="w-30 m-3"
           />
           <Typography variant="body2" sx={{ color: "text.secondary", ml: 1, alignSelf: "center" }}>
-            Using Activities template? Select a subject in the filter before uploading.
+            Or upload via Excel (select subject in filters first if needed).
           </Typography>
         </Box>
       </Box>

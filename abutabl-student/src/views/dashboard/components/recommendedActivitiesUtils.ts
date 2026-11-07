@@ -4,8 +4,15 @@ import type {
 	DashboardRecentActivityItem,
 } from 'lib/dashboardApi';
 
+/** Legacy Interactive Games list path — redirect classroom game CTAs to Live Competitions. */
+const LEGACY_GAMES_LIST_PATH = '/games';
+
 export function recommendedCtaPath(item: DashboardRecommendedActivityItem): string {
 	if (item.cta_path) {
+		const path = item.cta_path.replace(/\/$/, '') || '/';
+		if (path === LEGACY_GAMES_LIST_PATH) {
+			return '/live-games';
+		}
 		return item.cta_path;
 	}
 
@@ -18,7 +25,7 @@ export function recommendedCtaPath(item: DashboardRecommendedActivityItem): stri
 	}
 
 	if (item.kind === 'game') {
-		return '/games';
+		return '/live-games';
 	}
 
 	return '/learn/books';

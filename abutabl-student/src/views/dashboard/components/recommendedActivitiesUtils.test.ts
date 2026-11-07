@@ -47,6 +47,27 @@ describe('recommendedActivitiesUtils', () => {
 		).toBe('/todo');
 	});
 
+	it('sends game recommendations to /live-games, not legacy /games', () => {
+		expect(
+			recommendedCtaPath({
+				kind: 'game',
+				available: true,
+				cta_path: null,
+				visual: 'bird_gaming',
+				theme: 'lavender',
+			})
+		).toBe('/live-games');
+		expect(
+			recommendedCtaPath({
+				kind: 'game',
+				available: true,
+				cta_path: '/games',
+				visual: 'bird_gaming',
+				theme: 'lavender',
+			})
+		).toBe('/live-games');
+	});
+
 	it('shows potential XP only when flagged', () => {
 		expect(shouldShowPotentialXp(continueItem)).toBe(true);
 		expect(

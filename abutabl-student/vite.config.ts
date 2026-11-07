@@ -12,7 +12,8 @@ export default defineConfig(({ mode }) => {
 		plugins: [react(), svgr(), tsconfigPaths()],
 		test: {
 			environment: 'node',
-			include: ['src/**/*.test.ts'],
+			include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+			environmentMatchGlobs: [['src/**/*.test.tsx', 'jsdom']],
 		},
 		server: {
 			host: '127.0.0.1',

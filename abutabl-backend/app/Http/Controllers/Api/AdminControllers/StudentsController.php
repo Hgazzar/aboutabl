@@ -213,7 +213,7 @@ class StudentsController extends Controller
                   'NID'        => $request->f_NID??'',
                   'email'      => $request->f_email??'',
                   'phone'      => $request->f_phone??'',
-                  'job_id'     => $request->f_job_id??0,
+                  'job_id'     => $request->filled('f_job_id') && (string) $request->f_job_id !== '0' ? $request->f_job_id : null,
                 ]);
 
                StudentFamily::create([
@@ -224,7 +224,7 @@ class StudentsController extends Controller
                   'NID'        => $request->m_NID??'',
                   'email'      => $request->m_email??'',
                   'phone'      => $request->m_phone??'',
-                  'job_id'     => $request->m_job_id??0,
+                  'job_id'     => $request->filled('m_job_id') && (string) $request->m_job_id !== '0' ? $request->m_job_id : null,
                 ]);
               
                 DB::commit();
@@ -390,7 +390,7 @@ class StudentsController extends Controller
                   'NID'        => $request->f_NID??'',
                   'email'      => $request->f_email??'',
                   'phone'      => $request->f_phone??'',
-                  'job_id'     => $request->f_job_id??0,
+                  'job_id'     => $request->filled('f_job_id') && (string) $request->f_job_id !== '0' ? $request->f_job_id : null,
                 ]
             );
 
@@ -402,7 +402,7 @@ class StudentsController extends Controller
                   'NID'        => $request->m_NID??'',
                   'email'      => $request->m_email??'',
                   'phone'      => $request->m_phone??'',
-                  'job_id'     => $request->m_job_id??0,
+                  'job_id'     => $request->filled('m_job_id') && (string) $request->m_job_id !== '0' ? $request->m_job_id : null,
                 ]
             );
                 

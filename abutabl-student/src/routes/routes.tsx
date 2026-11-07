@@ -8,20 +8,9 @@ import Error from 'views/error';
 import Home from 'views/home';
 import PublicHome from 'views/landing/PublicHome';
 import LoadingPartially from 'components/loading-partially';
-import GameBareLayout from 'views/games/components/GameBareLayout';
 
-const GamesList = lazy(() => import('views/games/List'));
-const GameLobby = lazy(() => import('views/games/Lobby'));
-const ClassicQuestion = lazy(() => import('views/games/Classic/Question'));
-const HackingChoosePassword = lazy(() => import('views/games/Hacking/ChoosePassword'));
-const GoldQuestChoosePassword = lazy(() => import('views/games/GoldQuest/ChoosePassword'));
-const HackingQuestion = lazy(() => import('views/games/Hacking/Question'));
-const GoldQuestQuestion = lazy(() => import('views/games/GoldQuest/Question'));
-const HackScreen = lazy(() => import('views/games/Hacking/Hack'));
-const HackingGifts = lazy(() => import('views/games/Hacking/Gifts'));
-const GoldQuestGifts = lazy(() => import('views/games/GoldQuest/Gifts'));
-const FactsScreen = lazy(() => import('views/games/Facts'));
-const AnswerListScreen = lazy(() => import('views/games/AnswerList'));
+const LiveSessionJoinPage = lazy(() => import('views/liveCompetitions/LiveSessionJoinPage'));
+const MyLiveGamesPage = lazy(() => import('views/liveCompetitions/MyLiveGamesPage'));
 const TodoAssignActivities = lazy(() => import('views/todo/AssignActivities'));
 const LeaderboardPage = lazy(() => import('views/leaderboard'));
 const MyProgressPage = lazy(() => import('views/myProgress'));
@@ -81,18 +70,27 @@ const Routes = () => {
 							element: <Home />,
 							children: [
 								{
+									/** Legacy Interactive Games list retired — send leftover links to Live Competitions. */
 									path: 'games',
+									element: <Navigate to="/live-games" replace />,
+								},
+								{
+									path: 'games/*',
+									element: <Navigate to="/live-games" replace />,
+								},
+								{
+									path: 'live-games',
 									element: (
 										<Suspense fallback={<LoadingPartially />}>
-											<GamesList />
+											<MyLiveGamesPage />
 										</Suspense>
 									),
 								},
 								{
-									path: 'games/:gameId/lobby',
+									path: 'live-games/sessions/:sessionId',
 									element: (
 										<Suspense fallback={<LoadingPartially />}>
-											<GameLobby />
+											<LiveSessionJoinPage />
 										</Suspense>
 									),
 								},
@@ -157,21 +155,6 @@ const Routes = () => {
 									element: <Outlet />,
 									children: [{ index: true, element: ROUTES.support.component }],
 								},
-							],
-						},
-						{
-							element: <GameBareLayout />,
-							children: [
-								{ path: 'games/:gameId/play', element: <ClassicQuestion /> },
-								{ path: 'games/:gameId/hacking/password', element: <HackingChoosePassword /> },
-								{ path: 'games/:gameId/gold-quest/password', element: <GoldQuestChoosePassword /> },
-								{ path: 'games/:gameId/hacking/play', element: <HackingQuestion /> },
-								{ path: 'games/:gameId/gold-quest/play', element: <GoldQuestQuestion /> },
-								{ path: 'games/:gameId/hacking', element: <HackScreen /> },
-								{ path: 'games/:gameId/hacking/gifts', element: <HackingGifts /> },
-								{ path: 'games/:gameId/gold-quest/gifts', element: <GoldQuestGifts /> },
-								{ path: 'games/:gameId/facts', element: <FactsScreen /> },
-								{ path: 'games/:gameId/answer-list', element: <AnswerListScreen /> },
 							],
 						},
 					],

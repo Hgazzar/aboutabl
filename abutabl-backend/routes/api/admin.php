@@ -16,6 +16,48 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
+/**
+ * Public Excel templates for admin "Download Template" (window.open — no auth headers).
+ * Old admin builds request: /api/Questions Bank Template.xlsx
+ */
+Route::get('/Questions Bank Template.xlsx', function () {
+    $path = public_path('Questions Bank Template.xlsx');
+    abort_unless(is_file($path), 404, 'Questions Bank Template.xlsx missing in public/');
+
+    return response()->file($path, [
+        'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition' => 'attachment; filename="Questions Bank Template.xlsx"',
+    ]);
+});
+
+Route::get('/Activities Questions Template.xlsx', function () {
+    $path = public_path('Activities Questions Template.xlsx');
+    abort_unless(is_file($path), 404, 'Activities Questions Template.xlsx missing in public/');
+
+    return response()->file($path, [
+        'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition' => 'attachment; filename="Activities Questions Template.xlsx"',
+    ]);
+});
+
+foreach (
+    [
+        'Schools Template.xlsx',
+        'Students Template.xlsx',
+        'Employees Template.xlsx',
+    ] as $templateName
+) {
+    Route::get('/'.$templateName, function () use ($templateName) {
+        $path = public_path($templateName);
+        abort_unless(is_file($path), 404, $templateName.' missing in public/');
+
+        return response()->file($path, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => 'attachment; filename="'.$templateName.'"',
+        ]);
+    });
+}
+
 // Route::middleware('auth:api')->get('/user', function (Request $request) {
 //     return $request->user();
 // });
@@ -259,6 +301,7 @@ Route::group([ 'middleware' => ['api' , 'checkSecretApi' , 'changeLanguage','che
        ///// file_maanger
     Route::post('/file_maanger/store','FileManagerController@store');
     Route::get('/file_maanger/list','FileManagerController@index');
+    Route::get('/file_maanger/download/{id}','FileManagerController@download');
     Route::delete('/file_maanger/delete/{id}','FileManagerController@destroy');
 
 
@@ -293,13 +336,38 @@ Route::group([ 'middleware' => ['api' , 'checkSecretApi' , 'changeLanguage','che
     Route::get('/activity_lessons/show/{id}','ActivityLessonsController@show');
     Route::post('/activity_lessons/fileImport','ActivityLessonsController@fileImport');
 
-    // Interactive games (live classroom games; separate from SCORM `games` table)
-    Route::group(['middleware' => ['ensureInteractiveGamesEnabled']], function () {
-        Route::get('/interactive-games', 'InteractiveGamesAdminController@index');
-        Route::get('/interactive-games/{id}', 'InteractiveGamesAdminController@show');
-        Route::post('/interactive-games/{id}/start', 'InteractiveGamesAdminController@startRound');
-        Route::get('/interactive-games/{id}/facts', 'InteractiveGamesAdminController@facts');
-        Route::get('/interactive-games/{id}/students/{studentId}/answers', 'InteractiveGamesAdminController@studentAnswers');
+    // LIVE-GAMES-DELIVERY-005: legacy Interactive Games admin APIs retired from active product.
+    // Controllers and tables retained; routes unregistered so the product cannot be reached.
+
+    // Teacher catalog (C.1), session create (C.2), lobby reads (C.3), Begin (C.5).
+    // Flag on; not admin-only. Student Join remains on the student API.
+    Route::group(['middleware' => ['ensureLiveCompetitionsEnabled']], function () {
+        Route::get('/live-competitions/available', 'LiveCompetitionsTeacherController@available');
+        Route::get('/live-competitions/sessions', 'LiveCompetitionsTeacherController@indexSessions');
+        Route::post('/live-competitions/sessions', 'LiveCompetitionsTeacherController@storeSession');
+        Route::get('/live-competitions/sessions/{id}', 'LiveCompetitionsTeacherController@showSession');
+        Route::get('/live-competitions/sessions/{id}/students', 'LiveCompetitionsTeacherController@sessionStudents');
+        Route::post('/live-competitions/sessions/{id}/begin', 'LiveCompetitionsTeacherController@beginSession');
+        Route::post('/live-competitions/sessions/{id}/end', 'LiveCompetitionsTeacherController@endSession');
+        Route::post('/live-competitions/sessions/{id}/cancel', 'LiveCompetitionsTeacherController@cancelLobbySession');
+        Route::get('/live-competitions/sessions/{id}/host', 'LiveCompetitionsTeacherController@hostSession');
+        Route::get(
+            '/live-competitions/sessions/{id}/players/{studentId}/answers',
+            'LiveCompetitionsTeacherController@playerAnswers'
+        );
+    });
+
+    // Live Competitions catalog (Slice B). SCORM `games` table unchanged.
+    Route::group(['middleware' => ['ensureLiveCompetitionsEnabled', 'ensureLiveCompetitionsAdminOnly']], function () {
+        Route::get('/live-competitions', 'LiveCompetitionsAdminController@index');
+        Route::get('/live-competitions/template', 'LiveCompetitionsAdminController@template');
+        Route::post('/live-competitions/import/preview', 'LiveCompetitionsAdminController@preview');
+        Route::post('/live-competitions/import/confirm', 'LiveCompetitionsAdminController@confirm');
+        Route::get('/live-competitions/{id}', 'LiveCompetitionsAdminController@show');
+        Route::post('/live-competitions/{id}/publish', 'LiveCompetitionsAdminController@publish');
+        Route::post('/live-competitions/{id}/unpublish', 'LiveCompetitionsAdminController@unpublish');
+        Route::get('/live-competitions/{id}/schools', 'LiveCompetitionsAdminController@schools');
+        Route::put('/live-competitions/{id}/schools', 'LiveCompetitionsAdminController@updateSchools');
     });
 
 });

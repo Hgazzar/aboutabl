@@ -102,20 +102,22 @@ Route::group([ 'middleware' => ['api' , 'checkSecretApi' , 'changeLanguage','che
     Route::post('/notifications/mark_all_read','NotificationsController@mark_all_read');
     Route::delete('/notifications/delete_all','NotificationsController@delete_all');
 
-    Route::group(['middleware' => ['ensureInteractiveGamesEnabled']], function () {
-        Route::get('/interactive-games', 'InteractiveGamesStudentController@index');
-        Route::get('/interactive-games/{id}', 'InteractiveGamesStudentController@show');
-        Route::get('/interactive-games/{id}/questions', 'InteractiveGamesStudentController@questions');
-        Route::post('/interactive-games/answer', 'InteractiveGamesStudentController@answerQuestion');
-        Route::post('/interactive-games/{id}/password', 'InteractiveGamesStudentController@savePassword');
-        Route::get('/interactive-games/{id}/hacking', 'InteractiveGamesStudentController@showPasswordHacking');
-        Route::post('/interactive-games/hacking', 'InteractiveGamesStudentController@savePasswordHacking');
-        Route::get('/interactive-games/{id}/gifts', 'InteractiveGamesStudentController@gifts');
-        Route::post('/interactive-games/{id}/gifts/pull', 'InteractiveGamesStudentController@pullGift');
-        Route::post('/interactive-games/gifts', 'InteractiveGamesStudentController@saveGift');
-        Route::get('/interactive-games/{id}/facts', 'InteractiveGamesStudentController@facts');
-        Route::get('/interactive-games/{id}/answer-list', 'InteractiveGamesStudentController@answerList');
+    Route::group(['middleware' => ['ensureLiveCompetitionsEnabled']], function () {
+        Route::get('/live-competitions/invitations', 'LiveCompetitionsStudentController@invitations');
+        Route::post('/live-competitions/sessions/{id}/join', 'LiveCompetitionsStudentController@join');
+        Route::get('/live-competitions/sessions/{id}/preview', 'LiveCompetitionsStudentController@preview');
+        Route::get('/live-competitions/sessions/{id}/current', 'LiveCompetitionsStudentController@current');
+        Route::post('/live-competitions/sessions/{id}/start-question-clock', 'LiveCompetitionsStudentController@startQuestionClock');
+        Route::post('/live-competitions/sessions/{id}/answers', 'LiveCompetitionsStudentController@answer');
+        Route::post('/live-competitions/sessions/{id}/timeout', 'LiveCompetitionsStudentController@timeout');
+        Route::post('/live-competitions/sessions/{id}/reinforce', 'LiveCompetitionsStudentController@reinforce');
+        Route::post('/live-competitions/sessions/{id}/claim-reward', 'LiveCompetitionsStudentController@claimReward');
+        Route::post('/live-competitions/sessions/{id}/use-power', 'LiveCompetitionsStudentController@usePower');
+        Route::post('/live-competitions/sessions/{id}/pick-password', 'LiveCompetitionsStudentController@pickPassword');
     });
+
+    // LIVE-GAMES-DELIVERY-005: legacy Interactive Games student APIs retired from active product.
+    // Controllers and tables retained; routes unregistered so the product cannot be reached.
 
 });
 

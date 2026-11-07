@@ -55,8 +55,8 @@ class QuestionsController extends Controller
                 $question = $question->where('unit_id',request('unit_id'));
                if(request()->has('lesson_id'))
                 $question = $question->where('lesson_id',request('lesson_id'));
-               if(request()->has('type'))
-                $question = $question->where('type',request('type'));
+               if(request()->has('type') && request('type') !== null && request('type') !== '')
+                $question = $question->whereRaw('LOWER(type) = ?', [strtolower((string) request('type'))]);
                if(request()->has('date_from') and !empty(request('date_from')))
                 {
                    $question = $question->whereDate('created_at','>=',$from)
@@ -135,7 +135,7 @@ class QuestionsController extends Controller
               'unit_id'      => $unit_id??Null,
               'lesson_id'    => $lesson_id??Null,
               'quize_id'     => $quize_id??Null,
-              'type'         => $request->type,
+              'type'         => $this->normalizeQuestionType($request->type),
               'question_body_type' => $request->questionBodyType,
               'question'     => $question,
               'corAnswer'    => $request->corAnswer,
@@ -224,7 +224,7 @@ class QuestionsController extends Controller
               'subject_id'   => $request->subject_id??Null,
               'unit_id'      => $request->unit_id??Null,
               'lesson_id'    => $request->lesson_id??Null,
-              'type'         => $request->type,
+              'type'         => $this->normalizeQuestionType($request->type),
               'question_body_type' => $request->questionBodyType,
               'question'     => $question,
               'corAnswer'    => $request->corAnswer,
@@ -404,6 +404,22 @@ class QuestionsController extends Controller
         }catch (\Exception $ex){
             return $this->returnError($ex->getCode(), $ex->getMessage());
         }
+    }
+
+    /**
+     * Canonical question type for validation / UI (MCQ, TF, SHN, Matching).
+     */
+    private function normalizeQuestionType($type): string
+    {
+        $map = [
+            'mcq' => 'MCQ',
+            'tf' => 'TF',
+            'shn' => 'SHN',
+            'matching' => 'Matching',
+        ];
+        $key = strtolower(trim((string) $type));
+
+        return $map[$key] ?? (string) $type;
     }
 
 }

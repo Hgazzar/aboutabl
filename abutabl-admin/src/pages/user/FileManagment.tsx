@@ -16,6 +16,8 @@ import {
 } from "../../redux/reducers/fileManagementReducer";
 import AddFileModal from "../../components/modals/AddFileModal";
 import DeleteConfirmationModal from "../../components/modals/DeleteConfirmationModal";
+import { downloadAuthenticatedFile } from "../../utils/fetchMethods";
+import { notify } from "../../utils/notify";
 
 const columns = [
   {
@@ -66,9 +68,15 @@ const FileManagement = () => {
     setIsLoading(false);
   };
 
-  const handleRowClick = (row: any) => {
-    window.open(row.path, '_blank');
-    // window.location.href = row.path;
+  const handleRowClick = async (row: any) => {
+    try {
+      const name = row?.name
+        ? `${row.name}${row.type && !String(row.name).endsWith(`.${row.type}`) ? `.${row.type}` : ""}`
+        : `file-${row.id}`;
+      await downloadAuthenticatedFile(`/api/file_maanger/download/${row.id}`, name);
+    } catch (e: any) {
+      notify(e?.message || "Failed to download file", "error");
+    }
   };
 
   const handleBulkDelete = async () => {
@@ -110,9 +118,18 @@ const FileManagement = () => {
                 [
                 {
                   name: "View",
-                  action: () => {
-                    window.open(item.path, '_blank');
-                    // window.location.href = item.path;
+                  action: async () => {
+                    try {
+                      const name = item?.name
+                        ? `${item.name}${item.type && !String(item.name).endsWith(`.${item.type}`) ? `.${item.type}` : ""}`
+                        : `file-${item.id}`;
+                      await downloadAuthenticatedFile(
+                        `/api/file_maanger/download/${item.id}`,
+                        name
+                      );
+                    } catch (e: any) {
+                      notify(e?.message || "Failed to download file", "error");
+                    }
                   },
                 },
                 {
@@ -130,9 +147,18 @@ const FileManagement = () => {
               [
               {
                 name: "View",
-                action: () => {
-                  window.open(item.path, '_blank'); 
-                  // window.location.href = item.path;
+                action: async () => {
+                  try {
+                    const name = item?.name
+                      ? `${item.name}${item.type && !String(item.name).endsWith(`.${item.type}`) ? `.${item.type}` : ""}`
+                      : `file-${item.id}`;
+                    await downloadAuthenticatedFile(
+                      `/api/file_maanger/download/${item.id}`,
+                      name
+                    );
+                  } catch (e: any) {
+                    notify(e?.message || "Failed to download file", "error");
+                  }
                 },
               },
               ]

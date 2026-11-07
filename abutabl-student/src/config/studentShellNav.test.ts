@@ -35,9 +35,12 @@ describe('isShellNavActive', () => {
 		expect(isShellNavActive(byId('dashboard'), '/learn')).toBe(true);
 	});
 
-	it('activates todo on its route; games stays non-navigable', () => {
+	it('activates todo on its route; games navigates to live-games', () => {
 		expect(isShellNavActive(byId('todo'), '/todo')).toBe(true);
-		expect(isShellNavNavigable(byId('games'))).toBe(false);
+		expect(isShellNavNavigable(byId('games'))).toBe(true);
+		expect(byId('games').path).toBe('/live-games');
+		expect(isShellNavActive(byId('games'), '/live-games')).toBe(true);
+		expect(isShellNavActive(byId('games'), '/live-games/sessions/55')).toBe(true);
 		expect(isShellNavActive(byId('games'), '/games')).toBe(false);
 	});
 });
@@ -49,7 +52,7 @@ describe('STUDENT_SHELL_NAV routes', () => {
 			'/progress',
 			'/todo',
 			'/learn/books',
-			'/games',
+			'/live-games',
 			'/leaderboard',
 		]);
 		expect(STUDENT_SHELL_NAV.some((item) => item.path === '/profile')).toBe(false);
@@ -58,6 +61,7 @@ describe('STUDENT_SHELL_NAV routes', () => {
 			'progress',
 			'todo',
 			'books',
+			'games',
 			'leaderboard',
 		]);
 	});

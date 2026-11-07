@@ -165,6 +165,42 @@ export const updateQuestion: any = createAsyncThunk(
   }
 );
 
+export const createQuestion: any = createAsyncThunk(
+  "createQuestion",
+  async (body: any) => {
+    try {
+      let requestBody: any = body;
+      const hasFiles = Object.keys(body).some(
+        (key) =>
+          body[key] instanceof File ||
+          (typeof body[key] === "object" &&
+            body[key] !== null &&
+            body[key] !== undefined &&
+            body[key].file instanceof File)
+      );
+
+      if (hasFiles) {
+        const formData = new FormData();
+        Object.keys(body).forEach((key) => {
+          if (body[key] instanceof File) {
+            formData.append(key, body[key]);
+          } else if (body[key] !== null && body[key] !== undefined) {
+            formData.append(key, body[key].toString());
+          }
+        });
+        requestBody = formData;
+      }
+
+      const result = await postRequest(requestBody, `/api/questions/store`);
+      notify("Question added successfully", "success");
+      return result;
+    } catch (error: any) {
+      notify(error.message || "Failed to add question", "error");
+      throw new Error(error);
+    }
+  }
+);
+
 // ------------ initial state -----------
 export interface questionState {
   questionList: any;

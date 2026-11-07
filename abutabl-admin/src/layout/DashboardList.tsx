@@ -88,7 +88,7 @@ const DashboardList = () => {
       { title: "Subjects", path: "/subjects/list", page: "list" },
       {
         title: "Question Bank",
-        path: "/subjects/question-bank",
+        path: "/question-bank",
         page: "question-bank",
       },
     ],
@@ -114,11 +114,6 @@ const DashboardList = () => {
 
     supPages: [
       { title: "question bank", path: "/question-bank", page: "list" },
-      {
-        title: "Question Bank",
-        path: "/subjects/question-bank",
-        page: "question-bank",
-      },
     ],
   }
   :

@@ -8,6 +8,7 @@ import bird from "@/assets/bird.svg";
 import AudioIcon from "./AudioIcon";
 import { HtmlPreview } from "@/utils/htmlPreview";
 import { mcqOptionRowShouldShow, mcqOptionIsCorrect } from "@/utils/answerContent";
+import { normalizeQuestionType } from "@/utils/questionType";
 
 type Props = {
   type: "MCQ" | "TF" | "SHN" | "Matching";
@@ -22,7 +23,7 @@ type Props = {
 };
 
 const QuestionPreview = ({
-  type,
+  type: typeProp,
   question,
   score,
   answer,
@@ -32,6 +33,8 @@ const QuestionPreview = ({
   question_image,
   active,
 }: Props) => {
+  const type = normalizeQuestionType(typeProp);
+
   return (
     <Box sx={{ p: 5 }}>
       {/* ---------------- MCQ ------------------ */}
@@ -610,7 +613,10 @@ const QuestionPreview = ({
           </div>
         </Box>
       )}
-      <img className="w-72 h-72 scale-x-[-1] mx-20" src={bird} alt="" />
+      {/* Empty / unknown type only — do not always render under every preview */}
+      {type !== "MCQ" && type !== "TF" && type !== "SHN" && type !== "Matching" && (
+        <img className="w-72 h-72 scale-x-[-1] mx-20" src={bird} alt="" />
+      )}
     </Box>
   );
 };

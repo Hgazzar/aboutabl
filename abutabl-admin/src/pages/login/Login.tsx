@@ -7,6 +7,7 @@ import {
 } from "../../utils/staffHandoff";
 import { setUser } from "../../redux/reducers/loginReducer";
 import { redirectToStudentLogin } from "../../utils/studentAppUrl";
+import { hydrateLoginUserSchool } from "../../utils/schoolContext";
 
 /**
  * Admin `/` login UI is deprecated. Staff auth is the student SPA Welcome Back form.
@@ -18,16 +19,31 @@ const Login = () => {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    const session = consumeStaffHandoff();
-    if (session) {
-      dispatch(setUser(session.user));
+    let cancelled = false;
+
+    const run = async () => {
+      const session = consumeStaffHandoff();
+      if (!session) {
+        if (!cancelled) {
+          setChecking(false);
+          redirectToStudentLogin();
+        }
+        return;
+      }
+
+      const user = await hydrateLoginUserSchool(session.user);
+      if (cancelled) return;
+
+      dispatch(setUser(user));
       // Keep stash briefly so React Strict Mode remount can re-read it.
       navigate("/dashboard", { replace: true });
       window.setTimeout(() => clearStaffHandoffStorage(), 500);
-      return;
-    }
-    setChecking(false);
-    redirectToStudentLogin();
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
   }, [dispatch, navigate]);
 
   if (checking) {

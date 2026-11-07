@@ -11,6 +11,7 @@ import { useFormik } from "formik";
 import { useDispatch } from "react-redux";
 import { getQuestionDetails, updateQuestion } from "@/redux/reducers/questionBankReducer";
 import { notify } from "@/utils/notify";
+import { normalizeQuestionType } from "@/utils/questionType";
 
 type Props = {};
 
@@ -97,10 +98,8 @@ const EditQuestion = (props: Props) => {
           const question = result.question;
           setQuestionData(question);
           
-          // Set question type
-          if (question.type) {
-            setType(question.type);
-          }
+          const normalizedType = normalizeQuestionType(question.type);
+          setType(normalizedType);
 
           // Helper function to extract text from API response (handles both string and object)
           const getTextValue = (value: any): string => {
@@ -117,7 +116,7 @@ const EditQuestion = (props: Props) => {
             unit_id: question.unit_id || "",
             lesson_id: question.lesson_id || "",
             question: getTextValue(question.question) || "",
-            type: question.type || "",
+            type: normalizedType,
             code: question.code || "",
             score: question.score || "",
             questionBodyType: question.question_body_type || "text",
@@ -135,7 +134,7 @@ const EditQuestion = (props: Props) => {
           }
 
           // Map matching answers if type is Matching
-          if (question.type === "Matching") {
+          if (normalizedType === "Matching") {
             for (let i = 1; i <= 8; i++) {
               if (question[`answer1_${i}`] !== undefined && question[`answer1_${i}`] !== null) {
                 formValues[`answer1_${i}`] = getTextValue(question[`answer1_${i}`]);

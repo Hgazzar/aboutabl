@@ -20,7 +20,15 @@ class AddPossibleXpToAssignsTable extends Migration
         }
 
         Schema::table('assigns', function (Blueprint $table) {
-            $table->unsignedInteger('possible_xp')->nullable()->after('due_at');
+            // Prefer after due_at when present; fall back so this stays compatible
+            // with production that still retains due_date.
+            if (Schema::hasColumn('assigns', 'due_at')) {
+                $table->unsignedInteger('possible_xp')->nullable()->after('due_at');
+            } elseif (Schema::hasColumn('assigns', 'due_date')) {
+                $table->unsignedInteger('possible_xp')->nullable()->after('due_date');
+            } else {
+                $table->unsignedInteger('possible_xp')->nullable();
+            }
         });
     }
 

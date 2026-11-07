@@ -1,0 +1,67 @@
+/**
+ * Light accents only — page chrome comes from the dashboard green shell + board card.
+ * No standalone dark stage / legacy learn PageHeader.
+ */
+
+.list {
+	display: grid;
+	gap: 12px;
+}
+
+.inviteMeta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 14px;
+	color: #5f5e5e;
+	font-size: 0.95rem;
+}
+
+.pillRow {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: center;
+}
+
+.waitCopy {
+	text-align: center;
+	max-width: 640px;
+	margin: 0 auto;
+}
+
+.waitCopyTitle {
+	font-size: 1.15rem;
+	font-weight: 700;
+	margin-bottom: 6px;
+	color: #1f1e1e;
+}
+
+.waitCopyMeta {
+	color: #5f5e5e;
+	font-size: 0.95rem;
+	margin: 0;
+}
+
+.joinButton {
+	width: 100%;
+	max-width: 420px;
+}
+
+.arenaRoot {
+	display: grid;
+	gap: 16px;
+}
+
+/* Keep timer / feedback readable without inventing a new palette */
+.timerUrgent {
+	color: #b11e1e;
+	font-weight: 700;
+}
+
+.feedbackOk {
+	border-inline-start: 4px solid #1ebba3;
+}
+
+.feedbackBad {
+	border-inline-start: 4px solid #dc3545;
+}

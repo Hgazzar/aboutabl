@@ -67,6 +67,8 @@ class Kernel extends HttpKernel
         'checkUserToken' => \App\Http\Middleware\CheckUserToken::class,
         'checkStudentToken' => \App\Http\Middleware\CheckStudentToken::class,
         'ensureInteractiveGamesEnabled' => \App\Http\Middleware\EnsureInteractiveGamesEnabled::class,
+        'ensureLiveCompetitionsEnabled' => \App\Http\Middleware\EnsureLiveCompetitionsEnabled::class,
+        'ensureLiveCompetitionsAdminOnly' => \App\Http\Middleware\EnsureLiveCompetitionsAdminOnly::class,
         'quizLibraryAdminOnly' => \App\Http\Middleware\EnsureQuizLibraryAdminOnly::class,
         'authenticateBroadcastJwt' => \App\Http\Middleware\AuthenticateBroadcastJwt::class,
     ];

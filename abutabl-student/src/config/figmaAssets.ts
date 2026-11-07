@@ -18,6 +18,10 @@ export function figmaMyProgressAssetUrl(fileName: string): string {
 	return new URL(`../assets/images/figma/my-progress/${fileName}`, import.meta.url).href;
 }
 
+export function figmaLiveGamesAssetUrl(fileName: string): string {
+	return new URL(`../assets/images/figma/live-games/${fileName}`, import.meta.url).href;
+}
+
 export function figmaAuthAssetUrl(fileName: string): string {
 	return new URL(`../assets/images/figma/auth/${fileName}`, import.meta.url).href;
 }

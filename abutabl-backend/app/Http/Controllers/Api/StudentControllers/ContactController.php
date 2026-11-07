@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Mail\ContactUsMail;
 use App\Traits\GeneralTrait;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Throwable;
 
@@ -23,6 +25,7 @@ class ContactController extends Controller
 
     /**
      * Public landing Contact Us — emails inbox (no auth).
+     * On staging/local, if SMTP fails, persist the message to storage so the form still works for demos.
      */
     public function store(Request $request)
     {
@@ -55,10 +58,51 @@ class ContactController extends Controller
             Mail::to($to)->send(new ContactUsMail($payload));
         } catch (Throwable $e) {
             report($e);
+            Log::warning('contact_us_mail_failed', [
+                'error' => $e->getMessage(),
+                'to' => $to,
+            ]);
+
+            if ($this->shouldFallbackStoreOnMailFailure()) {
+                $this->storeContactFallback($payload, $e->getMessage());
+
+                return $this->returnSuccessMessage('Message sent successfully.', '200', 200);
+            }
 
             return $this->returnError('E001', 'Unable to send your message right now. Please try again later.', 500);
         }
 
         return $this->returnSuccessMessage('Message sent successfully.', '200', 200);
+    }
+
+    private function shouldFallbackStoreOnMailFailure(): bool
+    {
+        if ((bool) config('contact.fallback_store_on_mail_failure', false)) {
+            return true;
+        }
+
+        $env = strtolower((string) config('app.env', ''));
+
+        return in_array($env, ['local', 'staging', 'development'], true);
+    }
+
+    /**
+     * @param  array{first_name: string, email: string, message: string}  $payload
+     */
+    private function storeContactFallback(array $payload, string $error): void
+    {
+        $line = json_encode([
+            'received_at' => now()->toIso8601String(),
+            'first_name' => $payload['first_name'],
+            'email' => $payload['email'],
+            'message' => $payload['message'],
+            'mail_error' => $error,
+        ], JSON_UNESCAPED_UNICODE);
+
+        if ($line === false) {
+            return;
+        }
+
+        Storage::disk('local')->append('contact_messages.jsonl', $line);
     }
 }

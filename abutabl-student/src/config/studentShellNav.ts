@@ -53,11 +53,10 @@ export const STUDENT_SHELL_NAV: ShellNavItem[] = [
 	{
 		id: 'games',
 		labelKey: 'nav-games',
-		path: '/games',
+		path: '/live-games',
 		iconFile: 'nav-games.png',
 		activeIconFile: 'nav-games-active.png',
-		activeSegments: ['games'],
-		navigable: false,
+		activeSegments: ['live-games'],
 	},
 	{
 		id: 'leaderboard',
@@ -91,6 +90,12 @@ export function isShellNavActive(item: ShellNavItem, pathname: string): boolean 
 	}
 	if (item.id === 'progress') {
 		return normalized === '/progress' || normalized.startsWith('/progress/');
+	}
+	if (item.id === 'games') {
+		return (
+			normalized === '/live-games' ||
+			normalized.startsWith('/live-games/')
+		);
 	}
 
 	const segment = normalized.split('/').filter(Boolean)[0] ?? '';

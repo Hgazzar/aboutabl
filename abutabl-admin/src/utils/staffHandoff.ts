@@ -1,5 +1,5 @@
 import Cookies from "js-cookie";
-import { persistLoginUser } from "./authSession";
+import { persistLoginUser, readPersistedLoginUser } from "./authSession";
 
 export type StaffHandoffSession = {
   token: string;
@@ -30,6 +30,7 @@ function applyStaffSession(args: {
   username?: string;
   userId?: string;
   type?: string;
+  schoolId?: string;
 }): StaffHandoffSession | null {
   let payload: { exp?: number; sub?: string | number };
   try {
@@ -44,6 +45,8 @@ function applyStaffSession(args: {
     (payload.sub != null ? String(payload.sub) : "");
   const username = args.username?.trim() || "";
   const type = args.type?.trim() || "admin";
+  const schoolIdNum = args.schoolId ? Number(args.schoolId) : 0;
+  const previous = readPersistedLoginUser();
 
   Cookies.set("token_", args.token, cookieOptions);
   if (payload.exp) {
@@ -55,13 +58,23 @@ function applyStaffSession(args: {
   if (username) {
     Cookies.set("username", username, cookieOptions);
   }
+  if (type) {
+    Cookies.set("abotable_type", type, cookieOptions);
+  }
 
   const user: Record<string, unknown> = {
+    ...(previous && String(previous.id) === String(userId) ? previous : {}),
     id: userId || undefined,
-    username: username || undefined,
+    username: username || previous?.username || undefined,
     type,
     api_token: args.token,
   };
+
+  if (schoolIdNum > 0) {
+    user.school_id = schoolIdNum;
+    user.school = [{ id: schoolIdNum }];
+  }
+
   persistLoginUser(user);
 
   try {
@@ -73,6 +86,7 @@ function applyStaffSession(args: {
         username,
         userId,
         type,
+        schoolId: schoolIdNum > 0 ? String(schoolIdNum) : undefined,
       })
     );
   } catch {
@@ -93,6 +107,7 @@ function consumeStaffHandoffFromStorage(): StaffHandoffSession | null {
       username?: string;
       userId?: string;
       type?: string;
+      schoolId?: string;
     };
     if (!data?.token) {
       sessionStorage.removeItem(HANDOFF_STORAGE_KEY);
@@ -104,6 +119,7 @@ function consumeStaffHandoffFromStorage(): StaffHandoffSession | null {
       username: data.username,
       userId: data.userId,
       type: data.type,
+      schoolId: data.schoolId,
     });
   } catch {
     try {
@@ -130,6 +146,7 @@ function consumeStaffHandoffFromHash(): StaffHandoffSession | null {
     username: params.get("username")?.trim() || undefined,
     userId: params.get("user_id")?.trim() || undefined,
     type: params.get("type")?.trim() || undefined,
+    schoolId: params.get("school_id")?.trim() || undefined,
   });
 
   const cleanUrl = `${window.location.pathname}${window.location.search}`;
@@ -144,13 +161,23 @@ function hasFreshStaffCookieSession(): StaffHandoffSession | null {
   if (!token || !expiration || +expiration < Date.now()) {
     return null;
   }
+
+  // Prefer persisted login payload (includes type + school) so revisiting "/"
+  // does not wipe teacher identity and fall back to admin SideNav.
+  const persisted = readPersistedLoginUser();
+  const cookieId = Cookies.get("abotable_id");
+  const cookieUsername = Cookies.get("username");
+
   return {
     token,
     remember: false,
     user: {
-      id: Cookies.get("abotable_id"),
-      username: Cookies.get("username"),
+      ...(persisted ?? {}),
+      id: cookieId || persisted?.id,
+      username: cookieUsername || persisted?.username,
       api_token: token,
+      // Never drop role on cookie revisit — missing type would paint admin chrome.
+      type: persisted?.type ?? Cookies.get("abotable_type") ?? undefined,
     },
   };
 }

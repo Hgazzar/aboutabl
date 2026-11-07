@@ -12,7 +12,7 @@ class EnsureInteractiveGamesEnabled
 
     public function handle(Request $request, Closure $next)
     {
-        if (! config('interactive_games.enabled', true)) {
+        if (! config('interactive_games.enabled', false)) {
             return $this->returnError('404', 'Interactive games are disabled.', 404);
         }
 

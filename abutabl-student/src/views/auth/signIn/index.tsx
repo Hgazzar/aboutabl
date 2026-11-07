@@ -8,7 +8,11 @@ import { LoginFormGrid, LoginFormColumn, LoginIllustration, LoginWrapper } from 
 import Cookies from 'js-cookie';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
-import { loginUser, persistStudentSession } from 'redux-toolkit/reducer/LoginReducer';
+import {
+	loginUser,
+	persistStudentSession,
+	type StudentLoginOutcome,
+} from 'redux-toolkit/reducer/LoginReducer';
 import { Ilogin } from '../types/login.type';
 import LoadingPartially from 'components/loading-partially';
 import { toast } from 'react-toastify';
@@ -44,16 +48,14 @@ function Login() {
 
 		try {
 			const studentResult = await dispatch(loginUser(data));
-			const studentOutcome = studentResult?.payload as
-				| { ok: boolean; reason?: string; message?: string }
-				| undefined;
+			const studentOutcome = studentResult?.payload as StudentLoginOutcome | undefined;
 
-			if (studentOutcome?.ok && Cookies.get('token_')) {
+			if (studentOutcome?.ok === true && Cookies.get('token_')) {
 				navigate(studentOutcome.needsAvatarSelection ? '/onboarding/avatar' : '/learn');
 				return;
 			}
 
-			if (studentOutcome?.reason === 'inactive') {
+			if (studentOutcome && studentOutcome.ok === false && studentOutcome.reason === 'inactive') {
 				return;
 			}
 
@@ -91,8 +93,12 @@ function Login() {
 				return;
 			}
 
+			const studentFailMessage =
+				studentOutcome && studentOutcome.ok === false
+					? studentOutcome.message
+					: undefined;
 			toast.error(
-				studentOutcome?.message ||
+				studentFailMessage ||
 					staff.message ||
 					'Login failed. Check your connection and try again.'
 			);

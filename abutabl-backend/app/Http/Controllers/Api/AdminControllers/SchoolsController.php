@@ -149,8 +149,8 @@ class SchoolsController extends Controller
                           'status'    => $request->status == '1' ? '1' : '0',
                           'address'   => $request->address_en ?? null,
                           'address_ar'=> $request->address_ar ?? null,
-                          'govern_id' => $request->govern_id??0,
-                          'city_id'   => $request->city_id??0,
+                          'govern_id' => $request->filled('govern_id') && (string) $request->govern_id !== '0' ? $request->govern_id : null,
+                          'city_id'   => $request->filled('city_id') && (string) $request->city_id !== '0' ? $request->city_id : null,
                           'logo'      => $logoPath,
                        ]);
 
@@ -235,8 +235,8 @@ class SchoolsController extends Controller
                           'email'     =>$request->email,
                           'address'   => $request->address_en,
                           'address_ar'=> $request->address_ar,
-                          'govern_id' => $request->govern_id??0,
-                          'city_id'   => $request->city_id??0,
+                          'govern_id' => $request->filled('govern_id') && (string) $request->govern_id !== '0' ? $request->govern_id : null,
+                          'city_id'   => $request->filled('city_id') && (string) $request->city_id !== '0' ? $request->city_id : null,
                           'status'    => $request->status,
                           'logo'      => $request->logo ? $path.'/'.$hashName : str_replace( asset('/storage')."/","",$school->logo),
                        ]);

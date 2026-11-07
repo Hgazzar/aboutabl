@@ -21,7 +21,7 @@ const Reset = lazy(() => import('views/auth/resetPassword'));
 const DetailsGames = lazy(() => import('views/learnDetails/components/detailsGame'));
 const QuizDetails = lazy(() => import('views/learnDetails/components/detailsQuiz/start'));
 const Quiz = lazy(() => import('views/learnDetails/components/detailsQuiz/quiz'));
-const GamesList = lazy(() => import('views/games/List'));
+const MyLiveGamesPage = lazy(() => import('views/liveCompetitions/MyLiveGamesPage'));
 
 export interface IRoute<T = any> {
 	component: JSX.Element;
@@ -127,14 +127,14 @@ export function useRoutesConst() {
 			},
 
 			liveGames: {
-				component: <GamesList />,
-				path: 'games',
+				component: <MyLiveGamesPage />,
+				path: 'live-games',
 				icon: <LearnIcon />,
 				privileges: true,
-				to: () => '/games',
-				fullTitle: () => [{ name: formatMessage({ id: 'liveGames' }) }],
-				title: () => formatMessage({ id: 'liveGames' }),
-				sidebarTitle: () => formatMessage({ id: 'liveGames' }),
+				to: () => '/live-games',
+				fullTitle: () => [{ name: formatMessage({ id: 'myLiveGamesTitle' }) }],
+				title: () => formatMessage({ id: 'myLiveGamesTitle' }),
+				sidebarTitle: () => formatMessage({ id: 'myLiveGamesTitle' }),
 			},
 
 			learnDetails: {

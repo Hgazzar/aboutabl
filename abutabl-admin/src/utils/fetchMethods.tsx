@@ -17,23 +17,78 @@ export const buildUrl = (baseUrl: string | undefined, endpoint: string): string 
   return `${normalizedBase}${normalizedEndpoint}`;
 };
 
-// Helper to build template file URLs (for Excel templates in /back_end/ directory)
+// Helper to build template file URLs.
+// Prefer the admin SPA origin (files live in abutabl-admin/public and are copied into the build root).
+// Fall back to the API host public root (not /api/...) for legacy deploys.
 export const buildTemplateUrl = (baseUrl: string | undefined, fileName: string): string => {
-  if (!baseUrl) return fileName;
-  
-  // Remove trailing slashes from base URL
-  let normalizedBase = baseUrl.replace(/\/+$/, '');
-  
-  // Remove /api from the end if it exists
-  if (normalizedBase.endsWith('/api')) {
-    normalizedBase = normalizedBase.replace(/\/api$/, '');
+  const normalizedFileName = (fileName.startsWith("/") ? fileName : `/${fileName}`)
+    .split("/")
+    .map((part, idx) => (idx === 0 ? part : encodeURIComponent(part)))
+    .join("/");
+
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return `${window.location.origin}${normalizedFileName}`;
   }
-  
-  // Ensure fileName starts with a single slash
-  const normalizedFileName = fileName.startsWith('/') ? fileName : `/${fileName}`;
-  
-  // Construct the template URL: base + /back_end + filename
-  return `${normalizedBase}/api${normalizedFileName}`;
+
+  if (!baseUrl) return normalizedFileName;
+
+  let normalizedBase = baseUrl.replace(/\/+$/, "");
+  if (normalizedBase.endsWith("/api")) {
+    normalizedBase = normalizedBase.replace(/\/api$/, "");
+  }
+
+  return `${normalizedBase}${normalizedFileName}`;
+};
+
+/** Authenticated binary download (File Management, exports). */
+export const downloadAuthenticatedFile = async (
+  endPoint: string,
+  fileName: string
+): Promise<void> => {
+  checkSessionExpiration();
+
+  try {
+    const response = await axios.get(
+      buildUrl(process.env.REACT_APP_BASE_URL, endPoint),
+      {
+        headers: getHeaders(undefined, false),
+        responseType: "blob",
+      }
+    );
+
+    const contentType = String(response.headers["content-type"] || "");
+    if (contentType.includes("application/json")) {
+      const text = await (response.data as Blob).text();
+      let msg = "Download failed";
+      try {
+        msg = JSON.parse(text)?.msg || msg;
+      } catch {
+        /* keep default */
+      }
+      throw new Error(msg);
+    }
+
+    const blob = new Blob([response.data]);
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (err: any) {
+    if (err?.response?.data instanceof Blob) {
+      try {
+        const text = await err.response.data.text();
+        const msg = JSON.parse(text)?.msg;
+        if (msg) throw new Error(msg);
+      } catch (inner: any) {
+        if (inner?.message) throw inner;
+      }
+    }
+    throw new Error(err?.response?.data?.msg || err.message || "Download failed");
+  }
 };
 
 // Helper to check if the session has expired.

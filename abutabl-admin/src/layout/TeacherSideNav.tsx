@@ -17,6 +17,7 @@ import Cookies from "js-cookie";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
+import SportsEsportsIcon from "@mui/icons-material/SportsEsports";
 import { ReactComponent as ClassesIcon } from "../assets/classes-icon.svg";
 import { ReactComponent as AboutablLogo } from "../assets/aboutabl-logo.svg";
 import { clearPermissions } from "../redux/reducers/permissionReducer";
@@ -43,6 +44,12 @@ const NAV_ITEMS: NavItem[] = [
     titleKey: "TEACHER_NAV.CLASSES",
     path: "/teacher/classes",
     icon: <ClassesIcon width={18} height={18} aria-hidden />,
+  },
+  {
+    titleKey: "TEACHER_NAV.LIVE_GAMES",
+    /** Primary classroom Live Competitions entry — not legacy /games waiting room. */
+    path: "/live-games",
+    icon: <SportsEsportsIcon fontSize="small" />,
   },
   {
     titleKey: "TEACHER_NAV.SETTINGS",
