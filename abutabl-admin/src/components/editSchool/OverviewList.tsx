@@ -5,6 +5,7 @@ import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
 import BasicInfo from "./BasicInfo";
 import Dropzone, { useDropzone } from "react-dropzone";
 import "./overlay.css";
+import { resolveStorageUrl } from "../../utils/subjectPhotoUrl";
 
 const OverviewList = ({ formik }: any) => {
   // ------------ hooks ---------------
@@ -37,8 +38,7 @@ const OverviewList = ({ formik }: any) => {
 
   useEffect(() => {
     if (typeof formik.values.logo === "string") {
-      // If logo is already a string, use it directly
-      setdisplayImages(formik.values.logo);
+      setdisplayImages(resolveStorageUrl(formik.values.logo) || "");
     } else if (
       formik.values.logo instanceof Blob ||
       formik.values.logo instanceof File

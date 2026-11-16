@@ -187,7 +187,7 @@ class SchoolsController extends Controller
                 "city_id"    => "nullable|exists:cities,id",
                 "address_en" => ["nullable","max:1000"],
                 "address_ar" => ["nullable","max:1000"],
-                "contanct_number" => "required",
+                "contanct_number" => "nullable",
                 "email" => "required",
             ];
            
@@ -208,7 +208,10 @@ class SchoolsController extends Controller
              $check1 = Schools::where('id','!=',$id)->where('name',$request->name_en)->first();
              $check2 = Schools::where('id','!=',$id)->where('name_ar',$request->name_ar)->first();
              $check3 = Schools::where('id','!=',$id)->where('email',$request->email)->first();
-             $check4 = Schools::where('id','!=',$id)->where('contanct_number',$request->contanct_number)->first();
+             $check4 = null;
+             if ($request->filled('contanct_number')) {
+                 $check4 = Schools::where('id','!=',$id)->where('contanct_number',$request->contanct_number)->first();
+             }
 
             if ($check1 or $check2 or $check3 or $check4)
             {
@@ -217,28 +220,25 @@ class SchoolsController extends Controller
 
              DB::beginTransaction();
 
-           if(request()->has('logo') and !empty(request('logo')))
-           {
-                    $file     = request('logo');
-                    $f_name   = $file->getClientOriginalName();
+           $logoPath = null;
+           if ($request->hasFile('logo')) {
+                    $file = $request->file('logo');
                     $hashName = $file->hashName();
-                    $size     = $file->getSize();
-                    $ext      = $file->extension();
-                    $path     = 'schools';
-                    $file->store('public/'.$path);
+                    $file->storeAs('public/schools', $hashName);
+                    $logoPath = 'schools/'.$hashName;
             }
 
                  $schools  = Schools::where('id',$id)->update([
                           'name'      => $request->name_en,
                           'name_ar'   => $request->name_ar,
-                          'contanct_number'=>$request->contanct_number,
+                          'contanct_number'=>$request->input('contanct_number') ?: null,
                           'email'     =>$request->email,
                           'address'   => $request->address_en,
                           'address_ar'=> $request->address_ar,
                           'govern_id' => $request->filled('govern_id') && (string) $request->govern_id !== '0' ? $request->govern_id : null,
                           'city_id'   => $request->filled('city_id') && (string) $request->city_id !== '0' ? $request->city_id : null,
                           'status'    => $request->status,
-                          'logo'      => $request->logo ? $path.'/'.$hashName : str_replace( asset('/storage')."/","",$school->logo),
+                          'logo'      => $logoPath ?? $school->getRawOriginal('logo'),
                        ]);
                
                 DB::commit();

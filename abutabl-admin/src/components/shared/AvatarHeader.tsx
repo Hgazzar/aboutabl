@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Box, Typography } from "@mui/material";
 import Button from "../../components/shared/Button";
+import { resolveStorageUrl } from "../../utils/subjectPhotoUrl";
 
 type AvatarHeaderProps = {
   img?: string;
@@ -34,8 +35,9 @@ const AvatarHeader = ({
     return hasFilename;
   };
 
-  const shouldUseDefault = !isValidImageUrl(img) || imageError;
-  const displayImage = shouldUseDefault ? defaultLogo : img;
+  const resolvedImg = resolveStorageUrl(img) || undefined;
+  const shouldUseDefault = !isValidImageUrl(resolvedImg) || imageError;
+  const displayImage = shouldUseDefault ? defaultLogo : resolvedImg;
 
   const handleImageError = () => {
     setImageError(true);
