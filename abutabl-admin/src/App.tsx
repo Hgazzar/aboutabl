@@ -82,6 +82,9 @@ const SubStudentDetails = lazy(
 const QuestionBank = lazy(() => import("./pages/subjects/QuestionBank"));
 const AddQuestion = lazy(() => import("./pages/subjects/AddQuestion"));
 const EditQuestion = lazy(() => import("./pages/subjects/EditQuestion"));
+const QuizWorkbookImportPage = lazy(
+  () => import("./pages/subjects/QuizWorkbookImportPage")
+);
 
 const Report = lazy(() => import("./pages/report/Reports"));
 
@@ -545,6 +548,14 @@ function App() {
               element={
                 <PermissionGuard module="questions" required="edit-questions">
                   <EditQuestion />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="quiz-workbook-import"
+              element={
+                <PermissionGuard module="questions" required="add-questions">
+                  <QuizWorkbookImportPage />
                 </PermissionGuard>
               }
             />

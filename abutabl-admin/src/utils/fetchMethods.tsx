@@ -204,6 +204,40 @@ export const postRequest = async (body: any, endPoint: string) => {
   });
 };
 
+export class ApiResponseError extends Error {
+  status: number;
+  body: any;
+
+  constructor(message: string, status: number, body: any) {
+    super(message);
+    this.name = "ApiResponseError";
+    this.status = status;
+    this.body = body;
+  }
+}
+
+/** Multipart POST that keeps the API body on 422. Does not change postRequest. */
+export const postFormRequest = async (body: FormData, endPoint: string) => {
+  checkSessionExpiration();
+
+  try {
+    const response = await axios.post(
+      buildUrl(process.env.REACT_APP_BASE_URL, endPoint),
+      body,
+      { headers: getHeaders(undefined, true, true) }
+    );
+    return response.data;
+  } catch (err: any) {
+    const data = err.response?.data;
+    const status = err.response?.status ?? 0;
+    throw new ApiResponseError(
+      data?.msg || err.message || "An error occurred",
+      status,
+      data
+    );
+  }
+};
+
 export const putRequest = async (body: any, endPoint: string) => {
   checkSessionExpiration();
 

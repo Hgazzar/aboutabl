@@ -939,5 +939,30 @@
   "scoretopass": "درجة النجاح",
   "downloadTemplate": "تحميل قالب Excel فارغ",
   "downloadQuizzesDemo": "تحميل ملف تجريبي للاختبارات",
-  "uploadQuizzes": "رفع الملف"
+  "uploadQuizzes": "رفع الملف",
+
+  "QUIZ_WORKBOOK": {
+    "MENU": "دفتر الاختبار",
+    "TITLE": "استيراد دفتر الاختبار",
+    "ADMIN_ONLY": "هذا الاستيراد متاح للمسؤول فقط.",
+    "CHOOSE_FILE": "اختيار ملف",
+    "DOWNLOAD_TEMPLATE": "تنزيل قالب الدفتر",
+    "NO_FILE": "لم يُختر ملف",
+    "PREVIEW": "معاينة",
+    "SAVE": "حفظ",
+    "ROW": "الصف",
+    "STATUS": "الحالة",
+    "ERRORS": "الأخطاء",
+    "DECISION": "القرار",
+    "CHOOSE": "اختر",
+    "SKIP": "تخطي",
+    "CREATE_NEW": "إنشاء جديد",
+    "WRITTEN": "تم الحفظ",
+    "CREATED": "الأسئلة المنشأة",
+    "SKIPPED_ROWS": "الصفوف المتخطاة",
+    "REQUEST_FAILED": "فشل الطلب.",
+    "STATUS_ok": "جاهز",
+    "STATUS_error": "خطأ",
+    "STATUS_duplicate": "مكرر"
+  }
 }

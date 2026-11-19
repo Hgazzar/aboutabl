@@ -271,6 +271,9 @@ Route::group([ 'middleware' => ['api' , 'checkSecretApi' , 'changeLanguage','che
     Route::get('/questions/show/{id}','QuestionsController@show');
     Route::post('/questions/delete','QuestionsController@destroy');
 
+    Route::post('/quiz_workbook/preview', 'QuizWorkbookImportController@preview');
+    Route::post('/quiz_workbook/commit', 'QuizWorkbookImportController@commit');
+
 
     ///// Assigns
     Route::get('/assigns/get_module_data','AssignsController@get_module_data');

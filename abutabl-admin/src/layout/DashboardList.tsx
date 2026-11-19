@@ -12,16 +12,21 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import FileUploadIcon from "@mui/icons-material/FileUpload";
 import SportsEsportsIcon from "@mui/icons-material/SportsEsports";
 import { useSelector } from "react-redux";
+import { useTranslation } from "react-i18next";
 import { RootState } from "@/redux/store";
+import { showQuizWorkbookNav } from "@/pages/subjects/quizWorkbookImport";
 
 
 
 
 const DashboardList = () => {
   const a:any = "a"
+  const { t } = useTranslation();
   const permissionState = useSelector((state: RootState) => state.permissions)
+  const loginUser = useSelector((state: RootState) => state.login?.user)
 
   const viewQuistions = permissionState?.permissions?.questions?.find((permission:any) => permission['view-questions'] === "1")
+  const addQuestions = permissionState?.permissions?.questions?.find((permission:any) => permission['add-questions'] === "1")
   const viewSchools = permissionState?.permissions?.schools?.find((permission:any) => permission['view-schools'] === "1")
   const viewSubjects = permissionState?.permissions?.subjects?.find((permission:any) => permission['view-subjects'] === "1")
   const viewUsers = permissionState?.permissions?.users?.find((permission:any) => permission['view-users'] === "1")
@@ -114,6 +119,27 @@ const DashboardList = () => {
 
     supPages: [
       { title: "question bank", path: "/question-bank", page: "list" },
+    ],
+  }
+  :
+  ''
+  ,
+  showQuizWorkbookNav(loginUser as Record<string, unknown> | null | undefined, Boolean(addQuestions))
+  ?
+  {
+    external: false,
+    disabled: false,
+    menu: false,
+    title: t("QUIZ_WORKBOOK.MENU"),
+    path: "/quiz-workbook-import",
+    module: "quiz-workbook-import",
+    icon: (
+      <SvgIcon fontSize="small">
+        <LiveHelpIcon />
+      </SvgIcon>
+    ),
+    supPages: [
+      { title: t("QUIZ_WORKBOOK.MENU"), path: "/quiz-workbook-import", page: "quiz-workbook" },
     ],
   }
   :

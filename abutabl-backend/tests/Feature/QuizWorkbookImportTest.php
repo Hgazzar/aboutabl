@@ -1,0 +1,756 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Imports\ActivityQuestionsImport;
+use App\Imports\QuestionsImport;
+use App\Imports\QuizWorkbookImport;
+use App\Models\Lessons;
+use App\Models\Questions;
+use App\Models\QuizWorkbookField;
+use App\Models\Subject;
+use App\Models\Units;
+use App\Models\User;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Schema;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Spatie\Permission\Models\Permission;
+use Tests\TestCase;
+
+class QuizWorkbookImportTest extends TestCase
+{
+    /** @var Subject */
+    private $subject;
+
+    /** @var Units */
+    private $unit;
+
+    /** @var Lessons */
+    private $lesson;
+
+    /** @var User */
+    private $admin;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        if (config('database.default') !== 'sqlite') {
+            $this->markTestSkipped('Quiz workbook tests build a private schema and run only when DB_CONNECTION=sqlite.');
+        }
+
+        $this->buildPrivateSchema();
+
+        $this->admin = User::create([
+            'name' => 'Workbook Admin',
+            'email' => 'workbook-admin@test.com',
+            'phone' => '01000000001',
+            'password' => bcrypt('password'),
+            'type' => 'admin',
+        ]);
+        $this->subject = Subject::create(['name' => 'Arabic', 'name_ar' => 'عربي']);
+        $this->unit = Units::create([
+            'name' => 'Unit 1',
+            'name_ar' => 'الوحدة 1',
+            'subject_id' => $this->subject->id,
+        ]);
+        $lessonDispatcher = Lessons::getEventDispatcher();
+        Lessons::unsetEventDispatcher();
+        $this->lesson = Lessons::create([
+            'name_en' => 'Lesson 1',
+            'name_ar' => 'الدرس 1',
+            'subject_id' => $this->subject->id,
+            'unit_id' => $this->unit->id,
+        ]);
+        Lessons::setEventDispatcher($lessonDispatcher);
+    }
+
+    public function test_header_must_match_all_26_columns_including_title_space(): void
+    {
+        $headers = QuizWorkbookImport::HEADERS;
+        $headers[4] = 'Title';
+        $path = $this->workbook([$this->fullRow()], $headers);
+
+        $preview = (new QuizWorkbookImport())->preview($path);
+
+        $this->assertFalse($preview['valid']);
+        $this->assertStringContainsString('Title ', $preview['file_errors'][0]);
+        $this->assertDatabaseCount('questions', 0);
+    }
+
+    public function test_reference_row_is_skipped_and_correct_answer_and_title_are_stored_as_given(): void
+    {
+        $row = $this->fullRow();
+        $row[4] = 'Letter quiz';
+        $row[12] = 1;
+        $row[25] = 'RF.K.1';
+        $path = $this->workbook([$this->legendRow(), $row]);
+
+        $preview = (new QuizWorkbookImport())->preview($path);
+
+        $this->assertTrue($preview['valid']);
+        $this->assertCount(1, $preview['rows']);
+        $this->assertSame(3, $preview['rows'][0]['row']);
+        $this->assertSame('1', $preview['rows'][0]['fields']['corAnswer']);
+        $this->assertSame('Letter quiz', $preview['rows'][0]['fields']['import_title']);
+        $this->assertDatabaseCount('questions', 0);
+
+        $result = (new QuizWorkbookImport())->commit($path, [], $this->admin->id);
+
+        $this->assertTrue($result['written']);
+        $saved = Questions::find($result['created'][0]['question_id']);
+        $this->assertSame('1', $saved->corAnswer);
+        $this->assertSame('Cat', $saved->answer1);
+        $this->assertSame('RF.K.1', $saved->code);
+        $this->assertSame('Look at the letter.', $saved->question);
+        $side = QuizWorkbookField::where('question_id', $saved->id)->first();
+        $this->assertSame('Letter quiz', $side->import_title);
+        $this->assertSame('See the letter', $side->primary_head_text);
+        $this->assertDatabaseCount('quizes', 0);
+        $this->assertFalse(Schema::hasColumn('questions', 'import_title'));
+    }
+
+    public function test_empty_answer_prevents_a_false_duplicate_inside_the_file_and_against_existing_rows(): void
+    {
+        $existing = $this->seedQuestion('Look at the letter.', '1', 'Cat', 'Dog', 'Bird', '');
+        $complete = $this->fullRow();
+        $partial = $this->fullRow();
+        $partial[24] = '';
+        $path = $this->workbook([$complete, $partial]);
+
+        $preview = (new QuizWorkbookImport())->preview($path);
+
+        $this->assertSame('ok', $preview['rows'][0]['status']);
+        $this->assertNull($preview['rows'][0]['duplicate_of']);
+        $this->assertSame('ok', $preview['rows'][1]['status']);
+        $this->assertNull($preview['rows'][1]['duplicate_of']);
+        $this->assertNull($preview['rows'][1]['duplicate_of_row']);
+
+        $result = (new QuizWorkbookImport())->commit($path, [], $this->admin->id);
+
+        $this->assertTrue($result['written']);
+        $this->assertSame('1', Questions::find($existing->id)->corAnswer);
+        $this->assertSame('', (string) Questions::find($existing->id)->answer4);
+        $this->assertDatabaseCount('questions', 3);
+    }
+
+    public function test_full_match_is_duplicate_and_skip_or_create_new_never_replaces_the_original(): void
+    {
+        $existing = $this->seedQuestion('Look at the letter.', '1', 'Cat', 'Dog', 'Bird', 'Fish');
+        $original = $existing->corAnswer;
+        $path = $this->workbook([$this->fullRow(), $this->fullRow()]);
+
+        $preview = (new QuizWorkbookImport())->preview($path);
+
+        $this->assertSame('duplicate', $preview['rows'][0]['status']);
+        $this->assertSame($existing->id, $preview['rows'][0]['duplicate_of']);
+        $this->assertSame('duplicate', $preview['rows'][1]['status']);
+        $this->assertSame(2, $preview['rows'][1]['duplicate_of_row']);
+
+        $blocked = (new QuizWorkbookImport())->commit($path, [], $this->admin->id);
+        $this->assertFalse($blocked['written']);
+        $this->assertDatabaseCount('questions', 1);
+
+        $skipped = (new QuizWorkbookImport())->commit($path, [
+            2 => 'skip',
+            3 => 'skip',
+        ], $this->admin->id);
+        $this->assertTrue($skipped['written']);
+        $this->assertSame([], $skipped['created']);
+        $this->assertDatabaseCount('questions', 1);
+        $this->assertSame($original, Questions::find($existing->id)->corAnswer);
+
+        $created = (new QuizWorkbookImport())->commit($path, [
+            2 => 'create_new',
+            3 => 'skip',
+        ], $this->admin->id);
+        $this->assertTrue($created['written']);
+        $this->assertDatabaseCount('questions', 2);
+        $this->assertNotSame($existing->id, $created['created'][0]['question_id']);
+        $this->assertSame($original, Questions::find($existing->id)->corAnswer);
+    }
+
+    public function test_media_reference_uses_file_management_name_and_type_and_storage_url(): void
+    {
+        $id = DB::table('file_management')->insertGetId([
+            'name' => 'bird',
+            'type' => 'mp3',
+            'hashName' => 'abc.mp3',
+            'path' => 'files_maanger/abc.mp3',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $row = $this->fullRow();
+        $row[5] = 'bird.mp3';
+        $missing = $this->fullRow();
+        $missing[6] = 'Another question stem for media miss';
+        $missing[9] = '';
+        $missing[5] = 'missing.mp3';
+        $path = $this->workbook([$row, $missing]);
+
+        $preview = (new QuizWorkbookImport())->preview($path);
+
+        $this->assertFalse($preview['valid']);
+        $this->assertSame($id, $preview['rows'][0]['fields']['media']['primary_head_audio']['file_management_id']);
+        $this->assertStringContainsString('/storage/files_maanger/abc.mp3', $preview['rows'][0]['fields']['media']['primary_head_audio']['resolved_url']);
+        $this->assertSame('error', $preview['rows'][1]['status']);
+        $this->assertDatabaseCount('file_management', 1);
+
+        $result = (new QuizWorkbookImport())->commit($path, [], $this->admin->id);
+        $this->assertFalse($result['written']);
+        $this->assertDatabaseCount('questions', 0);
+    }
+
+    public function test_commit_rolls_back_the_question_and_the_side_row_together(): void
+    {
+        $path = $this->workbook([$this->fullRow(), $this->secondRow()]);
+        $seen = 0;
+        Questions::creating(function () use (&$seen) {
+            $seen++;
+            if ($seen === 2) {
+                throw new \RuntimeException('forced failure');
+            }
+        });
+
+        try {
+            (new QuizWorkbookImport())->commit($path, [], $this->admin->id);
+            $this->fail('Commit should rethrow after rollback.');
+        } catch (\RuntimeException $exception) {
+            $this->assertSame('forced failure', $exception->getMessage());
+        }
+
+        $this->assertDatabaseCount('questions', 0);
+        $this->assertDatabaseCount('quiz_workbook_fields', 0);
+    }
+
+    public function test_admin_routes_require_admin_and_add_questions_permission(): void
+    {
+        $preview = collect(Route::getRoutes())->first(function ($route) {
+            return $route->uri() === 'api/quiz_workbook/preview';
+        });
+        $commit = collect(Route::getRoutes())->first(function ($route) {
+            return $route->uri() === 'api/quiz_workbook/commit';
+        });
+
+        $this->assertNotNull($preview);
+        $this->assertNotNull($commit);
+        $this->assertContains('quizLibraryAdminOnly', $preview->gatherMiddleware());
+        $this->assertContains('can:add-questions', $preview->gatherMiddleware());
+        $this->assertContains('checkUserToken:admin-api', $preview->gatherMiddleware());
+        $this->assertContains('quizLibraryAdminOnly', $commit->gatherMiddleware());
+        $this->assertContains('can:add-questions', $commit->gatherMiddleware());
+
+        $path = $this->workbook([$this->fullRow()]);
+        $upload = new UploadedFile(
+            $path,
+            'quiz.xlsx',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            null,
+            true
+        );
+
+        $teacher = User::create([
+            'name' => 'Workbook Teacher',
+            'email' => 'workbook-teacher@test.com',
+            'phone' => '01000000002',
+            'password' => bcrypt('password'),
+            'type' => 'teacher',
+        ]);
+
+        $this->withHeaders($this->staffHeaders($teacher))
+            ->post('/api/quiz_workbook/preview', ['file' => $upload])
+            ->assertStatus(403);
+
+        $this->withHeaders($this->staffHeaders($this->admin))
+            ->post('/api/quiz_workbook/preview', ['file' => $upload])
+            ->assertStatus(403);
+
+        $permission = Permission::create(['name' => 'add-questions', 'guard_name' => 'admin-api']);
+        $this->admin->givePermissionTo($permission);
+
+        $response = $this->withHeaders($this->staffHeaders($this->admin))
+            ->post('/api/quiz_workbook/preview', ['file' => $upload]);
+
+        $response->assertStatus(200);
+        $response->assertJsonPath('preview.valid', true);
+        $this->assertDatabaseCount('questions', 0);
+        $this->assertArrayNotHasKey('question', $response->json());
+    }
+
+    public function test_a_numeric_row_without_curriculum_is_reported_and_only_the_legend_is_skipped(): void
+    {
+        $numeric = array_fill(0, 26, null);
+        $numeric[15] = 9;
+        $numeric[18] = 8;
+        $path = $this->workbook([$this->legendRow(), $numeric]);
+
+        $preview = (new QuizWorkbookImport())->preview($path);
+
+        $this->assertFalse($preview['valid']);
+        $this->assertCount(1, $preview['rows']);
+        $this->assertSame(3, $preview['rows'][0]['row']);
+        $this->assertSame('error', $preview['rows'][0]['status']);
+        $this->assertStringContainsString('Subject was not found.', implode(' ', $preview['rows'][0]['errors']));
+
+        $result = (new QuizWorkbookImport())->commit($path, [], $this->admin->id);
+        $this->assertFalse($result['written']);
+        $this->assertDatabaseCount('questions', 0);
+    }
+
+    public function test_answer1_and_answer2_are_required_for_every_question_type_and_answer3_is_optional(): void
+    {
+        $missing = $this->fullRow();
+        $missing[18] = '';
+        $missingPath = $this->workbook([$missing]);
+        $missingPreview = (new QuizWorkbookImport())->preview($missingPath);
+        $this->assertSame('error', $missingPreview['rows'][0]['status']);
+        $this->assertStringContainsString('Answer2 Text is required.', implode(' ', $missingPreview['rows'][0]['errors']));
+        $this->assertFalse((new QuizWorkbookImport())->commit($missingPath, [], $this->admin->id)['written']);
+        $this->assertDatabaseCount('questions', 0);
+
+        foreach (['MCQ', 'TF', 'SHN', 'Matching'] as $type) {
+            $row = $this->fullRow();
+            $row[3] = $type;
+            $row[9] = 'Stem for '.$type;
+            $row[21] = '';
+            $row[24] = '';
+            $preview = (new QuizWorkbookImport())->preview($this->workbook([$row]));
+            $this->assertSame('ok', $preview['rows'][0]['status'], $type.' should accept empty answer3 and answer4');
+        }
+    }
+
+    public function test_unsupported_type_missing_subject_and_long_title_are_row_errors(): void
+    {
+        $badType = $this->fullRow();
+        $badType[3] = 'Essay';
+        $typePreview = (new QuizWorkbookImport())->preview($this->workbook([$badType]));
+        $this->assertSame('error', $typePreview['rows'][0]['status']);
+        $this->assertStringContainsString('Question Type must be MCQ, TF, SHN, or Matching.', implode(' ', $typePreview['rows'][0]['errors']));
+
+        $missingSubject = $this->fullRow();
+        $missingSubject[0] = 'No Such Subject';
+        $subjectPreview = (new QuizWorkbookImport())->preview($this->workbook([$missingSubject]));
+        $this->assertSame('error', $subjectPreview['rows'][0]['status']);
+        $this->assertStringContainsString('Subject was not found.', implode(' ', $subjectPreview['rows'][0]['errors']));
+
+        $longTitle = $this->fullRow();
+        $longTitle[4] = str_repeat('ا', 256);
+        $titlePreview = (new QuizWorkbookImport())->preview($this->workbook([$longTitle]));
+        $this->assertSame('error', $titlePreview['rows'][0]['status']);
+        $this->assertStringContainsString('Title is longer than 255 characters.', implode(' ', $titlePreview['rows'][0]['errors']));
+
+        $this->assertDatabaseCount('questions', 0);
+    }
+
+    public function test_answer_image_reference_is_stored_and_a_missing_reference_fails_the_row(): void
+    {
+        DB::table('file_management')->insert([
+            'name' => 'cat',
+            'type' => 'png',
+            'hashName' => 'cat.png',
+            'path' => 'files_maanger/cat.png',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $row = $this->fullRow();
+        $row[14] = 'cat.png';
+        $path = $this->workbook([$row]);
+
+        $preview = (new QuizWorkbookImport())->preview($path);
+        $this->assertTrue($preview['valid']);
+        $this->assertSame('cat.png', $preview['rows'][0]['fields']['media']['answer1_image']['reference']);
+        $this->assertStringContainsString('/storage/files_maanger/cat.png', $preview['rows'][0]['fields']['media']['answer1_image']['resolved_url']);
+
+        $result = (new QuizWorkbookImport())->commit($path, [], $this->admin->id);
+        $this->assertTrue($result['written']);
+        $this->assertSame('cat.png', QuizWorkbookField::first()->answer1_image);
+        $this->assertDatabaseCount('file_management', 1);
+
+        $missing = $this->fullRow();
+        $missing[9] = 'Different stem';
+        $missing[23] = 'gone.jpg';
+        $missingPreview = (new QuizWorkbookImport())->preview($this->workbook([$missing]));
+        $this->assertSame('error', $missingPreview['rows'][0]['status']);
+        $this->assertStringContainsString('answer4_image', implode(' ', $missingPreview['rows'][0]['errors']));
+    }
+
+    public function test_http_commit_saves_and_unauthenticated_requests_are_rejected(): void
+    {
+        $permission = Permission::create(['name' => 'add-questions', 'guard_name' => 'admin-api']);
+        $this->admin->givePermissionTo($permission);
+        $upload = $this->upload($this->workbook([$this->fullRow()]));
+
+        $this->withHeaders($this->secretOnlyHeaders())
+            ->post('/api/quiz_workbook/preview', ['file' => $upload])
+            ->assertStatus(401);
+        $this->withHeaders($this->secretOnlyHeaders())
+            ->post('/api/quiz_workbook/commit', ['file' => $upload])
+            ->assertStatus(401);
+        $this->assertDatabaseCount('questions', 0);
+
+        $response = $this->withHeaders($this->staffHeaders($this->admin))
+            ->post('/api/quiz_workbook/commit', ['file' => $upload]);
+
+        $response->assertStatus(200);
+        $response->assertJsonPath('import_result.written', true);
+        $this->assertArrayNotHasKey('question', $response->json());
+        $this->assertDatabaseCount('questions', 1);
+        $this->assertDatabaseCount('quiz_workbook_fields', 1);
+    }
+
+    public function test_http_commit_hides_exception_details_and_rolls_back(): void
+    {
+        $permission = Permission::create(['name' => 'add-questions', 'guard_name' => 'admin-api']);
+        $this->admin->givePermissionTo($permission);
+        $logged = false;
+        \Illuminate\Support\Facades\Event::listen(
+            \Illuminate\Log\Events\MessageLogged::class,
+            function ($event) use (&$logged) {
+                $exception = $event->context['exception'] ?? null;
+                if ($exception instanceof \Throwable && $exception->getMessage() === 'forced failure') {
+                    $logged = true;
+                }
+            }
+        );
+        $seen = 0;
+        Questions::creating(function () use (&$seen) {
+            $seen++;
+            if ($seen === 2) {
+                throw new \RuntimeException('forced failure');
+            }
+        });
+
+        $response = $this->withHeaders($this->staffHeaders($this->admin))
+            ->post('/api/quiz_workbook/commit', [
+                'file' => $this->upload($this->workbook([$this->fullRow(), $this->secondRow()])),
+            ]);
+
+        $response->assertStatus(422);
+        $body = (string) $response->getContent();
+        $this->assertStringNotContainsString('forced failure', $body);
+        $this->assertStringNotContainsString('SQLSTATE', $body);
+        $this->assertStringNotContainsString('stack', strtolower($body));
+        $response->assertJsonPath('import_result.written', false);
+        $response->assertJsonPath('import_result.file_errors', []);
+        $this->assertTrue($logged);
+        $this->assertDatabaseCount('questions', 0);
+        $this->assertDatabaseCount('quiz_workbook_fields', 0);
+    }
+
+    public function test_existing_migration_is_checked_and_a_different_table_is_left_unchanged(): void
+    {
+        require_once database_path('migrations/2026_11_18_140000_create_quiz_workbook_fields_table.php');
+        $migration = new \CreateQuizWorkbookFieldsTable();
+        $migration->up();
+        $this->assertTrue(Schema::hasColumn('quiz_workbook_fields', 'import_title'));
+
+        Schema::disableForeignKeyConstraints();
+        Schema::drop('quiz_workbook_fields');
+        Schema::enableForeignKeyConstraints();
+        Schema::create('quiz_workbook_fields', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->string('unexpected')->nullable();
+        });
+
+        try {
+            $migration->up();
+            $this->fail('A different existing table must stop the migration.');
+        } catch (\RuntimeException $exception) {
+            $this->assertStringContainsString('does not match the required structure', $exception->getMessage());
+            $this->assertStringContainsString('without changing the table', $exception->getMessage());
+        }
+
+        $this->assertTrue(Schema::hasColumn('quiz_workbook_fields', 'unexpected'));
+        $this->assertFalse(Schema::hasColumn('quiz_workbook_fields', 'question_id'));
+        $this->assertFalse(Schema::hasColumn('quiz_workbook_fields', 'import_title'));
+    }
+
+    public function test_existing_import_classes_are_not_replaced(): void
+    {
+        $this->assertTrue(class_exists(QuestionsImport::class));
+        $this->assertTrue(class_exists(ActivityQuestionsImport::class));
+        $questionsController = file_get_contents(app_path('Http/Controllers/Api/AdminControllers/QuestionsController.php'));
+        $activityController = file_get_contents(app_path('Http/Controllers/Api/AdminControllers/ActivityLessonsController.php'));
+        $this->assertStringContainsString('QuestionsImport', $questionsController);
+        $this->assertStringNotContainsString('QuizWorkbookImport', $questionsController);
+        $this->assertStringContainsString('ActivityQuestionsImport', $activityController);
+        $this->assertStringNotContainsString('QuizWorkbookImport', $activityController);
+    }
+
+    private function buildPrivateSchema(): void
+    {
+        Schema::dropAllTables();
+
+        Schema::create('users', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->string('name')->nullable();
+            $table->string('email')->nullable();
+            $table->string('phone')->nullable();
+            $table->string('password')->nullable();
+            $table->string('type')->nullable();
+            $table->timestamps();
+        });
+        Schema::create('subjects', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->string('name')->nullable();
+            $table->string('name_ar')->nullable();
+            $table->timestamps();
+        });
+        Schema::create('units', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->string('name')->nullable();
+            $table->string('name_ar')->nullable();
+            $table->unsignedBigInteger('subject_id')->nullable();
+            $table->timestamps();
+        });
+        Schema::create('lessons', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->string('name_en')->nullable();
+            $table->string('name_ar')->nullable();
+            $table->unsignedBigInteger('subject_id')->nullable();
+            $table->unsignedBigInteger('unit_id')->nullable();
+            $table->timestamps();
+        });
+        Schema::create('questions', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->string('type')->nullable();
+            $table->string('code')->nullable();
+            $table->longText('question')->nullable();
+            $table->longText('corAnswer')->nullable();
+            $table->longText('answer1')->nullable();
+            $table->longText('answer2')->nullable();
+            $table->longText('answer3')->nullable();
+            $table->longText('answer4')->nullable();
+            $table->unsignedBigInteger('subject_id')->nullable();
+            $table->unsignedBigInteger('unit_id')->nullable();
+            $table->unsignedBigInteger('lesson_id')->nullable();
+            $table->unsignedBigInteger('created_by')->nullable();
+            $table->timestamps();
+        });
+        Schema::create('quiz_workbook_fields', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->unsignedBigInteger('question_id');
+            $table->string('import_title', 255)->nullable();
+            $table->longText('primary_head_text')->nullable();
+            $table->longText('primary_content_text')->nullable();
+            $table->longText('secondary_head_text')->nullable();
+            $table->string('primary_head_audio', 255)->nullable();
+            $table->string('primary_content_audio', 255)->nullable();
+            $table->string('primary_content_image', 255)->nullable();
+            $table->string('secondary_head_audio', 255)->nullable();
+            $table->string('answer1_audio', 255)->nullable();
+            $table->string('answer1_image', 255)->nullable();
+            $table->string('answer2_audio', 255)->nullable();
+            $table->string('answer2_image', 255)->nullable();
+            $table->string('answer3_audio', 255)->nullable();
+            $table->string('answer3_image', 255)->nullable();
+            $table->string('answer4_audio', 255)->nullable();
+            $table->string('answer4_image', 255)->nullable();
+            $table->timestamps();
+            $table->unique('question_id');
+            $table->foreign('question_id')->references('id')->on('questions')->onDelete('cascade');
+        });
+        Schema::create('file_management', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->string('name')->nullable();
+            $table->string('hashName')->nullable();
+            $table->string('type')->nullable();
+            $table->string('path')->nullable();
+            $table->timestamps();
+        });
+        Schema::create('quizes', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->string('title_en')->nullable();
+            $table->string('title_ar')->nullable();
+            $table->timestamps();
+        });
+        Schema::create('permissions', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->string('name');
+            $table->string('guard_name');
+            $table->timestamps();
+        });
+        Schema::create('roles', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->string('name');
+            $table->string('guard_name');
+            $table->timestamps();
+        });
+        Schema::create('model_has_permissions', function (Blueprint $table) {
+            $table->unsignedBigInteger('permission_id');
+            $table->string('model_type');
+            $table->unsignedBigInteger('model_id');
+            $table->primary(['permission_id', 'model_id', 'model_type']);
+        });
+        Schema::create('model_has_roles', function (Blueprint $table) {
+            $table->unsignedBigInteger('role_id');
+            $table->string('model_type');
+            $table->unsignedBigInteger('model_id');
+            $table->primary(['role_id', 'model_id', 'model_type']);
+        });
+        Schema::create('role_has_permissions', function (Blueprint $table) {
+            $table->unsignedBigInteger('permission_id');
+            $table->unsignedBigInteger('role_id');
+            $table->primary(['permission_id', 'role_id']);
+        });
+    }
+
+    /**
+     * @param  array<int, array<int, mixed>>  $dataRows
+     * @param  array<int, string>|null  $headers
+     */
+    private function workbook(array $dataRows, ?array $headers = null): string
+    {
+        $sheet = (new Spreadsheet())->getActiveSheet();
+        $headers = $headers ?? QuizWorkbookImport::HEADERS;
+        foreach ($headers as $index => $header) {
+            $sheet->setCellValueByColumnAndRow($index + 1, 1, $header);
+        }
+        $excelRow = 2;
+        foreach ($dataRows as $row) {
+            foreach ($row as $index => $value) {
+                if ($value !== null && $value !== '') {
+                    $sheet->setCellValueByColumnAndRow($index + 1, $excelRow, $value);
+                }
+            }
+            $excelRow++;
+        }
+        $path = storage_path('app/temp/quiz_workbook_'.uniqid('', true).'.xlsx');
+        if (! is_dir(dirname($path))) {
+            mkdir(dirname($path), 0755, true);
+        }
+        (new Xlsx($sheet->getParent()))->save($path);
+
+        return $path;
+    }
+
+    /**
+     * @return array<int, mixed>
+     */
+    private function fullRow(): array
+    {
+        $row = array_fill(0, 26, null);
+        $row[0] = 'Arabic';
+        $row[1] = 'Unit 1';
+        $row[2] = 'Lesson 1';
+        $row[3] = 'MCQ';
+        $row[4] = 'Letter quiz';
+        $row[6] = 'See the letter';
+        $row[9] = 'Look at the letter.';
+        $row[12] = '1';
+        $row[15] = 'Cat';
+        $row[18] = 'Dog';
+        $row[21] = 'Bird';
+        $row[24] = 'Fish';
+        $row[25] = 'RF.K.1';
+
+        return $row;
+    }
+
+    /**
+     * @return array<int, mixed>
+     */
+    private function secondRow(): array
+    {
+        $row = $this->fullRow();
+        $row[6] = 'Second head';
+        $row[9] = 'Second question stem';
+        $row[12] = '2';
+        $row[15] = 'A';
+        $row[18] = 'B';
+        $row[21] = 'C';
+        $row[24] = 'D';
+
+        return $row;
+    }
+
+    /**
+     * @return array<int, mixed>
+     */
+    private function legendRow(): array
+    {
+        $row = array_fill(0, 26, null);
+        $row[5] = 1;
+        $row[6] = 2;
+        $row[7] = 3;
+        $row[8] = 4;
+        $row[9] = 5;
+        $row[10] = 6;
+        $row[11] = 7;
+        $row[13] = 1.1;
+        $row[14] = 1.2;
+        $row[15] = 1.3;
+        $row[16] = 2.1;
+        $row[17] = 2.2;
+        $row[18] = 2.3;
+        $row[19] = 3.1;
+        $row[20] = 3.2;
+        $row[21] = 3.3;
+        $row[22] = 4.1;
+        $row[23] = 4.2;
+        $row[24] = 4.3;
+        $row[25] = 8;
+
+        return $row;
+    }
+
+    private function seedQuestion(string $question, string $correct, string $a1, string $a2, string $a3, string $a4): Questions
+    {
+        return Questions::create([
+            'subject_id' => $this->subject->id,
+            'unit_id' => $this->unit->id,
+            'lesson_id' => $this->lesson->id,
+            'type' => 'MCQ',
+            'question' => $question,
+            'corAnswer' => $correct,
+            'answer1' => $a1,
+            'answer2' => $a2,
+            'answer3' => $a3 !== '' ? $a3 : null,
+            'answer4' => $a4 !== '' ? $a4 : null,
+            'created_by' => $this->admin->id,
+        ]);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function secretOnlyHeaders(): array
+    {
+        return [
+            'apiSecret' => (string) env('API_SECRET', 'OASzRok654E0AJ20KH'),
+            'Accept' => 'application/json',
+        ];
+    }
+
+    private function upload(string $path): UploadedFile
+    {
+        return new UploadedFile(
+            $path,
+            'quiz.xlsx',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            null,
+            true
+        );
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function staffHeaders(User $user): array
+    {
+        auth()->setDefaultDriver('admin-api');
+        $token = Auth::guard('admin-api')->login($user);
+
+        return [
+            'Authorization' => 'Bearer '.$token,
+            'Authorizations' => 'Bearer '.$token,
+            'apiSecret' => (string) env('API_SECRET', 'OASzRok654E0AJ20KH'),
+            'Accept' => 'application/json',
+        ];
+    }
+}

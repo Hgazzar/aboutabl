@@ -959,5 +959,30 @@
 
   "downloadTemplate": "Download Blank Excel Template",
   "downloadQuizzesDemo": "Download Quizzes demo (sample)",
-  "uploadQuizzes": "Upload File"
+  "uploadQuizzes": "Upload File",
+
+  "QUIZ_WORKBOOK": {
+    "MENU": "Quiz workbook",
+    "TITLE": "Quiz workbook import",
+    "ADMIN_ONLY": "This import is available to admin users only.",
+    "CHOOSE_FILE": "Choose file",
+    "DOWNLOAD_TEMPLATE": "Download workbook template",
+    "NO_FILE": "No file selected",
+    "PREVIEW": "Preview",
+    "SAVE": "Save",
+    "ROW": "Row",
+    "STATUS": "Status",
+    "ERRORS": "Errors",
+    "DECISION": "Decision",
+    "CHOOSE": "Choose",
+    "SKIP": "Skip",
+    "CREATE_NEW": "Create new",
+    "WRITTEN": "Saved",
+    "CREATED": "Created questions",
+    "SKIPPED_ROWS": "Skipped rows",
+    "REQUEST_FAILED": "The request failed.",
+    "STATUS_ok": "Ready",
+    "STATUS_error": "Error",
+    "STATUS_duplicate": "Duplicate"
+  }
 }
