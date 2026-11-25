@@ -156,15 +156,20 @@ export const listMcqOptions = (
 	for (let i = 1; i <= 8; i += 1) {
 		const key = `answer${i}`;
 		const text = options[key];
-		if (text == null || text === '') {
+		const image = options[`answer${i}_image`];
+		const audio = options[`answer${i}_audio`];
+		const hasText = text != null && text !== '';
+		const hasImage = image != null && image !== '';
+		const hasAudio = audio != null && audio !== '';
+		if (!hasText && !hasImage && !hasAudio) {
 			continue;
 		}
 		items.push({
 			index: i,
 			key,
 			text,
-			image: options[`answer${i}_image`],
-			audio: options[`answer${i}_audio`],
+			image,
+			audio,
 		});
 	}
 	return items;

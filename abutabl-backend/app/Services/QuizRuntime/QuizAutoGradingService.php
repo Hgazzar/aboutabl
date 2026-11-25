@@ -176,7 +176,8 @@ class QuizAutoGradingService
                 ? round(($rawScore / $maxScore) * 100, 2)
                 : 0.0;
 
-            $passed = $this->resolvePassed($attempt, $rawScore);
+            // Manual items are not passed until manual grading recalculates the result.
+            $passed = $pendingManual ? false : $this->resolvePassed($attempt, $rawScore);
 
             $resultAttributes = [
                 'attempt_id' => (int) $attempt->id,
@@ -391,23 +392,25 @@ class QuizAutoGradingService
 
         $out = [];
         foreach ($parts as $part) {
-            $n = $this->optionToIndex($part);
-            if ($n !== null) {
-                $out[] = $n;
+            $text = trim((string) $part);
+            $matchedOption = null;
+            if ($text !== '') {
+                for ($i = 1; $i <= 8; $i++) {
+                    $opt = isset($options['answer'.$i]) ? trim((string) $options['answer'.$i]) : '';
+                    if ($opt !== '' && $opt === $text) {
+                        $matchedOption = $i;
+                        break;
+                    }
+                }
+            }
+            if ($matchedOption !== null) {
+                $out[] = $matchedOption;
                 continue;
             }
 
-            // corAnswer may be the option text itself (authoring / student resource).
-            $text = trim((string) $part);
-            if ($text === '') {
-                continue;
-            }
-            for ($i = 1; $i <= 8; $i++) {
-                $opt = isset($options['answer'.$i]) ? trim((string) $options['answer'.$i]) : '';
-                if ($opt !== '' && $opt === $text) {
-                    $out[] = $i;
-                    break;
-                }
+            $n = $this->optionToIndex($part);
+            if ($n !== null) {
+                $out[] = $n;
             }
         }
 

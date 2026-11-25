@@ -16,10 +16,11 @@ export async function previewQuizWorkbook(file: File): Promise<{
 
 export async function commitQuizWorkbook(
   file: File,
-  decisions: { row: number; decision: WorkbookDecision }[]
+  decisions: { row: number; decision: WorkbookDecision }[],
+  activityLessonId?: number
 ): Promise<{ msg?: string; import_result?: ImportResult }> {
   const data = await postFormRequest(
-    workbookFormData(file, decisions),
+    workbookFormData(file, decisions, activityLessonId),
     "/api/quiz_workbook/commit"
   );
   return data;

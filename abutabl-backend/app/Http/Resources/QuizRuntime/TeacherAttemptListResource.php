@@ -27,6 +27,9 @@ class TeacherAttemptListResource extends JsonResource
             'assign_student_id' => $this->assign_student_id !== null
                 ? (int) $this->assign_student_id
                 : null,
+            'assign_activity_id' => $this->assign_activity_id !== null
+                ? (int) $this->assign_activity_id
+                : null,
             'status' => (string) $this->status,
             'attempt_no' => (int) $this->attempt_no,
             'started_at' => $this->formatTs($this->started_at),

@@ -75,6 +75,7 @@ class StudentQuizRuntimeController extends Controller
                 'student_id' => (int) $student->id,
                 'school_id' => $student->school_id !== null ? (int) $student->school_id : null,
                 'assign_student_id' => $request->input('assign_student_id'),
+                'assign_activity_id' => $request->input('assign_activity_id'),
                 'client_instance_id' => $request->input('client_instance_id'),
                 'start_idempotency_key' => $request->header('Idempotency-Key')
                     ?: $request->header('idempotency-key'),

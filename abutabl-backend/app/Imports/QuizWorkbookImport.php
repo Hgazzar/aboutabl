@@ -2,11 +2,15 @@
 
 namespace App\Imports;
 
+use App\Models\ActivityLesson;
 use App\Models\Lessons;
 use App\Models\Questions;
+use App\Models\Quizes;
+use App\Models\QuizesQuestions;
 use App\Models\QuizWorkbookField;
 use App\Models\Subject;
 use App\Models\Units;
+use App\Services\QuizRuntime\QuizPublishService;
 use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
@@ -46,6 +50,11 @@ class QuizWorkbookImport
         'Standard Code',
     ];
 
+    /** Sample sentence stored in quiz.xlsx under Text Primary Question Head. It is not a question. */
+    public const TEMPLATE_INSTRUCTION_HEAD = 'اُنظر لِلحَرفِ التَّالِي واختَر الصُّورَةَ المُناسِبَةَ.';
+
+    public const EMPTY_WORKBOOK_MESSAGE = 'The workbook contains no questions to import.';
+
     /** Same extension list as Helper::GetAnswerData. */
     private const MEDIA_EXTENSIONS = [
         'jpeg', 'png', 'svg', 'jpeg', 'jpg', 'gif', 'apng', 'webp', 'mp3', 'mp4', '3gb', 'mp4', 'ogg', 'webm', 'pdf',
@@ -72,9 +81,20 @@ class QuizWorkbookImport
      * @param  array<int, string>  $decisions  spreadsheet row => skip|create_new
      * @return array<string, mixed>
      */
-    public function commit(string $path, array $decisions, ?int $userId): array
+    public function commit(string $path, array $decisions, ?int $userId, ?int $activityLessonId = null): array
     {
         $evaluated = $this->evaluate($path);
+        $placement = null;
+        if ($activityLessonId) {
+            $placement = $this->quizPlacement($activityLessonId);
+            if ($placement === null) {
+                return $this->rejected($evaluated, 'The selected lesson is not a quiz activity lesson. Nothing was saved.');
+            }
+        }
+
+        if ($evaluated['rows'] === [] && in_array(self::EMPTY_WORKBOOK_MESSAGE, $evaluated['file_errors'], true)) {
+            return $this->rejected($evaluated, self::EMPTY_WORKBOOK_MESSAGE);
+        }
 
         if (! $evaluated['valid']) {
             return $this->rejected($evaluated, 'The workbook has invalid rows. Nothing was saved.');
@@ -99,13 +119,14 @@ class QuizWorkbookImport
         }
 
         if ($evaluated['rows'] === []) {
-            return $this->rejected($evaluated, 'No question rows were found. Nothing was saved.');
+            return $this->rejected($evaluated, self::EMPTY_WORKBOOK_MESSAGE);
         }
 
         $created = [];
         $skipped = [];
+        $quizId = null;
 
-        DB::transaction(function () use ($evaluated, $decisions, $userId, &$created, &$skipped) {
+        DB::transaction(function () use ($evaluated, $decisions, $userId, $placement, &$created, &$skipped, &$quizId) {
             foreach ($evaluated['rows'] as $row) {
                 if ($row['status'] === 'error') {
                     throw new \RuntimeException('Invalid row reached commit.');
@@ -122,12 +143,54 @@ class QuizWorkbookImport
                     'question_id' => (int) $question->id,
                 ];
             }
+
+            if ($placement !== null && $created !== []) {
+                $quiz = Quizes::create([
+                    'title_en' => $placement['title_en'],
+                    'title_ar' => $placement['title_ar'],
+                    'status' => '1',
+                    'subject_id' => $placement['subject_id'],
+                    'unit_id' => $placement['unit_id'],
+                    'lesson_id' => $placement['lesson_id'],
+                    'created_by' => $userId,
+                    'navigation_method' => 'free',
+                    'questions_per_page' => 1,
+                    'score_method' => 'points',
+                    'score_to_pass' => 0,
+                    'unlimited_attempts' => '0',
+                    'num_attempts' => 1,
+                    'notify_student' => '0',
+                    'notify_about_submission' => '0',
+                    'notify_about_late_submission' => '0',
+                    'reminder_before_due_date' => '0',
+                    'start_date' => null,
+                    'due_date' => null,
+                    'time_limit' => 0,
+                    'type_time' => 'minutes',
+                    'activity_lesson_id' => $placement['activity_lesson_id'],
+                ]);
+                foreach ($created as $item) {
+                    QuizesQuestions::create([
+                        'quize_id' => $quiz->id,
+                        'question_id' => $item['question_id'],
+                        'score' => 1,
+                        'created_by' => $userId,
+                    ]);
+                }
+                $quizId = (int) $quiz->id;
+                $publisher = auth('admin-api')->user();
+                app(QuizPublishService::class)->publish([
+                    'quiz_id' => $quizId,
+                    'published_by' => $publisher !== null ? (int) $publisher->id : $userId,
+                ]);
+            }
         });
 
         return [
             'written' => true,
             'created' => $created,
             'skipped' => $skipped,
+            'quiz_id' => $quizId,
             'rows' => $evaluated['rows'],
             'file_errors' => [],
         ];
@@ -176,7 +239,7 @@ class QuizWorkbookImport
         if ($rows === []) {
             return [
                 'valid' => false,
-                'file_errors' => ['No question rows were found.'],
+                'file_errors' => [self::EMPTY_WORKBOOK_MESSAGE],
                 'rows' => [],
             ];
         }
@@ -243,14 +306,15 @@ class QuizWorkbookImport
 
     /**
      * Blank rows carry no record. The legend row is the workbook's fixed
-     * number map (1–7, 1.1–4.3, 8) with subject, unit, lesson, type, title,
-     * and Correct Answer empty. Any other row is validated and reported.
+     * number map (1–7, 1.1–4.3, 8). The template instruction is the single
+     * sample sentence in Text Primary Question Head with every other cell
+     * empty. Any other row is validated and reported.
      *
      * @param  array<int, mixed>  $cells
      */
     private function isSkippableRow(array $cells): bool
     {
-        return $this->isBlankRow($cells) || $this->isLegendRow($cells);
+        return $this->isBlankRow($cells) || $this->isLegendRow($cells) || $this->isInstructionRow($cells);
     }
 
     /**
@@ -292,6 +356,31 @@ class QuizWorkbookImport
                 continue;
             }
             if (! $this->matchesLegendNumber($actual, (float) $expected[$index])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * The shipped quiz.xlsx sample puts one Arabic instruction in Text Primary
+     * Question Head and leaves the rest of that row empty. A question that
+     * uses the same sentence together with any other cell is not this row.
+     *
+     * @param  array<int, mixed>  $cells
+     */
+    private function isInstructionRow(array $cells): bool
+    {
+        if ($this->cellString($cells[6] ?? null) !== self::TEMPLATE_INSTRUCTION_HEAD) {
+            return false;
+        }
+
+        foreach ($cells as $index => $cell) {
+            if ($index === 6) {
+                continue;
+            }
+            if ($this->cellString($cell) !== '') {
                 return false;
             }
         }
@@ -367,6 +456,11 @@ class QuizWorkbookImport
         }
         if ($corAnswer === '') {
             $errors[] = 'Correct Answer is required.';
+        } elseif ($type !== null) {
+            $formatError = $this->correctAnswerFormatError($type, $corAnswer, $answer1, $answer2, $answer3, $answer4);
+            if ($formatError !== null) {
+                $errors[] = $formatError;
+            }
         }
         // QuestionsController::store and update require answer1 and answer2 for every type.
         if ($answer1 === '') {
@@ -639,6 +733,29 @@ class QuizWorkbookImport
      * @param  array<string, mixed>  $fields
      * @return array<string, mixed>
      */
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function quizPlacement(int $activityLessonId): ?array
+    {
+        $lesson = ActivityLesson::with('SubjectActivity')->find($activityLessonId);
+        $activity = $lesson ? $lesson->SubjectActivity : null;
+        if (! $lesson || ! $activity || strtolower((string) $activity->type) !== 'quizzes') {
+            return null;
+        }
+
+        $title = trim((string) ($lesson->name_en ?: $lesson->name_ar));
+
+        return [
+            'activity_lesson_id' => (int) $lesson->id,
+            'subject_id' => $activity->subject_id,
+            'unit_id' => $activity->unit_id,
+            'lesson_id' => $lesson->lesson_id,
+            'title_en' => $lesson->name_en ?: $title,
+            'title_ar' => $lesson->name_ar ?: $title,
+        ];
+    }
+
     private function sideAttributes(int $questionId, array $fields): array
     {
         $row = [
@@ -665,6 +782,7 @@ class QuizWorkbookImport
             'written' => false,
             'created' => [],
             'skipped' => [],
+            'quiz_id' => null,
             'rows' => $evaluated['rows'],
             'file_errors' => $evaluated['file_errors'],
             'message' => $message,
@@ -674,6 +792,71 @@ class QuizWorkbookImport
     /**
      * @param  mixed  $value
      */
+    /**
+     * Reject a Correct Answer the runtime grader would not honor for this type.
+     * The stored cell text is left unchanged.
+     *
+     * @return string|null
+     */
+    private function correctAnswerFormatError(
+        string $type,
+        string $corAnswer,
+        string $answer1,
+        string $answer2,
+        string $answer3,
+        string $answer4
+    ): ?string {
+        if ($type === 'SHN') {
+            return null;
+        }
+
+        if ($type === 'TF') {
+            $normalized = strtolower($corAnswer);
+            if (! in_array($normalized, ['1', '0', 'true', 'false', 'yes', 'no'], true)) {
+                return 'Correct Answer for TF must be 1, 0, true, false, yes, or no.';
+            }
+
+            return null;
+        }
+
+        if ($type === 'MCQ') {
+            foreach ([$answer1, $answer2, $answer3, $answer4] as $text) {
+                if ($text !== '' && $text === $corAnswer) {
+                    return null;
+                }
+            }
+            if (preg_match('/^[1-4]$/', $corAnswer) === 1) {
+                return null;
+            }
+
+            return 'Correct Answer for MCQ must be a choice number from 1 to 4 or the exact text of one answer.';
+        }
+
+        if ($type === 'Matching') {
+            $parts = preg_split('/\s*,\s*/', $corAnswer, -1, PREG_SPLIT_NO_EMPTY);
+            if (! is_array($parts) || $parts === []) {
+                return 'Correct Answer for Matching must be pairs like 1|2,2|1.';
+            }
+
+            $lefts = [];
+            $rights = [];
+            foreach ($parts as $part) {
+                if (preg_match('/^([1-4])\|([1-4])$/', trim($part), $match) !== 1) {
+                    return 'Correct Answer for Matching must be pairs like 1|2,2|1.';
+                }
+                $left = $match[1];
+                $right = $match[2];
+                if (isset($lefts[$left]) || isset($rights[$right])) {
+                    return 'Correct Answer for Matching cannot repeat either side of a pair.';
+                }
+                $lefts[$left] = true;
+                $rights[$right] = true;
+            }
+        }
+
+        return null;
+    }
+
     private function cellString($value): string
     {
         if ($value === null) {

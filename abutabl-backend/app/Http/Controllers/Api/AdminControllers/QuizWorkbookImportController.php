@@ -49,8 +49,18 @@ class QuizWorkbookImportController extends Controller
             return $decisions;
         }
 
+        $lesson = $this->activityLessonId($request);
+        if ($lesson instanceof \Illuminate\Http\JsonResponse) {
+            return $lesson;
+        }
+
         try {
-            $result = (new QuizWorkbookImport())->commit($file, $decisions, auth()->id() ? (int) auth()->id() : null);
+            $result = (new QuizWorkbookImport())->commit(
+                $file,
+                $decisions,
+                auth()->id() ? (int) auth()->id() : null,
+                $lesson
+            );
         } catch (\Throwable $exception) {
             Log::error('Quiz workbook import rolled back.', [
                 'exception' => $exception,
@@ -66,6 +76,7 @@ class QuizWorkbookImportController extends Controller
                     'skipped' => [],
                     'rows' => [],
                     'file_errors' => [],
+                    'quiz_id' => null,
                 ],
             ], 422);
         }
@@ -84,6 +95,7 @@ class QuizWorkbookImportController extends Controller
                 'skipped' => $result['skipped'],
                 'rows' => $result['rows'],
                 'file_errors' => $result['file_errors'],
+                'quiz_id' => $result['quiz_id'] ?? null,
             ],
         ], $written ? 200 : 422);
     }
@@ -131,5 +143,26 @@ class QuizWorkbookImportController extends Controller
         }
 
         return $mapped;
+    }
+
+    /**
+     * @return int|null|\Illuminate\Http\JsonResponse
+     */
+    private function activityLessonId(Request $request)
+    {
+        if (! $request->filled('activity_lesson_id')) {
+            return null;
+        }
+
+        $validator = Validator::make($request->all(), [
+            'activity_lesson_id' => 'required|integer|exists:activity_lessons,id',
+        ]);
+        if ($validator->fails()) {
+            $code = $this->returnCodeAccordingToInput($validator);
+
+            return $this->returnValidationError($code, $validator);
+        }
+
+        return (int) $request->input('activity_lesson_id');
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Services\QuizRuntime;
 
 use App\Models\Questions;
+use App\Models\QuizWorkbookField;
 use App\Models\Quizes;
 use App\Models\QuizesQuestions;
 use App\Models\QuizRuntime\QuizSnapshot;
@@ -11,6 +12,7 @@ use App\Repositories\QuizRuntime\SnapshotRepository;
 use App\Repositories\QuizRuntime\VersionRepository;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use InvalidArgumentException;
 
 /**
@@ -70,9 +72,10 @@ class QuizPublishService
             ->whereIn('id', $questionIds)
             ->get()
             ->keyBy('id');
+        $workbookFields = $this->workbookFieldsByQuestionId($questionIds);
 
         $settingsFrozen = $this->buildSettingsFrozen($quiz);
-        $payload = $this->buildSnapshotPayload($quiz, $pivotRows, $questionsById);
+        $payload = $this->buildSnapshotPayload($quiz, $pivotRows, $questionsById, $workbookFields);
         $contentHash = $this->hashFreezeMaterial($settingsFrozen, $payload);
 
         // Skip creating a new Version/Snapshot when frozen material is unchanged.
@@ -226,7 +229,7 @@ class QuizPublishService
      * @param  \Illuminate\Support\Collection  $questionsById
      * @return array{quiz_id: int, questions: array<int, array<string, mixed>>}
      */
-    private function buildSnapshotPayload(Quizes $quiz, $pivotRows, $questionsById): array
+    private function buildSnapshotPayload(Quizes $quiz, $pivotRows, $questionsById, $workbookFields): array
     {
         $questions = [];
         $index = 0;
@@ -247,7 +250,7 @@ class QuizPublishService
             $qa = $question->getAttributes();
             $pa = $pivot->getAttributes();
 
-            $questions[] = [
+            $frozen = [
                 'snapshot_question_key' => $snapshotQuestionKey,
                 'position' => $index,
                 'question_id' => $questionId,
@@ -276,12 +279,128 @@ class QuizPublishService
                     'school_id' => isset($qa['school_id']) ? (int) $qa['school_id'] : null,
                 ],
             ];
+            $field = $workbookFields->get($questionId);
+            if ($field !== null) {
+                $frozen = $this->mergeWorkbookMedia($frozen, $field);
+            }
+            $questions[] = $frozen;
         }
 
         return [
             'quiz_id' => (int) $quiz->id,
             'questions' => $questions,
         ];
+    }
+
+    /**
+     * @param  array<int, int>  $questionIds
+     * @return \Illuminate\Support\Collection<int, QuizWorkbookField>
+     */
+    private function workbookFieldsByQuestionId(array $questionIds)
+    {
+        if ($questionIds === [] || ! Schema::hasTable('quiz_workbook_fields')) {
+            return collect();
+        }
+
+        return QuizWorkbookField::query()
+            ->whereIn('question_id', $questionIds)
+            ->get()
+            ->keyBy(function ($field) {
+                return (int) $field->question_id;
+            });
+    }
+
+    /**
+     * Copy already-validated workbook file references into the stem and option
+     * keys the student player reads. A missing file is omitted.
+     *
+     * @param  array<string, mixed>  $question
+     * @return array<string, mixed>
+     */
+    private function mergeWorkbookMedia(array $question, QuizWorkbookField $field): array
+    {
+        $options = isset($question['options']) && is_array($question['options'])
+            ? $question['options']
+            : [];
+        foreach ([1, 2, 3, 4] as $index) {
+            foreach (['image', 'audio'] as $kind) {
+                $url = $this->workbookMediaUrl($field->{'answer'.$index.'_'.$kind} ?? null);
+                if ($url !== null) {
+                    $options['answer'.$index.'_'.$kind] = $url;
+                }
+            }
+        }
+        $question['options'] = $options;
+
+        $lines = [];
+        $this->pushWorkbookFile($lines, 'audio', $field->primary_head_audio ?? null);
+        $this->pushWorkbookFile($lines, 'audio', $field->primary_content_audio ?? null);
+        $this->pushWorkbookFile($lines, 'image', $field->primary_content_image ?? null);
+        if ($lines !== []) {
+            $lines[] = [
+                'type' => 'text',
+                'text' => (string) ($question['stem'] ?? ''),
+            ];
+        }
+        $beforeSecondary = count($lines);
+        $this->pushWorkbookFile($lines, 'audio', $field->secondary_head_audio ?? null);
+        if (count($lines) > $beforeSecondary && $beforeSecondary === 0) {
+            array_unshift($lines, [
+                'type' => 'text',
+                'text' => (string) ($question['stem'] ?? ''),
+            ]);
+        }
+        if ($lines !== []) {
+            $question['stem'] = $lines;
+        }
+
+        return $question;
+    }
+
+    /**
+     * @param  array<int, array<string, string>>  $lines
+     * @param  mixed  $reference
+     */
+    private function pushWorkbookFile(array &$lines, string $ext, $reference): void
+    {
+        $url = $this->workbookMediaUrl($reference);
+        if ($url === null) {
+            return;
+        }
+
+        $lines[] = [
+            'type' => 'file',
+            'ext' => $ext,
+            'text' => $url,
+        ];
+    }
+
+    /**
+     * Same name/type lookup the workbook importer uses. No file, no URL.
+     *
+     * @param  mixed  $reference
+     */
+    private function workbookMediaUrl($reference): ?string
+    {
+        $reference = trim((string) $reference);
+        if ($reference === '' || ! str_contains($reference, '.') || ! Schema::hasTable('file_management')) {
+            return null;
+        }
+
+        $parts = explode('.', $reference);
+        $name = $parts[0];
+        $type = $parts[1] ?? '';
+        if ($name === '' || $type === '') {
+            return null;
+        }
+
+        $media = DB::table('file_management')->where('name', $name)->where('type', $type)->first();
+        $path = $media !== null ? trim((string) ($media->path ?? '')) : '';
+        if ($path === '') {
+            return null;
+        }
+
+        return url('/storage').'/'.$path;
     }
 
     /**

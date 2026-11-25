@@ -30,7 +30,15 @@ import {
   decisionsPayload,
 } from "./quizWorkbookImport";
 
-export default function QuizWorkbookImportPage() {
+type QuizWorkbookImportPageProps = {
+  activityLessonId?: number;
+  onCommitted?: () => void;
+};
+
+export default function QuizWorkbookImportPage({
+  activityLessonId,
+  onCommitted,
+}: QuizWorkbookImportPageProps = {}) {
   const { t, i18n } = useTranslation();
   const user = useSelector((state: RootState) => state.login?.user);
   const [file, setFile] = useState<File | null>(null);
@@ -43,6 +51,7 @@ export default function QuizWorkbookImportPage() {
   const [requestError, setRequestError] = useState("");
 
   const admin = isAdminUser(user as Record<string, unknown> | null | undefined);
+  const embedded = activityLessonId != null;
   const saveEnabled = Boolean(file) && canCommit(preview, decisions) && busy === null;
 
   const resetForFile = (next: File | null) => {
@@ -79,8 +88,15 @@ export default function QuizWorkbookImportPage() {
     setBusy("commit");
     setRequestError("");
     try {
-      const data = await commitQuizWorkbook(file, decisionsPayload(preview.rows, decisions));
+      const data = await commitQuizWorkbook(
+        file,
+        decisionsPayload(preview.rows, decisions),
+        activityLessonId
+      );
       setResult(data.import_result ?? null);
+      if (data.import_result?.written) {
+        onCommitted?.();
+      }
       setResultMessage(data.msg ?? "");
     } catch (error: any) {
       const body = error instanceof ApiResponseError ? error.body : null;
@@ -97,16 +113,24 @@ export default function QuizWorkbookImportPage() {
   };
 
   return (
-    <Box dir={i18n.dir()} sx={{ p: 3 }}>
-      <Typography variant="h5" sx={{ mb: 2 }}>
+    <Box dir={i18n.dir()} sx={embedded ? { px: 2, pt: 0, pb: 2, width: "100%" } : { p: 3 }}>
+      <Typography variant={embedded ? "subtitle1" : "h5"} sx={{ mb: 1, fontWeight: 600 }}>
         {t("QUIZ_WORKBOOK.TITLE")}
       </Typography>
       {!admin ? (
         <Alert severity="warning">{t("QUIZ_WORKBOOK.ADMIN_ONLY")}</Alert>
       ) : (
-        <Stack spacing={2}>
-          <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+        <Stack spacing={1.5} sx={{ width: "100%" }}>
+          <Stack
+            direction="row"
+            spacing={1}
+            useFlexGap
+            flexWrap="wrap"
+            alignItems="center"
+            sx={{ width: "100%" }}
+          >
             <Button
+              size="small"
               variant="outlined"
               data-testid="quiz-workbook-template"
               onClick={() =>
@@ -118,7 +142,7 @@ export default function QuizWorkbookImportPage() {
             >
               {t("QUIZ_WORKBOOK.DOWNLOAD_TEMPLATE")}
             </Button>
-            <Button variant="outlined" component="label">
+            <Button size="small" variant="outlined" component="label">
               {t("QUIZ_WORKBOOK.CHOOSE_FILE")}
               <input
                 hidden
@@ -130,8 +154,11 @@ export default function QuizWorkbookImportPage() {
                 }}
               />
             </Button>
-            <Typography>{file?.name || t("QUIZ_WORKBOOK.NO_FILE")}</Typography>
+            <Typography variant="body2" sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+              {file?.name || t("QUIZ_WORKBOOK.NO_FILE")}
+            </Typography>
             <Button
+              size="small"
               variant="contained"
               disabled={!file || busy !== null}
               onClick={onPreview}
@@ -140,6 +167,7 @@ export default function QuizWorkbookImportPage() {
               {t("QUIZ_WORKBOOK.PREVIEW")}
             </Button>
             <Button
+              size="small"
               variant="contained"
               color="success"
               disabled={!saveEnabled}
@@ -158,8 +186,8 @@ export default function QuizWorkbookImportPage() {
             </Alert>
           ))}
 
-          {preview?.rows ? (
-            <Box sx={{ overflowX: "auto" }}>
+          {preview?.rows?.length ? (
+            <Box sx={{ overflow: "auto", maxHeight: embedded ? 280 : undefined, width: "100%" }}>
               <Table size="small">
                 <TableHead>
                   <TableRow>

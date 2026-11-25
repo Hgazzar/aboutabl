@@ -952,6 +952,48 @@ export const editContentInLesson: any = createAsyncThunk(
   }
 );
 
+export const changeQuizStatus: any = createAsyncThunk(
+  "changeQuizStatus",
+  async (id: number) => {
+    try {
+      const result = await postRequest({}, `/api/quizes/status/${id}`);
+      if (!result.status) {
+        throw new Error(typeof result.msg === "string" ? result.msg : "Could not change quiz status.");
+      }
+      notify("Quiz status updated", "success");
+      return result;
+    } catch (error: any) {
+      const message = typeof error?.message === "string" && error.message !== "[object Object]"
+        ? error.message
+        : "Could not change quiz status.";
+      notify(message, "error");
+      throw new Error(message);
+    }
+  }
+);
+
+export const updateQuizListFields: any = createAsyncThunk(
+  "updateQuizListFields",
+  async (body: { id: number; score_to_pass?: string; code?: string }) => {
+    try {
+      const payload: Record<string, string> = {};
+      if (body.score_to_pass !== undefined) payload.score_to_pass = body.score_to_pass;
+      if (body.code !== undefined) payload.code = body.code;
+      const result = await postRequest(payload, `/api/quizes/list_fields/${body.id}`);
+      if (!result.status) {
+        throw new Error(typeof result.msg === "string" ? result.msg : "Could not update the quiz.");
+      }
+      return result;
+    } catch (error: any) {
+      const message = typeof error?.message === "string" && error.message !== "[object Object]"
+        ? error.message
+        : "Could not update the quiz.";
+      notify(message, "error");
+      throw new Error(message);
+    }
+  }
+);
+
 export const addExternalLinkToContent: any = createAsyncThunk(
   "addExternalLinkToContent",
   async (body: any) => {

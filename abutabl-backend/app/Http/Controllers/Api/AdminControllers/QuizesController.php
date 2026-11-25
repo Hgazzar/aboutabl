@@ -40,9 +40,9 @@ class QuizesController extends Controller
     {
         auth()->setDefaultDriver('admin-api');
         $this->middleware("can:view-quizes")->only("index","show");
-        $this->middleware('quizLibraryAdminOnly')->only("store","create","update","edit","assignQuestion","status","destroy");
+        $this->middleware('quizLibraryAdminOnly')->only("store","create","update","edit","assignQuestion","status","listFields","destroy");
         $this->middleware("can:add-quizes")->only("store","create");
-        $this->middleware("can:edit-quizes")->only("update","edit","assignQuestion");
+        $this->middleware("can:edit-quizes")->only("update","edit","assignQuestion","listFields");
         $this->middleware("can:activation-quizes")->only("status");
         $this->middleware("can:delete-quizes")->only("destroy");
         $this->publishService = $publishService;
@@ -259,6 +259,80 @@ class QuizesController extends Controller
             DB::rollBack();
             return $this->returnError($ex->getCode(), $ex->getMessage());
         }
+    }
+
+    public function status($id)
+    {
+        $quiz = DB::table('quizes')->where('id', $id)->first();
+        if (! $quiz) {
+            return $this->returnError('E001', __('api.not_exists_item_for_this_data'), 400);
+        }
+
+        $next = (string) $quiz->status === '0' ? '1' : '0';
+        DB::table('quizes')->where('id', $id)->update([
+            'status' => $next,
+            'updated_at' => now(),
+        ]);
+
+        return $this->returnSuccessMessage('Quiz status updated.', '200', 200);
+    }
+
+    public function listFields($id, Request $request)
+    {
+        $quiz = DB::table('quizes')->where('id', $id)->first();
+        if (! $quiz) {
+            return $this->returnError('E001', __('api.not_exists_item_for_this_data'), 400);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'score_to_pass' => 'sometimes|nullable|numeric|min:0',
+            'code' => 'sometimes|nullable|string|max:255',
+        ]);
+        if ($validator->fails()) {
+            $code = $this->returnCodeAccordingToInput($validator);
+
+            return $this->returnValidationError($code, $validator);
+        }
+
+        $update = ['updated_at' => now()];
+        $scoreChanged = false;
+        if ($request->exists('score_to_pass')) {
+            $score = $request->input('score_to_pass');
+            $update['score_to_pass'] = $score === '' || $score === null ? 0 : $score;
+            $scoreChanged = ! $this->samePassScore($quiz->score_to_pass, $update['score_to_pass']);
+        }
+        if ($request->exists('code')) {
+            $quizCode = trim((string) $request->input('code'));
+            $update['code'] = $quizCode === '' ? null : $quizCode;
+        }
+
+        try {
+            DB::transaction(function () use ($id, $update, $scoreChanged) {
+                DB::table('quizes')->where('id', $id)->update($update);
+                if ($scoreChanged) {
+                    $this->publishQuizRuntime((int) $id);
+                }
+            });
+        } catch (\Throwable $ex) {
+            return $this->returnError($ex->getCode() ?: 'E001', $ex->getMessage());
+        }
+
+        $saved = DB::table('quizes')->where('id', $id)->first(['id', 'score_to_pass', 'code']);
+
+        return $this->returnData('quiz', $saved, 'Quiz fields updated.', 200);
+    }
+
+    /**
+     * @param  mixed  $current
+     * @param  mixed  $next
+     */
+    private function samePassScore($current, $next): bool
+    {
+        if ($current === null || $current === '') {
+            return false;
+        }
+
+        return (float) $current === (float) $next;
     }
 
 

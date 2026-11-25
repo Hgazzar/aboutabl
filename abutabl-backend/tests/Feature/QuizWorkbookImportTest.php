@@ -7,10 +7,16 @@ use App\Imports\QuestionsImport;
 use App\Imports\QuizWorkbookImport;
 use App\Models\Lessons;
 use App\Models\Questions;
+use App\Models\Quizes;
+use App\Models\QuizesQuestions;
+use App\Models\QuizRuntime\QuizSnapshot;
+use App\Models\QuizRuntime\QuizVersion;
 use App\Models\QuizWorkbookField;
 use App\Models\Subject;
 use App\Models\Units;
 use App\Models\User;
+use App\Services\Assignment\LearningActivitiesBrowserService;
+use App\Services\QuizRuntime\QuizPublishService;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
@@ -113,6 +119,340 @@ class QuizWorkbookImportTest extends TestCase
         $this->assertSame('See the letter', $side->primary_head_text);
         $this->assertDatabaseCount('quizes', 0);
         $this->assertFalse(Schema::hasColumn('questions', 'import_title'));
+    }
+
+    public function test_commit_for_a_quiz_lesson_links_the_new_questions_in_one_transaction(): void
+    {
+        $activityId = DB::table('subject_activities')->insertGetId([
+            'type' => 'Quizzes',
+            'subject_id' => $this->subject->id,
+            'unit_id' => $this->unit->id,
+        ]);
+        $lessonActivityId = DB::table('activity_lessons')->insertGetId([
+            'name_en' => 'Demo Quiz Lesson',
+            'name_ar' => 'درس اختبار',
+            'subject_activity_id' => $activityId,
+            'lesson_id' => $this->lesson->id,
+        ]);
+        $path = $this->workbook([$this->fullRow()]);
+        $dispatcher = Quizes::getEventDispatcher();
+        Quizes::unsetEventDispatcher();
+        try {
+            $result = (new QuizWorkbookImport())->commit($path, [], $this->admin->id, $lessonActivityId);
+        } finally {
+            Quizes::setEventDispatcher($dispatcher);
+        }
+
+        $this->assertTrue($result['written']);
+        $quiz = Quizes::find($result['quiz_id']);
+        $this->assertSame($lessonActivityId, (int) $quiz->activity_lesson_id);
+        $this->assertSame($this->subject->id, (int) $quiz->subject_id);
+        $this->assertSame('Demo Quiz Lesson', $quiz->title_en);
+        $questionId = $result['created'][0]['question_id'];
+        $this->assertSame($this->lesson->id, (int) Questions::find($questionId)->lesson_id);
+        $this->assertSame(1, QuizesQuestions::where('quize_id', $quiz->id)->where('question_id', $questionId)->count());
+        $this->assertSame(1, QuizWorkbookField::where('question_id', $questionId)->count());
+
+        $rejected = (new QuizWorkbookImport())->commit($path, [], $this->admin->id, 999);
+        $this->assertFalse($rejected['written']);
+        $this->assertDatabaseCount('quizes', 1);
+    }
+
+    public function test_commit_still_saves_when_the_standards_link_table_is_missing(): void
+    {
+        $activityId = DB::table('subject_activities')->insertGetId([
+            'type' => 'quizzes',
+            'subject_id' => $this->subject->id,
+            'unit_id' => $this->unit->id,
+        ]);
+        $lessonActivityId = DB::table('activity_lessons')->insertGetId([
+            'name_en' => 'First',
+            'subject_activity_id' => $activityId,
+            'lesson_id' => $this->lesson->id,
+        ]);
+        $this->assertFalse(Schema::hasTable('content_standard'));
+
+        $result = (new QuizWorkbookImport())->commit($this->workbook([$this->fullRow()]), [], $this->admin->id, $lessonActivityId);
+
+        $this->assertTrue($result['written']);
+        $this->assertDatabaseCount('questions', 1);
+        $this->assertDatabaseCount('quiz_workbook_fields', 1);
+        $this->assertDatabaseCount('quizes', 1);
+        $this->assertDatabaseCount('quizes_questions', 1);
+        $this->assertDatabaseCount('quiz_versions', 1);
+        $this->assertDatabaseCount('quiz_snapshots', 1);
+    }
+
+    public function test_commit_publishes_a_runtime_version_without_a_default_close_date(): void
+    {
+        $lessonActivityId = $this->quizActivityLesson('Ready Quiz');
+        DB::table('file_management')->insert([
+            'name' => 'bird',
+            'type' => 'mp3',
+            'hashName' => 'abc.mp3',
+            'path' => 'files_maanger/abc.mp3',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $row = $this->fullRow();
+        $row[5] = 'bird.mp3';
+
+        $result = (new QuizWorkbookImport())->commit($this->workbook([$row]), [], $this->admin->id, $lessonActivityId);
+
+        $this->assertTrue($result['written']);
+        $quiz = Quizes::find($result['quiz_id']);
+        $this->assertNull($quiz->getAttributes()['start_date']);
+        $this->assertNull($quiz->getAttributes()['due_date']);
+        $this->assertSame(0.0, (float) $quiz->getAttributes()['score_to_pass']);
+        $this->assertSame('1', (string) $quiz->getAttributes()['status']);
+
+        $version = QuizVersion::where('quiz_id', $quiz->id)->first();
+        $this->assertNotNull($version);
+        $this->assertSame(QuizVersion::STATUS_PUBLISHED, $version->status);
+        $this->assertSame($this->admin->id, (int) $version->published_by);
+        $this->assertNull($version->settings_frozen['start_date'] ?? null);
+        $this->assertNull($version->settings_frozen['due_date'] ?? null);
+
+        $snapshot = QuizSnapshot::where('quiz_version_id', $version->id)->first();
+        $this->assertNotNull($snapshot);
+        $this->assertSame(1, (int) $snapshot->item_count);
+        $questionId = $result['created'][0]['question_id'];
+        $this->assertSame($questionId, (int) $snapshot->payload['questions'][0]['question_id']);
+        $stem = $snapshot->payload['questions'][0]['stem'];
+        $this->assertSame('file', $stem[0]['type']);
+        $this->assertSame('audio', $stem[0]['ext']);
+        $this->assertStringContainsString('/storage/files_maanger/abc.mp3', $stem[0]['text']);
+        $this->assertSame(['type' => 'text', 'text' => 'Look at the letter.'], $stem[1]);
+        $this->assertArrayNotHasKey('primary_head_audio', $snapshot->payload['questions'][0]);
+        $this->assertSame('bird.mp3', QuizWorkbookField::where('question_id', $questionId)->value('primary_head_audio'));
+
+        $listed = (new LearningActivitiesBrowserService())->activities(
+            (int) $this->subject->id,
+            'quizzes',
+            [(int) $this->subject->id]
+        );
+        $this->assertSame((int) $quiz->id, (int) $listed[0]['activity_id']);
+        $resolved = (new LearningActivitiesBrowserService())->resolveForStore(
+            [[
+                'activity_type' => 'quiz',
+                'activity_id' => (int) $quiz->id,
+            ]],
+            [(int) $this->subject->id],
+            (int) $this->subject->id
+        );
+        $this->assertSame((int) $quiz->id, (int) $resolved[0]['activity_id']);
+        $this->assertSame('quizes', $resolved[0]['source_table']);
+    }
+
+    public function test_snapshot_includes_resolved_media_and_skips_a_missing_file(): void
+    {
+        DB::table('file_management')->insert([
+            [
+                'name' => 'bird',
+                'type' => 'mp3',
+                'hashName' => 'bird.mp3',
+                'path' => 'files_maanger/bird.mp3',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'name' => 'cat',
+                'type' => 'png',
+                'hashName' => 'cat.png',
+                'path' => 'files_maanger/cat.png',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'name' => 'dog',
+                'type' => 'mp3',
+                'hashName' => 'dog.mp3',
+                'path' => 'files_maanger/dog.mp3',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+        $both = $this->fullRow();
+        $both[5] = 'bird.mp3';
+        $both[8] = 'cat.png';
+        $both[9] = 'Question with image and audio';
+        $both[13] = 'dog.mp3';
+        $both[14] = 'cat.png';
+        $imageOnly = $this->fullRow();
+        $imageOnly[8] = 'cat.png';
+        $imageOnly[9] = 'Question with image only';
+        $audioOnly = $this->fullRow();
+        $audioOnly[7] = 'bird.mp3';
+        $audioOnly[9] = 'Question with audio only';
+        $plain = $this->fullRow();
+        $plain[6] = 'Plain head';
+        $plain[9] = 'Question with no media';
+        $lessonActivityId = $this->quizActivityLesson('Media Quiz');
+
+        $result = (new QuizWorkbookImport())->commit(
+            $this->workbook([$both, $imageOnly, $audioOnly, $plain]),
+            [],
+            $this->admin->id,
+            $lessonActivityId
+        );
+
+        $this->assertTrue($result['written']);
+        $snapshot = QuizSnapshot::where('quiz_id', $result['quiz_id'])->first();
+        $byStem = [];
+        foreach ($snapshot->payload['questions'] as $question) {
+            $stem = $question['stem'];
+            $text = is_array($stem)
+                ? (string) (collect($stem)->firstWhere('type', 'text')['text'] ?? '')
+                : (string) $stem;
+            $byStem[$text] = $question;
+        }
+
+        $withBoth = $byStem['Question with image and audio'];
+        $this->assertSame('audio', $withBoth['stem'][0]['ext']);
+        $this->assertStringContainsString('/storage/files_maanger/bird.mp3', $withBoth['stem'][0]['text']);
+        $this->assertSame('image', $withBoth['stem'][1]['ext']);
+        $this->assertStringContainsString('/storage/files_maanger/cat.png', $withBoth['stem'][1]['text']);
+        $this->assertStringContainsString('/storage/files_maanger/dog.mp3', $withBoth['options']['answer1_audio']);
+        $this->assertStringContainsString('/storage/files_maanger/cat.png', $withBoth['options']['answer1_image']);
+
+        $withImage = $byStem['Question with image only'];
+        $this->assertSame('image', $withImage['stem'][0]['ext']);
+        $this->assertArrayNotHasKey('answer1_image', $withImage['options']);
+
+        $withAudio = $byStem['Question with audio only'];
+        $this->assertSame('audio', $withAudio['stem'][0]['ext']);
+        $this->assertSame('text', $withAudio['stem'][1]['type']);
+
+        $this->assertSame('Question with no media', $byStem['Question with no media']['stem']);
+
+        $plainId = (int) collect($result['created'])->last()['question_id'];
+        QuizWorkbookField::where('question_id', $plainId)->update([
+            'primary_content_image' => 'missing.png',
+        ]);
+        app(\App\Services\QuizRuntime\QuizPublishService::class)->publish([
+            'quiz_id' => (int) $result['quiz_id'],
+            'published_by' => $this->admin->id,
+        ]);
+        $this->assertSame(1, QuizSnapshot::where('quiz_id', $result['quiz_id'])->count());
+        $again = QuizSnapshot::where('quiz_id', $result['quiz_id'])->first();
+        $this->assertStringNotContainsString('missing.png', json_encode($again->payload));
+    }
+
+    public function test_publish_failure_rolls_back_the_quiz_questions_and_runtime_rows(): void
+    {
+        $this->mock(QuizPublishService::class, function ($mock) {
+            $mock->shouldReceive('publish')->once()->andThrow(new \RuntimeException('publish failed'));
+        });
+        $lessonActivityId = $this->quizActivityLesson('Rollback Quiz');
+
+        try {
+            (new QuizWorkbookImport())->commit($this->workbook([$this->fullRow()]), [], $this->admin->id, $lessonActivityId);
+            $this->fail('Publish failure must leave the import transaction.');
+        } catch (\RuntimeException $exception) {
+            $this->assertSame('publish failed', $exception->getMessage());
+        }
+
+        $this->assertDatabaseCount('questions', 0);
+        $this->assertDatabaseCount('quiz_workbook_fields', 0);
+        $this->assertDatabaseCount('quizes', 0);
+        $this->assertDatabaseCount('quizes_questions', 0);
+        $this->assertDatabaseCount('quiz_versions', 0);
+        $this->assertDatabaseCount('quiz_snapshots', 0);
+    }
+
+    public function test_add_quiz_still_publishes_from_the_controller(): void
+    {
+        $source = file_get_contents(app_path('Http/Controllers/Api/AdminControllers/QuizesController.php'));
+
+        $this->assertStringContainsString('private function publishQuizRuntime(int $quizId): void', $source);
+        $this->assertStringContainsString('$this->publishQuizRuntime((int) $quize->id);', $source);
+        $this->assertStringContainsString("'published_by' => auth()->user()->id ?? null,", $source);
+    }
+
+    public function test_quiz_placement_accepts_lowercase_quizzes_and_rejects_other_activity_types(): void
+    {
+        $gamesActivityId = DB::table('subject_activities')->insertGetId([
+            'type' => 'games',
+            'subject_id' => $this->subject->id,
+            'unit_id' => $this->unit->id,
+        ]);
+        $gamesLessonId = DB::table('activity_lessons')->insertGetId([
+            'name_en' => 'Game Lesson',
+            'subject_activity_id' => $gamesActivityId,
+            'lesson_id' => $this->lesson->id,
+        ]);
+        $path = $this->workbook([$this->fullRow()]);
+
+        $rejected = (new QuizWorkbookImport())->commit($path, [], $this->admin->id, $gamesLessonId);
+
+        $this->assertFalse($rejected['written']);
+        $this->assertSame('The selected lesson is not a quiz activity lesson. Nothing was saved.', $rejected['message']);
+        $this->assertDatabaseCount('questions', 0);
+        $this->assertDatabaseCount('quizes', 0);
+
+        $nullActivityId = DB::table('subject_activities')->insertGetId([
+            'type' => null,
+            'subject_id' => $this->subject->id,
+            'unit_id' => $this->unit->id,
+        ]);
+        $nullLessonId = DB::table('activity_lessons')->insertGetId([
+            'name_en' => 'Null Type Lesson',
+            'subject_activity_id' => $nullActivityId,
+            'lesson_id' => $this->lesson->id,
+        ]);
+        $warnings = [];
+        set_error_handler(function ($severity, $message) use (&$warnings) {
+            $warnings[] = $message;
+
+            return true;
+        });
+        try {
+            $nullRejected = (new QuizWorkbookImport())->commit($path, [], $this->admin->id, $nullLessonId);
+        } finally {
+            restore_error_handler();
+        }
+        $this->assertSame([], $warnings);
+        $this->assertFalse($nullRejected['written']);
+        $this->assertSame('The selected lesson is not a quiz activity lesson. Nothing was saved.', $nullRejected['message']);
+        $this->assertDatabaseCount('questions', 0);
+        $this->assertDatabaseCount('quizes', 0);
+
+        $quizActivityId = DB::table('subject_activities')->insertGetId([
+            'type' => 'quizzes',
+            'subject_id' => $this->subject->id,
+            'unit_id' => $this->unit->id,
+        ]);
+        $quizLessonId = DB::table('activity_lessons')->insertGetId([
+            'name_en' => 'Stored Quiz Lesson',
+            'subject_activity_id' => $quizActivityId,
+            'lesson_id' => $this->lesson->id,
+        ]);
+        $capitalActivityId = DB::table('subject_activities')->insertGetId([
+            'type' => 'Quizzes',
+            'subject_id' => $this->subject->id,
+            'unit_id' => $this->unit->id,
+        ]);
+        $capitalLessonId = DB::table('activity_lessons')->insertGetId([
+            'name_en' => 'Capital Quiz Lesson',
+            'subject_activity_id' => $capitalActivityId,
+            'lesson_id' => $this->lesson->id,
+        ]);
+        $capitalPath = $this->workbook([$this->secondRow()]);
+        $dispatcher = Quizes::getEventDispatcher();
+        Quizes::unsetEventDispatcher();
+        try {
+            $saved = (new QuizWorkbookImport())->commit($path, [], $this->admin->id, $quizLessonId);
+            $capitalSaved = (new QuizWorkbookImport())->commit($capitalPath, [], $this->admin->id, $capitalLessonId);
+        } finally {
+            Quizes::setEventDispatcher($dispatcher);
+        }
+
+        $this->assertTrue($saved['written']);
+        $this->assertSame($quizLessonId, (int) Quizes::find($saved['quiz_id'])->activity_lesson_id);
+        $this->assertTrue($capitalSaved['written']);
+        $this->assertSame($capitalLessonId, (int) Quizes::find($capitalSaved['quiz_id'])->activity_lesson_id);
+        $this->assertDatabaseCount('questions', 2);
+        $this->assertDatabaseCount('quizes', 2);
     }
 
     public function test_empty_answer_prevents_a_false_duplicate_inside_the_file_and_against_existing_rows(): void
@@ -302,6 +642,70 @@ class QuizWorkbookImportTest extends TestCase
         $this->assertDatabaseCount('questions', 0);
     }
 
+    public function test_the_original_template_has_no_questions_and_skips_the_instruction_row(): void
+    {
+        $path = base_path('../abutabl-admin/public/quiz.xlsx');
+        $this->assertFileExists($path);
+
+        $preview = (new QuizWorkbookImport())->preview($path);
+
+        $this->assertFalse($preview['valid']);
+        $this->assertSame([], $preview['rows']);
+        $this->assertSame(['The workbook contains no questions to import.'], $preview['file_errors']);
+        $encoded = json_encode($preview);
+        $this->assertStringNotContainsString('Subject was not found.', $encoded);
+        $this->assertStringNotContainsString('Question Type must be MCQ, TF, SHN, or Matching.', $encoded);
+        $this->assertStringNotContainsString('Correct Answer is required.', $encoded);
+
+        $result = (new QuizWorkbookImport())->commit($path, [], $this->admin->id);
+        $this->assertFalse($result['written']);
+        $this->assertSame('The workbook contains no questions to import.', $result['message']);
+        $this->assertDatabaseCount('questions', 0);
+        $this->assertDatabaseCount('quizes', 0);
+    }
+
+    public function test_a_real_question_row_is_still_validated_when_the_instruction_and_blank_rows_are_present(): void
+    {
+        $instruction = array_fill(0, 26, null);
+        $instruction[6] = QuizWorkbookImport::TEMPLATE_INSTRUCTION_HEAD;
+        $blank = array_fill(0, 26, null);
+        $partial = array_fill(0, 26, null);
+        $partial[6] = 'A real stem with missing fields';
+        $path = $this->workbook([$this->legendRow(), $instruction, $blank, $partial]);
+
+        $preview = (new QuizWorkbookImport())->preview($path);
+
+        $this->assertFalse($preview['valid']);
+        $this->assertSame([], $preview['file_errors']);
+        $this->assertCount(1, $preview['rows']);
+        $this->assertSame(5, $preview['rows'][0]['row']);
+        $this->assertSame('error', $preview['rows'][0]['status']);
+        $errors = implode(' ', $preview['rows'][0]['errors']);
+        $this->assertStringContainsString('Subject was not found.', $errors);
+        $this->assertStringContainsString('Question Type must be MCQ, TF, SHN, or Matching.', $errors);
+        $this->assertStringContainsString('Correct Answer is required.', $errors);
+
+        $this->assertFalse((new QuizWorkbookImport())->commit($path, [], $this->admin->id)['written']);
+        $this->assertDatabaseCount('questions', 0);
+    }
+
+    public function test_the_instruction_sentence_is_a_question_when_another_cell_is_filled(): void
+    {
+        $row = $this->fullRow();
+        $row[6] = QuizWorkbookImport::TEMPLATE_INSTRUCTION_HEAD;
+        $row[3] = '';
+        $path = $this->workbook([$row]);
+
+        $preview = (new QuizWorkbookImport())->preview($path);
+
+        $this->assertCount(1, $preview['rows']);
+        $this->assertSame('error', $preview['rows'][0]['status']);
+        $this->assertStringContainsString(
+            'Question Type must be MCQ, TF, SHN, or Matching.',
+            implode(' ', $preview['rows'][0]['errors'])
+        );
+    }
+
     public function test_answer1_and_answer2_are_required_for_every_question_type_and_answer3_is_optional(): void
     {
         $missing = $this->fullRow();
@@ -317,6 +721,9 @@ class QuizWorkbookImportTest extends TestCase
             $row = $this->fullRow();
             $row[3] = $type;
             $row[9] = 'Stem for '.$type;
+            if ($type === 'Matching') {
+                $row[12] = '1|2';
+            }
             $row[21] = '';
             $row[24] = '';
             $preview = (new QuizWorkbookImport())->preview($this->workbook([$row]));
@@ -482,6 +889,47 @@ class QuizWorkbookImportTest extends TestCase
         $this->assertStringNotContainsString('QuizWorkbookImport', $activityController);
     }
 
+    public function test_correct_answer_format_follows_the_question_type(): void
+    {
+        $cases = [
+            ['MCQ', '3', 'ok', null],
+            ['MCQ', 'Bird', 'ok', null],
+            ['MCQ', '5', 'error', 'choice number from 1 to 4'],
+            ['MCQ', 'cat', 'error', 'exact text of one answer'],
+            ['MCQ', '1,2', 'error', 'choice number from 1 to 4'],
+            ['TF', ' Yes ', 'ok', null],
+            ['TF', 'FALSE', 'ok', null],
+            ['TF', '0', 'ok', null],
+            ['TF', 't', 'error', '1, 0, true, false, yes, or no'],
+            ['TF', 'maybe', 'error', '1, 0, true, false, yes, or no'],
+            ['SHN', 'أي نص', 'ok', null],
+            ['SHN', '   ', 'error', 'Correct Answer is required.'],
+            ['Matching', '2|1, 1|2', 'ok', null],
+            ['Matching', '1|2,1|3', 'error', 'cannot repeat either side'],
+            ['Matching', '1|2,3|2', 'error', 'cannot repeat either side'],
+            ['Matching', '1:2,2:1', 'error', 'pairs like 1|2,2|1'],
+            ['Matching', '1|5,2|1', 'error', 'pairs like 1|2,2|1'],
+        ];
+
+        foreach ($cases as [$type, $correct, $status, $message]) {
+            $row = $this->fullRow();
+            $row[3] = $type;
+            $row[12] = $correct;
+            $preview = (new QuizWorkbookImport())->preview($this->workbook([$row]));
+            $parsed = $preview['rows'][0];
+
+            $this->assertSame($status, $parsed['status'], $type.' '.$correct);
+            if ($status === 'ok') {
+                $this->assertSame(trim((string) $correct), $parsed['fields']['corAnswer']);
+                $this->assertSame([], $parsed['errors']);
+            } else {
+                $this->assertStringContainsString($message, implode(' ', $parsed['errors']));
+            }
+        }
+
+        $this->assertDatabaseCount('questions', 0);
+    }
+
     private function buildPrivateSchema(): void
     {
         Schema::dropAllTables();
@@ -567,6 +1015,74 @@ class QuizWorkbookImportTest extends TestCase
             $table->bigIncrements('id');
             $table->string('title_en')->nullable();
             $table->string('title_ar')->nullable();
+            $table->string('status')->nullable();
+            $table->unsignedBigInteger('subject_id')->nullable();
+            $table->unsignedBigInteger('unit_id')->nullable();
+            $table->unsignedBigInteger('lesson_id')->nullable();
+            $table->unsignedBigInteger('created_by')->nullable();
+            $table->string('navigation_method')->nullable();
+            $table->string('questions_per_page')->nullable();
+            $table->string('score_method')->nullable();
+            $table->double('score_to_pass')->nullable();
+            $table->string('unlimited_attempts')->nullable();
+            $table->integer('num_attempts')->nullable();
+            $table->string('notify_student')->nullable();
+            $table->string('notify_about_submission')->nullable();
+            $table->string('notify_about_late_submission')->nullable();
+            $table->string('reminder_before_due_date')->nullable();
+            $table->date('start_date')->nullable();
+            $table->date('due_date')->nullable();
+            $table->integer('time_limit')->nullable();
+            $table->string('type_time')->nullable();
+            $table->unsignedBigInteger('activity_lesson_id')->nullable();
+            $table->timestamps();
+        });
+        Schema::create('quizes_questions', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->unsignedBigInteger('quize_id')->nullable();
+            $table->unsignedBigInteger('question_id')->nullable();
+            $table->double('score')->nullable();
+            $table->unsignedBigInteger('created_by')->nullable();
+            $table->timestamps();
+        });
+        Schema::create('quiz_versions', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->unsignedBigInteger('quiz_id');
+            $table->unsignedInteger('version_number');
+            $table->string('status', 32)->default('draft');
+            $table->char('content_hash', 64)->nullable();
+            $table->json('settings_frozen')->nullable();
+            $table->unsignedBigInteger('published_by')->nullable();
+            $table->timestamp('published_at')->nullable();
+            $table->timestamp('source_definition_updated_at')->nullable();
+            $table->timestamps();
+            $table->foreign('quiz_id')->references('id')->on('quizes');
+            $table->foreign('published_by')->references('id')->on('users');
+        });
+        Schema::create('quiz_snapshots', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->unsignedBigInteger('quiz_version_id');
+            $table->unsignedBigInteger('quiz_id');
+            $table->char('content_hash', 64)->nullable();
+            $table->json('payload');
+            $table->unsignedInteger('item_count')->default(0);
+            $table->timestamps();
+            $table->foreign('quiz_version_id')->references('id')->on('quiz_versions');
+            $table->foreign('quiz_id')->references('id')->on('quizes');
+        });
+        Schema::create('subject_activities', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->string('type')->nullable();
+            $table->unsignedBigInteger('subject_id')->nullable();
+            $table->unsignedBigInteger('unit_id')->nullable();
+            $table->timestamps();
+        });
+        Schema::create('activity_lessons', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->string('name_en')->nullable();
+            $table->string('name_ar')->nullable();
+            $table->unsignedBigInteger('subject_activity_id')->nullable();
+            $table->unsignedBigInteger('lesson_id')->nullable();
             $table->timestamps();
         });
         Schema::create('permissions', function (Blueprint $table) {
@@ -697,6 +1213,22 @@ class QuizWorkbookImportTest extends TestCase
         $row[25] = 8;
 
         return $row;
+    }
+
+    private function quizActivityLesson(string $name): int
+    {
+        $activityId = DB::table('subject_activities')->insertGetId([
+            'type' => 'quizzes',
+            'subject_id' => $this->subject->id,
+            'unit_id' => $this->unit->id,
+        ]);
+
+        return (int) DB::table('activity_lessons')->insertGetId([
+            'name_en' => $name,
+            'name_ar' => $name,
+            'subject_activity_id' => $activityId,
+            'lesson_id' => $this->lesson->id,
+        ]);
     }
 
     private function seedQuestion(string $question, string $correct, string $a1, string $a2, string $a3, string $a4): Questions

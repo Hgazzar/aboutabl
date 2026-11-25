@@ -260,6 +260,8 @@ Route::group([ 'middleware' => ['api' , 'checkSecretApi' , 'changeLanguage','che
     Route::post('/quizes/assignQuestion/{id}','QuizesController@assignQuestion');
     Route::delete('/quizes/delete/{id}','QuizesController@destroy');
     Route::post('/quizes/update/{id}','QuizesController@update');
+    Route::post('/quizes/status/{id}','QuizesController@status');
+    Route::post('/quizes/list_fields/{id}','QuizesController@listFields');
 
         //// questions
     Route::post('/questions/fileImport','QuestionsController@fileImport');

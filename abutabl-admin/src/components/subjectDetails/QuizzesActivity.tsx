@@ -1,5 +1,5 @@
 import { Box, Grid, Typography, Divider } from "@mui/material";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import Button from "../shared/Button";
 import AddCircleOutlineRoundedIcon from "@mui/icons-material/AddCircleOutlineRounded";
 import DataTable from "../shared/DataTable";
@@ -8,17 +8,15 @@ import ActionDropdown from "../shared/ActionDropdown";
 import { useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "../../redux/store";
-import { buildTemplateUrl } from "../../utils/fetchMethods";
 import {
   deleteContent,
-  editContentInLesson,
-  viewContent,
   getActivities,
   getActivityLessons,
   getActivityLessonDetails,
   deleteActivity,
   deleteLessonActivity,
-  uploadDataActivity,
+  changeQuizStatus,
+  updateQuizListFields,
 } from "../../redux/reducers/subjectsReducer";
 import Placeholder from "../shared/Placeholder";
 import AddLessonModal from "../modals/AddLessonModal";
@@ -30,6 +28,8 @@ import { useTranslation } from "react-i18next";
 import AddActivityModal from "../modals/AddActivityModal";
 import Cookies from "js-cookie";
 import Pagination from "../shared/Pagination";
+import QuizWorkbookImportPage from "../../pages/subjects/QuizWorkbookImportPage";
+import { isAdminUser } from "../../utils/authSession";
 
 const QuizzesActivity = () => {
   const handleChangePage = async (page: number) => {
@@ -39,6 +39,11 @@ const QuizzesActivity = () => {
   const lang = i18n.language;
 
   const { t } = useTranslation();
+  const user = useSelector((state: RootState) => state.login?.user);
+  const showScoreToPass = isAdminUser(user as Record<string, unknown> | null | undefined);
+  const saveFieldRef = React.useRef<
+    (id: number, patch: { score_to_pass?: string; code?: string }) => Promise<void>
+  >(async () => {});
   const columns = [
     {
       name: t("fileName"),
@@ -48,11 +53,30 @@ const QuizzesActivity = () => {
           : row.title_ar ?? row.title_en,
       width: "20%",
     },
-    {
-      name: t("scoretopass"),
-      selector: (row: any) => row.score_to_pass,
-      width: "15%",
-    },
+    ...(showScoreToPass
+      ? [
+          {
+            name: t("scoretopass"),
+            width: "15%",
+            cell: (row: any) => (
+              <input
+                type="number"
+                min={0}
+                data-testid="quiz-score-to-pass"
+                defaultValue={row.score_to_pass ?? 0}
+                onClick={(event) => event.stopPropagation()}
+                onMouseDown={(event) => event.stopPropagation()}
+                onBlur={(event) => {
+                  const next = event.target.value;
+                  if (String(row.score_to_pass ?? "") === next) return;
+                  saveFieldRef.current(row.id, { score_to_pass: next });
+                }}
+                style={{ width: "100%", border: "1px solid #091E4224", borderRadius: 4, padding: "6px 8px" }}
+              />
+            ),
+          },
+        ]
+      : []),
 
     {
       name: t("createdAt"),
@@ -61,8 +85,23 @@ const QuizzesActivity = () => {
     },
     {
       name: t("code"),
-      selector: (row: any) => row.code,
       width: "14%",
+      cell: (row: any) => (
+        <input
+          type="text"
+          maxLength={255}
+          defaultValue={row.code ?? ""}
+          placeholder="code"
+          onClick={(event) => event.stopPropagation()}
+          onMouseDown={(event) => event.stopPropagation()}
+          onBlur={(event) => {
+            const next = event.target.value;
+            if (String(row.code ?? "") === next) return;
+            saveFieldRef.current(row.id, { code: next });
+          }}
+          style={{ width: "100%", border: "1px solid #091E4224", borderRadius: 4, padding: "6px 8px" }}
+        />
+      ),
     },
     {
       name: t("status"),
@@ -96,6 +135,25 @@ const QuizzesActivity = () => {
   const [selectedLesson, setSelectedLesson] = useState<any>({});
   const [lessonId, setLessonId] = useState<any>("");
   const [rows, setRows] = useState<any>([]);
+  saveFieldRef.current = async (id, patch) => {
+    try {
+      const result = await dispatch(updateQuizListFields({ id, ...patch })).unwrap();
+      const saved = result?.quiz ?? result?.data?.quiz;
+      setRows((current: any[]) =>
+        current.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                score_to_pass: saved?.score_to_pass ?? patch.score_to_pass ?? item.score_to_pass,
+                code: saved?.code ?? (patch.code === "" ? null : patch.code ?? item.code),
+              }
+            : item
+        )
+      );
+    } catch (error) {
+      return;
+    }
+  };
   const [updateContent, setUpdateContent] = useState(false);
   const [activityToDelete, setActivityToDelete] = useState<any>(null);
   const [lessonActivityToDelete, setLessonActivityToDelete] = useState<any>(null);
@@ -122,21 +180,12 @@ const QuizzesActivity = () => {
                     <SwitchBox
                       value={(item.status_raw == 1 || item.status !== "In-active") ? 1 : 0}
                       onChange={async () => {
-                        const currentlyActive = item.status_raw == 1 || item.status !== "In-active";
-                        await dispatch(viewContent(item.id))
-                          .unwrap()
-                          .then((result: any) => {
-                            dispatch(
-                              editContentInLesson({
-                                data: {
-                                  ...result.data,
-                                  ...item,
-                                  status: currentlyActive ? "0" : "1",
-                                },
-                                id: item.id,
-                              })
-                            ).unwrap();
-                          });
+                        try {
+                          await dispatch(changeQuizStatus(item.id)).unwrap();
+                          setUpdateContent((current) => !current);
+                        } catch (error) {
+                          return;
+                        }
                       }}
                     />
                   ),
@@ -198,21 +247,12 @@ const QuizzesActivity = () => {
                     <SwitchBox
                       value={(item.status_raw == 1 || item.status !== "In-active") ? 1 : 0}
                       onChange={async () => {
-                        const currentlyActive = item.status_raw == 1 || item.status !== "In-active";
-                        await dispatch(viewContent(item.id))
-                          .unwrap()
-                          .then((result: any) => {
-                            dispatch(
-                              editContentInLesson({
-                                data: {
-                                  ...result.data,
-                                  ...item,
-                                  status: currentlyActive ? "0" : "1",
-                                },
-                                id: item.id,
-                              })
-                            ).unwrap();
-                          });
+                        try {
+                          await dispatch(changeQuizStatus(item.id)).unwrap();
+                          setUpdateContent((current) => !current);
+                        } catch (error) {
+                          return;
+                        }
                       }}
                     />
                   ),
@@ -250,60 +290,6 @@ const QuizzesActivity = () => {
         });
     }
   }, [lessonId, updateContent]);
-  const downloadBlankFile = async () => {
-    // Use setTimeout to ensure window.open is not blocked by file chooser
-    // Increased delay to 300ms to ensure file chooser dialog is fully closed
-    setTimeout(() => {
-      const newWindow = window.open(
-        buildTemplateUrl(process.env.REACT_APP_BASE_URL, "/Activities Questions Template.xlsx"),
-        "_blank"
-      );
-      // Fallback if popup is blocked - try again after a longer delay
-      if (!newWindow) {
-        setTimeout(() => {
-          window.open(
-            buildTemplateUrl(process.env.REACT_APP_BASE_URL, "/Activities Questions Template.xlsx"),
-            "_blank"
-          );
-        }, 200);
-      }
-    }, 300);
-  };
-  const downloadQuizzesDemoFile = async () => {
-    setTimeout(() => {
-      const url = buildTemplateUrl(
-        process.env.REACT_APP_BASE_URL,
-        "/activities-quizzes-demo.xlsx"
-      );
-      const newWindow = window.open(url, "_blank");
-      if (!newWindow) {
-        setTimeout(() => window.open(url, "_blank"), 200);
-      }
-    }, 300);
-  };
-  const [file, setFile] = useState<any>(null);
-  const fileInput: any = useRef(null);
-  const fileToUploadRef = useRef<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-
-  useEffect(() => {
-    const fileToSend = fileToUploadRef.current;
-    if (!fileToSend || !(fileToSend instanceof File)) {
-      if (file) setFile(null);
-      return;
-    }
-    (async () => {
-      setIsUploading(true);
-      try {
-        await dispatch(uploadDataActivity({ subject_id: param.id, activity_lesson_id: lessonId || undefined, file: fileToSend }));
-        await updateLessons(lessonData);
-      } finally {
-        fileToUploadRef.current = null;
-        setFile(null);
-        setIsUploading(false);
-      }
-    })();
-  }, [file]);
 
   const permissionState = useSelector((state: RootState) => state.permissions);
   const addUnits = permissionState?.permissions?.units?.find(
@@ -619,52 +605,12 @@ const QuizzesActivity = () => {
                             }
                           />
                         )}
-                        {addquizes && (
-                          <div className="flex">
-                            <Button
-                              label={t("downloadTemplate")}
-                              type="bordered"
-                              className="w-30 m-3"
-                              onClick={downloadBlankFile}
-                            />
-                            <Button
-                              label={t("downloadQuizzesDemo")}
-                              type="bordered"
-                              className="w-30 m-3"
-                              onClick={downloadQuizzesDemoFile}
-                            />
-                            <Button
-                              onClick={() => {
-                                fileInput?.current?.click();
-                              }}
-                              label={t("uploadQuizzes")}
-                              type="bordered"
-                              className="w-30 m-3"
-                            />
-
-                            {!isUploading && (
-                              <input
-                                style={{ display: "none" }}
-                                ref={fileInput}
-                                type="file"
-                                id="file-upload-quizzes"
-                                name="file"
-                                accept="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                                onChange={(event: any) => {
-                                  const fileList = event.target.files;
-                                  if (!fileList?.length) return;
-                                  const selectedFile = fileList[0];
-                                  fileToUploadRef.current = selectedFile;
-                                  setFile(selectedFile);
-                                  // Reset the input value to allow re-selection and prevent blocking issues
-                                  event.target.value = '';
-                                }}
-                              />
-                            )}
-                          </div>
-                        )}
                       </Box>
                     </Box>
+                    <QuizWorkbookImportPage
+                      activityLessonId={Number(lessonId)}
+                      onCommitted={() => updateLessons(lessonData)}
+                    />
                     <DataTable
                       data={rows}
                       columns={columns}

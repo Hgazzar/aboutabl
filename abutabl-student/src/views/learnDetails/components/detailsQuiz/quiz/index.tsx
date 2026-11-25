@@ -382,12 +382,20 @@ export default function Quiz() {
 											<Box className="gap-3">
 												{mcqOptions.map((item, index) => (
 													<Box
-														className="border border-Platinum rounded-[30px] p-5 m-5 shadow-custom-sm hover:bg-Lotion cursor-pointer h-[100px] w-[100px]"
+														className="border border-Platinum rounded-[30px] p-5 m-5 shadow-custom-sm hover:bg-Lotion cursor-pointer flex min-h-[100px] h-auto w-[100px] flex-col items-center"
 														key={item.key}
 														draggable
 														onDragStart={(e: any) => handleDragStart(index, e)}
 													>
-														{String(item.text ?? '')}
+														{item.image ? (
+															<img src={String(item.image)} className="h-[60px] w-[100px]" alt="" />
+														) : null}
+														{item.text != null && String(item.text) !== '' ? (
+															<span>{String(item.text)}</span>
+														) : null}
+														{item.audio ? (
+															<audio controls src={String(item.audio)} />
+														) : null}
 													</Box>
 												))}
 											</Box>
@@ -431,16 +439,20 @@ export default function Quiz() {
 															handleCheckboxChange(item.index, e.target.checked)
 														}
 													/>
-													<Box className="border border-Platinum rounded-[30px] p-5 m-5 cursor-pointer shadow-custom-sm h-[100px] w-[100px]">
+													<Box className="border border-Platinum rounded-[30px] p-5 m-5 cursor-pointer shadow-custom-sm flex min-h-[100px] h-auto w-[100px] flex-col items-center">
 														{item.image ? (
 															<img
 																src={String(item.image)}
 																className="h-[60px] w-[100px]"
 																alt=""
 															/>
-														) : (
-															String(item.text ?? '')
-														)}
+														) : null}
+														{item.text != null && String(item.text) !== '' ? (
+															<span>{String(item.text)}</span>
+														) : null}
+														{item.audio ? (
+															<audio controls src={String(item.audio)} />
+														) : null}
 													</Box>
 												</Box>
 											))}

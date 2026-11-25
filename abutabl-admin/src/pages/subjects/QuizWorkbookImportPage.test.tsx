@@ -157,7 +157,7 @@ describe("quiz workbook import", () => {
 
     await screen.findByTestId("quiz-workbook-result");
     expect(commitMock).toHaveBeenCalledTimes(1);
-    expect(commitMock).toHaveBeenCalledWith(file, [{ row: 4, decision: "create_new" }]);
+    expect(commitMock).toHaveBeenCalledWith(file, [{ row: 4, decision: "create_new" }], undefined);
     expect(screen.getByText(/#88/)).toBeInTheDocument();
   });
 
@@ -225,6 +225,7 @@ describe("quiz workbook import", () => {
     const body = workbookFormData(file, [{ row: 4, decision: "skip" }]);
     expect(body.get("file")).toBe(file);
     expect(body.get("decisions")).toBe(JSON.stringify([{ row: 4, decision: "skip" }]));
+    expect(workbookFormData(file, undefined, 15).get("activity_lesson_id")).toBe("15");
     expect(canCommit(validDuplicate.preview, { 4: "" })).toBe(false);
     expect(canCommit(validDuplicate.preview, { 4: "skip" })).toBe(true);
     expect(decisionsPayload(validDuplicate.preview.rows, { 4: "skip" })).toEqual([
@@ -252,21 +253,30 @@ describe("quiz workbook import", () => {
     expect(showQuizWorkbookNav({ type: "teacher" }, true)).toBe(false);
   });
 
-  it("keeps activity quiz upload on the activity lesson importer", () => {
+  it("replaces the quiz screen upload and leaves games and worksheets on the old importer", () => {
     const screenSource = fs.readFileSync(
       path.join(__dirname, "../../components/subjectDetails/QuizzesActivity.tsx"),
+      "utf8"
+    );
+    const games = fs.readFileSync(
+      path.join(__dirname, "../../components/subjectDetails/GamesActivity.tsx"),
+      "utf8"
+    );
+    const worksheets = fs.readFileSync(
+      path.join(__dirname, "../../components/subjectDetails/WorkSheetsActivity.tsx"),
       "utf8"
     );
     const reducer = fs.readFileSync(
       path.join(__dirname, "../../redux/reducers/subjectsReducer.tsx"),
       "utf8"
     );
-    expect(screenSource).toContain("uploadDataActivity");
-    expect(screenSource).toContain('"/Activities Questions Template.xlsx"');
-    expect(screenSource).toContain('"/activities-quizzes-demo.xlsx"');
+    expect(screenSource).toContain("QuizWorkbookImportPage");
+    expect(screenSource).toContain("activityLessonId={Number(lessonId)}");
+    expect(screenSource).not.toContain("uploadDataActivity");
     expect(screenSource).toContain("/subjects/${param.id}/add-quiz");
-    expect(screenSource).not.toContain("quiz-workbook-import");
-    expect(screenSource).not.toContain("QUIZ_WORKBOOK_TEMPLATE_PATH");
+    expect(games).toContain("uploadDataActivity");
+    expect(games).toContain('"/Activities Questions Template.xlsx"');
+    expect(worksheets).toContain("uploadDataActivity");
     expect(reducer).toContain('"/api/activity_lessons/fileImport"');
   });
 

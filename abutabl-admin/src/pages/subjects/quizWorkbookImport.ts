@@ -101,6 +101,7 @@ export type ImportResult = {
   skipped?: number[];
   rows?: PreviewRow[];
   file_errors?: string[];
+  quiz_id?: number | null;
 };
 
 export function cellForHeader(fields: WorkbookFields | undefined, index: number): string {
@@ -181,12 +182,16 @@ export function decisionsPayload(
 
 export function workbookFormData(
   file: File,
-  decisions?: { row: number; decision: WorkbookDecision }[]
+  decisions?: { row: number; decision: WorkbookDecision }[],
+  activityLessonId?: number
 ): FormData {
   const body = new FormData();
   body.append("file", file);
   if (decisions) {
     body.append("decisions", JSON.stringify(decisions));
+  }
+  if (activityLessonId) {
+    body.append("activity_lesson_id", String(activityLessonId));
   }
   return body;
 }
